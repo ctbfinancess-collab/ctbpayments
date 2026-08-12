@@ -1,0 +1,15 @@
+apk-original/
+apk-extracted/
+jadx-output/
+hermes-decomp/
+
+ctbx-payments/node_modules/
+ctbx-payments/.expo/
+
+.DS_Store
+ctbx-payments/assets/legacy/index.html
+ctbx-payments/hermes-modules/
+ctbx-payments/mapa-app.txt
+ctbx-payments/mapa-limpo.txt
+ctbx-payments/mapa-navegacao.txt
+ctbx-payments/telas-limpas.txt
