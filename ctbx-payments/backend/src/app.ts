@@ -15,6 +15,9 @@ import { SandboxPixProvider } from './providers/sandbox/SandboxPixProvider.js';
 import { SandboxPaymentProvider } from './providers/sandbox/SandboxPaymentProvider.js';
 import { SandboxSessionStore } from './providers/sandbox/SandboxSessionStore.js';
 import { SandboxTransferProvider } from './providers/sandbox/SandboxTransferProvider.js';
+import { SandboxInvestmentProvider } from './providers/sandbox/SandboxInvestmentProvider.js';
+import { SandboxBillingProvider } from './providers/sandbox/SandboxBillingProvider.js';
+import { SandboxConsignedProvider } from './providers/sandbox/SandboxConsignedProvider.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 
@@ -35,6 +38,9 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
     transfer: new SandboxTransferProvider(config.nodeEnv, challenge),
     challenge,
     payment: new SandboxPaymentProvider(config.nodeEnv, challenge),
+    investment: new SandboxInvestmentProvider(config.nodeEnv),
+    billing: new SandboxBillingProvider(config.nodeEnv),
+    consigned: new SandboxConsignedProvider(config.nodeEnv),
   };
 }
 

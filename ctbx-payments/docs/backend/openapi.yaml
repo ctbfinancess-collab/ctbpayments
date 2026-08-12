@@ -955,6 +955,48 @@ paths:
                 currency: { type: string, enum: [BRL] }
       responses:
         '200': { description: Recarga TOP exclusivamente simulada, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
+  /v1/investments/products:
+    get: { tags: [Investments], operationId: listInvestmentProducts, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Produtos exclusivamente fictícios SANDBOX }, '401': { $ref: '#/components/responses/ErrorResponse' } } }
+  /v1/investments/simulations:
+    post: { tags: [Investments], operationId: simulateInvestment, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Projeção matemática demonstrativa }, '422': { $ref: '#/components/responses/ErrorResponse' } } }
+  /v1/investments/orders:
+    post: { tags: [Investments], operationId: createInvestmentOrder, parameters: [{ $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: Contratação simulada SANDBOX }, '409': { $ref: '#/components/responses/ErrorResponse' } } }
+  /v1/investments/positions:
+    get: { tags: [Investments], operationId: listInvestmentPositions, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Posições derivadas das ordens em memória } } }
+  /v1/investments/orders/{id}:
+    get: { tags: [Investments], operationId: getInvestmentOrder, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Ordem simulada }, '404': { $ref: '#/components/responses/ErrorResponse' } } }
+  /v1/investments/orders/{id}/receipt:
+    get: { tags: [Investments], operationId: getInvestmentReceipt, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Comprovante estrutural SANDBOX } } }
+  /v1/billing/payers:
+    get: { tags: [Billing], operationId: listBillingPayers, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Sacados fictícios mascarados } } }
+    post: { tags: [Billing], operationId: createBillingPayer, parameters: [{ $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: Sacado fictício criado em memória } } }
+  /v1/billing/payers/{id}:
+    put: { tags: [Billing], operationId: updateBillingPayer, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Sacado fictício atualizado em memória }, '404': { $ref: '#/components/responses/ErrorResponse' } } }
+    delete: { tags: [Billing], operationId: deleteBillingPayer, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Sacado fictício removido da memória }, '404': { $ref: '#/components/responses/ErrorResponse' } } }
+  /v1/billing/limits:
+    get: { tags: [Billing], operationId: getBillingLimits, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Limite demonstrativo de quantidade } } }
+  /v1/billing/bills:
+    get: { tags: [Billing], operationId: listBillingBills, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Cobranças SANDBOX } } }
+    post: { tags: [Billing], operationId: issueBillingBill, parameters: [{ $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: Cobrança estrutural não bancária }, '409': { $ref: '#/components/responses/ErrorResponse' } } }
+  /v1/billing/bills/{id}:
+    get: { tags: [Billing], operationId: getBillingBill, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Cobrança SANDBOX } } }
+  /v1/billing/bills/{id}/receipt:
+    get: { tags: [Billing], operationId: getBillingReceipt, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Não é boleto bancário real } } }
+  /v1/billing/bills/{id}/share:
+    post: { tags: [Billing], operationId: shareBillingBill, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Compartilhamento apenas simulado no canal SANDBOX } } }
+  /v1/consigned/products:
+    get: { tags: [Consigned], operationId: listConsignedProducts, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Produtos fictícios sem elegibilidade real } } }
+  /v1/consigned/products/{id}/documents:
+    get: { tags: [Consigned], operationId: getConsignedDocuments, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Checklist estrutural sem upload de documentos reais } } }
+  /v1/consigned/products/{id}/terms:
+    get: { tags: [Consigned], operationId: getConsignedTerms, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Termos exclusivamente simulados } } }
+  /v1/consigned/applications:
+    get: { tags: [Consigned], operationId: listConsignedApplications, parameters: [{ $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Solicitações SANDBOX } } }
+    post: { tags: [Consigned], operationId: createConsignedApplication, parameters: [{ $ref: '#/components/parameters/DeviceId' }, { $ref: '#/components/parameters/IdempotencyKey' }], responses: { '200': { description: Solicitação simulada em análise }, '409': { $ref: '#/components/responses/ErrorResponse' } } }
+  /v1/consigned/applications/{id}:
+    get: { tags: [Consigned], operationId: getConsignedApplication, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Status SANDBOX } } }
+  /v1/consigned/applications/{id}/receipt:
+    get: { tags: [Consigned], operationId: getConsignedReceipt, parameters: [{ $ref: '#/components/parameters/ResourceId' }, { $ref: '#/components/parameters/DeviceId' }], responses: { '200': { description: Comprovante de solicitação simulada } } }
   /v1/security/challenges:
     post:
       tags: [Security]

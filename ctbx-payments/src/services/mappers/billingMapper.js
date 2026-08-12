@@ -1,0 +1,1 @@
+import{formatCents}from'./accountMapper';export const mapBillingPayer=x=>x;export const mapBillingBill=x=>{if(!Number.isInteger(x.amountMinor))throw new TypeError('amountMinor must use integer minor units');return{...x,value:formatCents(x.amountMinor),code:x.digitableLineSandbox,simulated:x.simulated===true}};

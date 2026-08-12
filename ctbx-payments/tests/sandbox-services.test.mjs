@@ -17,6 +17,12 @@ import statementServiceModule from '../src/services/statementService.js';
 import sandboxAuthModule from '../src/services/sandboxAuthClient.js';
 import reducerModule from '../src/session/sessionReducer.js';
 import statementUtilsModule from '../src/utils/statementUtils.js';
+import investmentServiceModule from '../src/services/investmentService.js';
+import billingServiceModule from '../src/services/billingService.js';
+import consignedServiceModule from '../src/services/consignedService.js';
+import investmentMapperModule from '../src/services/mappers/investmentMapper.js';
+import billingMapperModule from '../src/services/mappers/billingMapper.js';
+import consignedMapperModule from '../src/services/mappers/consignedMapper.js';
 
 const { apiClient, buildAuthHeaders, configureApiClient } = apiClientModule;
 const ApiError = ApiErrorModule.default || ApiErrorModule;
@@ -34,6 +40,8 @@ const { createStatementService } = statementServiceModule;
 const { mapSandboxSession, refreshSandboxSession, sandboxLogin, logoutSandboxSession } = sandboxAuthModule;
 const { initialSessionState, sessionReducer } = reducerModule;
 const { filterTransactions } = statementUtilsModule;
+const { createInvestmentService } = investmentServiceModule; const { createBillingService } = billingServiceModule; const { createConsignedService } = consignedServiceModule;
+const { mapInvestmentSimulation } = investmentMapperModule; const { mapBillingBill } = billingMapperModule; const { mapConsignedApplication } = consignedMapperModule;
 
 const statementIso = (days, hour = 12) => { const value = new Date(); value.setDate(value.getDate() + days); value.setHours(hour, 0, 0, 0); return value.toISOString(); };
 const rawStatementItem = (overrides = {}) => ({ id: 'sbx_txn_test', occurredAt: statementIso(0), type: 'PIX_RECEIVED', direction: 'CREDIT', description: 'Pix recebido', counterparty: 'Cliente Sandbox', amountMinor: 125050, currency: 'BRL', status: 'COMPLETED', category: 'Pix', feeMinor: 0, receiptAvailable: true, institution: 'Banco Sandbox', document: '***', ...overrides });
@@ -716,6 +724,12 @@ test('logout calls BFF route and reducer cleanup removes all tokens', async () =
   assert.equal(clean.refreshToken, null);
   assert.equal(clean.sandboxMode, true);
 });
+
+test('investment service SANDBOX simulates and submits one idempotent order',async()=>{const product={id:'p',name:'Renda SANDBOX',termDays:30,rateDisplay:'Demo',riskLabel:'Demo'},sim={simulationId:'s',product,amountMinor:10000,projectedGrossMinor:10100,projectedNetMinor:10085,termDays:30,rateDisplay:'Demo',simulated:true,environment:'SANDBOX',warnings:[]},order={orderId:'o',product,amountMinor:10000,status:'COMPLETED',simulated:true,environment:'SANDBOX'},calls=[];const client=async(path,options)=>{calls.push({path,options});if(path.endsWith('/products'))return{data:[product]};if(path.endsWith('/simulations'))return{data:sim};if(path.endsWith('/orders'))return{data:order};if(path.endsWith('/receipt'))return{data:{...order,receiptType:'INVESTMENT_SANDBOX'}};throw new Error(path)};const s=createInvestmentService({sandboxMode:true,client});assert.equal((await s.getProducts())[0].term,'30 dias');const x=await s.simulate(product,'100,00');const[a,b]=await Promise.all([s.order(x),s.order(x)]);assert.equal(a.orderId,b.orderId);assert.equal(calls.filter(x=>x.path.endsWith('/orders')).length,1);assert.equal(mapInvestmentSimulation(sim).projectedNet,'100,85');});
+
+test('billing service SANDBOX issues unequivocally fake bill and receipt',async()=>{const payer={payerId:'payer',name:'SANDBOX'},bill={billId:'bill',payer,amountMinor:12500,digitableLineSandbox:'SANDBOX-NOT-A-BANK-BILL',simulated:true,environment:'SANDBOX'},client=async(path)=>path.endsWith('/payers')?{data:[payer]}:path.endsWith('/receipt')?{data:{...bill,receiptType:'BILLING_SANDBOX_NOT_BANK_BILL'}}:{data:bill},s=createBillingService({sandboxMode:true,client});const x=await s.issueBill({payerId:'payer',value:'125,00',dueDate:new Date(Date.now()+86400000).toISOString()});assert.equal(x.value,'125,00');assert.match(x.code,/SANDBOX/);assert.equal(mapBillingBill(bill).simulated,true);});
+
+test('consigned service SANDBOX creates under-review simulated application',async()=>{const product={id:'p',name:'Consignado SANDBOX',installmentOptions:[6],rateDisplay:'Demo'},application={applicationId:'a',product,amountMinor:20000,installments:6,status:'UNDER_REVIEW',simulated:true,environment:'SANDBOX'},calls=[];const client=async(path)=>{calls.push(path);if(path.endsWith('/products'))return{data:[product]};if(path.endsWith('/applications'))return{data:application};return{data:[]}},s=createConsignedService({sandboxMode:true,client});assert.equal((await s.getProducts())[0].rate,'Demo');const[a,b]=await Promise.all([s.apply({productId:'p',value:'200,00',months:'6'}),s.apply({productId:'p',value:'200,00',months:'6'})]);assert.equal(a.status,'UNDER_REVIEW');assert.equal(a.applicationId,b.applicationId);assert.equal(calls.filter(x=>x.endsWith('/applications')).length,1);assert.equal(mapConsignedApplication(application).value,'200,00');await assert.rejects(createConsignedService().getProducts(),e=>e.code==='BACKEND_NOT_CONFIGURED');});
 
 test('terminal device mismatch is represented as session cleanup action', () => {
   const clean = sessionReducer({ ...initialSessionState, accessToken: 'secret' }, { type: 'LOGOUT', demoMode: false, sandboxMode: true });
