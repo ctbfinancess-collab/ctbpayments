@@ -1,23 +1,29 @@
 import React, { useRef, useState } from 'react';
 import {
   Image,
-  ImageBackground,
-  Modal,
-  SafeAreaView,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
+import {
+  BalanceCard,
+  BottomTabBar,
+  ModalSheet,
+  PrimaryButton,
+  Screen,
+  SectionTitle,
+  ServiceCard,
+} from '../components/ui';
+import { colors, radii, shadows, spacing, typography } from '../theme';
 
 const COLORS = {
-  dark: '#09161A',
-  accent: '#FC8B34',
-  page: '#F7FAF8',
-  card: '#FFFFFF',
+  dark: colors.navy900,
+  accent: colors.orange500,
+  page: colors.background,
+  card: colors.surface,
 };
 
 // MOCK TEMPORARIO: estes valores serao substituidos pelos retornos da API original.
@@ -235,7 +241,7 @@ function ServiceGrid({ items, editable = false, selectedKeys = [], onToggle }) {
   );
 }
 
-export default function HomeScreen() {
+export default function HomeScreen({ navigation }) {
   const { width } = useWindowDimensions();
   const balanceScrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -274,36 +280,16 @@ export default function HomeScreen() {
   const otherItems = HOME_MODAL_ITEMS.filter((item) => !favoriteKeys.includes(item.key));
 
   return (
-    <ImageBackground
-      source={require('../../assets/legacy/assets_images_fundo2.png')}
-      resizeMode="cover"
-      style={styles.background}
-    >
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.dark} />
-
-      <SafeAreaView style={styles.safeArea}>
+    <Screen contentContainerStyle={styles.screenContent} gradient={false}>
+      <View style={styles.safeArea}>
         <View style={styles.header}>
-          <TouchableOpacity
-            accessibilityLabel="Notificações"
-            activeOpacity={0.7}
-            style={styles.headerAction}
-          >
+          <View>
+            <Text style={styles.greeting}>Olá, Elma</Text>
+            <Text style={styles.greetingSubtitle}>Bem-vinda de volta!</Text>
+          </View>
+          <TouchableOpacity accessibilityLabel="Notificações" activeOpacity={0.7} style={styles.headerAction}>
             <Text style={styles.notificationIcon}>♢</Text>
             <View style={styles.notificationDot} />
-          </TouchableOpacity>
-
-          <Image
-            source={require('../../assets/legacy/assets_images_logo.png')}
-            resizeMode="contain"
-            style={styles.logo}
-          />
-
-          <TouchableOpacity
-            accessibilityLabel="Abrir menu"
-            activeOpacity={0.7}
-            style={styles.headerAction}
-          >
-            <Text style={styles.menuIcon}>☰</Text>
           </TouchableOpacity>
         </View>
 
@@ -329,50 +315,16 @@ export default function HomeScreen() {
 
               return (
                 <View key={balance.id} style={[styles.slide, { width }]}>
-                  <View style={styles.balanceCard}>
-                    <View style={styles.balanceTopRow}>
-                      <View style={styles.balanceInfo}>
-                        <Text style={styles.balanceLabel}>
-                          {balance.description.toUpperCase()}
-                        </Text>
-
-                        <View style={styles.valueRow}>
-                          {isVisible ? (
-                            <Text style={styles.balanceValue}>
-                              {balance.tag} {balance.value}
-                            </Text>
-                          ) : (
-                            <View
-                              accessibilityLabel="Saldo oculto"
-                              style={styles.hiddenValue}
-                            >
-                              {[0, 1, 2, 3].map((dot) => (
-                                <View key={dot} style={styles.hiddenDot} />
-                              ))}
-                            </View>
-                          )}
-
-                          <TouchableOpacity
-                            accessibilityLabel={
-                              isVisible ? 'Ocultar saldo' : 'Mostrar saldo'
-                            }
-                            activeOpacity={0.65}
-                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                            onPress={() => toggleBalance(balance.id)}
-                            style={styles.eyeButton}
-                          >
-                            <Text style={styles.eyeIcon}>
-                              {isVisible ? '◉' : '⊘'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <TouchableOpacity activeOpacity={0.7} style={styles.statementButton}>
-                        <Text style={styles.statementText}>EXTRATO</Text>
-                      </TouchableOpacity>
-                    </View>
-
+                  <View>
+                    <BalanceCard
+                      actionLabel="Ver extrato"
+                      label={balance.description}
+                      onToggleVisibility={() => toggleBalance(balance.id)}
+                      style={styles.balanceCard}
+                      value={balance.value}
+                      variant={balance.id === 'investment' ? 'purple' : 'blue'}
+                      visible={isVisible}
+                    />
                     {balance.blockedValue ? (
                       <TouchableOpacity activeOpacity={0.7} style={styles.blockedRow}>
                         <Text style={styles.blockedLabel}>Saldo Bloqueado</Text>
@@ -411,8 +363,8 @@ export default function HomeScreen() {
           <View style={styles.cardsModule}>
             <View style={styles.cardsPanel}>
               <View style={styles.moduleTitleRow}>
-                <Text style={styles.moduleTitleIcon}>▰</Text>
-                <Text style={styles.moduleTitle}>CARTÕES CS</Text>
+                <Text style={styles.moduleTitleIcon}>▱</Text>
+                <Text style={styles.moduleTitle}>Meus cartões</Text>
               </View>
 
               <ScrollView
@@ -540,39 +492,21 @@ export default function HomeScreen() {
           <View style={styles.servicesModule}>
             {HOME_SECTIONS.map((section) => (
               <View key={section.title} style={styles.serviceSection}>
-                <Text style={styles.serviceSectionTitle}>{section.title.toUpperCase()}</Text>
+                <SectionTitle style={styles.serviceSectionTitle} title={section.title} />
                 <View style={styles.serviceRows}>
                   {section.items.map((item) => {
                     const isPrimary = [1, 7, 8, 10].includes(item.key);
                     return (
                       <View key={item.key} style={styles.serviceItemWrapper}>
-                        <TouchableOpacity
-                          activeOpacity={0.82}
+                        <ServiceCard
+                          icon={<Text style={styles.serviceIcon}>{item.symbol}</Text>}
+                          label={item.label}
+                          onPress={item.key === 1 ? () => navigation.navigate('Pix') : undefined}
                           style={[
                             styles.serviceItem,
                             isPrimary && styles.serviceItemPrimary,
                           ]}
-                        >
-                          <View
-                            style={[
-                              styles.serviceIconContainer,
-                              isPrimary && styles.serviceIconContainerPrimary,
-                            ]}
-                          >
-                            <Text style={styles.serviceIcon}>{item.symbol}</Text>
-                          </View>
-                          <Text
-                            adjustsFontSizeToFit
-                            minimumFontScale={0.72}
-                            numberOfLines={2}
-                            style={[
-                              styles.serviceItemText,
-                              isPrimary && styles.serviceItemTextPrimary,
-                            ]}
-                          >
-                            {item.label}
-                          </Text>
-                        </TouchableOpacity>
+                        />
                       </View>
                     );
                   })}
@@ -648,26 +582,21 @@ export default function HomeScreen() {
             ))}
           </ScrollView>
         </ScrollView>
-      </SafeAreaView>
+        <BottomTabBar
+          activeKey="home"
+          onTabPress={(tab) => {
+            if (tab.key === 'pix') navigation.navigate('Pix');
+          }}
+          renderIcon={(tab, active) => (
+            <Text style={[styles.tabIcon, active && styles.tabIconActive]}>
+              {{ home: '⌂', cards: '▱', services: '▦', pix: '◆', profile: '○' }[tab.key]}
+            </Text>
+          )}
+        />
+      </View>
 
-      <Modal
-        animationType="slide"
-        onRequestClose={() => setFavoritesCircleVisible(false)}
-        statusBarTranslucent
-        visible={favoritesCircleVisible}
-      >
-        <ImageBackground
-          source={require('../../assets/legacy/assets_images_fundo2.png')}
-          resizeMode="cover"
-          style={styles.circleModalBackground}
-        >
-          <SafeAreaView style={styles.modalSafeArea}>
+      <ModalSheet onClose={() => setFavoritesCircleVisible(false)} title="Atalhos de função" visible={favoritesCircleVisible}>
             <ScrollView bounces={false} contentContainerStyle={styles.circleModalContent}>
-              <ModalCloseButton
-                onPress={() => setFavoritesCircleVisible(false)}
-                topSpacing={35}
-              />
-              <Text style={styles.circleModalTitle}>Atalhos de função</Text>
               <Text style={styles.circleModalSubtitle}>
                 {'Adicione aos atalhos as funções \nque você mais ultiliza'}
               </Text>
@@ -697,29 +626,13 @@ export default function HomeScreen() {
                 ))}
               </View>
 
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setFavoritesCircleVisible(false)}
-                style={styles.modalSaveButton}
-              >
-                <Text style={styles.modalSaveButtonText}>Salvar</Text>
-              </TouchableOpacity>
+              <PrimaryButton onPress={() => setFavoritesCircleVisible(false)}>Salvar</PrimaryButton>
               <View style={styles.modalBottomSpace} />
             </ScrollView>
-          </SafeAreaView>
-        </ImageBackground>
-      </Modal>
+      </ModalSheet>
 
-      <Modal
-        animationType="slide"
-        onRequestClose={() => setFavoritesSquareVisible(false)}
-        statusBarTranslucent
-        visible={favoritesSquareVisible}
-      >
-        <SafeAreaView style={styles.darkModalBackground}>
+      <ModalSheet onClose={() => setFavoritesSquareVisible(false)} title="Funcionalidades" visible={favoritesSquareVisible}>
           <ScrollView bounces={false} contentContainerStyle={styles.darkModalContent}>
-            <ModalCloseButton light onPress={() => setFavoritesSquareVisible(false)} />
-            <Text style={styles.darkModalTitle}>Funcionalidades</Text>
             <Text style={styles.darkModalSubtitle}>
               Acesse a função que deseja ou organize seus itens favoritos da tela inicial.
             </Text>
@@ -747,37 +660,21 @@ export default function HomeScreen() {
               />
             </View>
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setFavoritesSquareVisible(false)}
-              style={styles.modalSaveButton}
-            >
-              <Text style={styles.modalSaveButtonText}>Salvar</Text>
-            </TouchableOpacity>
+            <PrimaryButton onPress={() => setFavoritesSquareVisible(false)}>Salvar</PrimaryButton>
             <View style={styles.modalBottomSpace} />
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
+      </ModalSheet>
 
-      <Modal
-        animationType="slide"
-        onRequestClose={() => setMoreServicesVisible(false)}
-        statusBarTranslucent
-        visible={moreServicesVisible}
-      >
-        <SafeAreaView style={styles.darkModalBackground}>
+      <ModalSheet onClose={() => setMoreServicesVisible(false)} title="Funcionalidades" visible={moreServicesVisible}>
           <ScrollView bounces={false} contentContainerStyle={styles.darkModalContent}>
-            <ModalCloseButton light onPress={() => setMoreServicesVisible(false)} />
-            <Text style={styles.darkModalTitle}>Funcionalidades</Text>
             <Text style={styles.darkModalSubtitle}>Acesse a função que deseja</Text>
             <View style={styles.darkModalDivider} />
             <View style={styles.moreServicesModalSection}>
               <ServiceGrid items={HOME_MODAL_ITEMS} />
             </View>
           </ScrollView>
-        </SafeAreaView>
-      </Modal>
-    </ImageBackground>
+      </ModalSheet>
+    </Screen>
   );
 }
 
@@ -1654,4 +1551,119 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  screenContent: { paddingHorizontal: 0 },
+  safeArea: { backgroundColor: colors.background, flex: 1 },
+  header: {
+    alignItems: 'center',
+    backgroundColor: colors.navy900,
+    borderBottomColor: colors.borderSubtle,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    height: 72,
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+  },
+  greeting: { ...typography.heading2, color: colors.textPrimary },
+  greetingSubtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  headerAction: {
+    alignItems: 'center',
+    backgroundColor: colors.whiteAlpha08,
+    borderColor: colors.borderSubtle,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
+    width: 42,
+  },
+  notificationIcon: { color: colors.ice, fontSize: 25, transform: [{ rotate: '45deg' }] },
+  notificationDot: { backgroundColor: colors.orange500, borderRadius: 4, height: 7, position: 'absolute', right: 6, top: 6, width: 7 },
+  scrollView: { backgroundColor: colors.background, flex: 1 },
+  content: { paddingBottom: spacing.xxl },
+  balanceCarousel: { marginTop: spacing.lg },
+  slide: { alignItems: 'center', paddingHorizontal: spacing.xl },
+  balanceCard: { minHeight: 156, width: '100%' },
+  blockedRow: { backgroundColor: colors.whiteAlpha08, borderRadius: radii.md, flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: spacing.md, marginTop: -46, padding: spacing.md },
+  blockedLabel: { ...typography.caption, color: colors.textSecondary },
+  blockedValue: { ...typography.label, color: colors.orange400 },
+  pagination: { alignSelf: 'center', flexDirection: 'row', marginTop: spacing.md },
+  paginationDot: { backgroundColor: colors.borderStrong, borderRadius: 3, height: 6, marginHorizontal: 3, width: 6 },
+  paginationDotActive: { backgroundColor: colors.purple500, width: 20 },
+  cardsModule: { backgroundColor: colors.background, paddingHorizontal: spacing.xl, paddingTop: spacing.xxl },
+  cardsPanel: { backgroundColor: colors.surface, borderColor: colors.borderSubtle, borderRadius: radii.xl, borderWidth: 1, paddingVertical: spacing.lg, ...shadows.card },
+  moduleTitleRow: { alignItems: 'center', flexDirection: 'row', marginBottom: spacing.md, paddingHorizontal: spacing.lg },
+  moduleTitleIcon: { color: colors.purple400, fontSize: 17, marginRight: spacing.sm },
+  moduleTitle: { ...typography.heading3, color: colors.textPrimary },
+  cardsScrollContent: { paddingLeft: spacing.lg, paddingRight: spacing.xs },
+  financialCard: { backgroundColor: '#111D30', borderColor: colors.borderStrong, borderRadius: radii.xl, borderWidth: 1, height: 158, justifyContent: 'space-between', marginRight: spacing.md, overflow: 'hidden', padding: spacing.lg, width: '95%' },
+  transportCard: { backgroundColor: colors.surfacePurple, borderColor: colors.purpleAlpha45, borderRadius: radii.xl, borderWidth: 1, height: 158, justifyContent: 'space-between', marginRight: spacing.md, overflow: 'hidden', padding: spacing.lg, width: '95%' },
+  cardType: { ...typography.label, color: colors.textPrimary },
+  transportTitle: { ...typography.label, color: colors.textPrimary },
+  cardNumber: { color: colors.textPrimary, fontSize: 15, letterSpacing: 2 },
+  cardMetaLabel: { ...typography.caption, color: colors.textMuted, fontSize: 9 },
+  cardMetaValue: { ...typography.label, color: colors.textPrimary },
+  transportBalanceLabel: { ...typography.caption, color: colors.textSecondary },
+  transportBalance: { ...typography.heading1, color: colors.textPrimary, marginTop: 2 },
+  transportNumber: { color: colors.textSecondary, fontSize: 14, letterSpacing: 1 },
+  transportEye: { alignItems: 'center', backgroundColor: colors.whiteAlpha08, borderRadius: radii.pill, height: 28, justifyContent: 'center', marginLeft: spacing.sm, width: 28 },
+  transportEyeText: { color: colors.textPrimary, fontSize: 14 },
+  rechargeButton: { backgroundColor: colors.orange500, borderRadius: radii.sm, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
+  rechargeText: { ...typography.label, color: colors.white },
+  cardPaginationDot: { backgroundColor: colors.borderStrong, borderRadius: 3, height: 6, marginHorizontal: 3, width: 6 },
+  cardPaginationDotActive: { backgroundColor: colors.purple500, width: 18 },
+  topBannerModule: { backgroundColor: colors.background, paddingVertical: spacing.xl },
+  topBannerShadow: { borderRadius: radii.xl, marginHorizontal: spacing.xl, ...shadows.card },
+  topBannerCard: { backgroundColor: colors.navy700, borderColor: colors.purpleAlpha45, borderRadius: radii.xl, borderWidth: 1, flexDirection: 'row', height: 192, overflow: 'hidden', padding: spacing.lg },
+  topBannerEyebrow: { ...typography.label, color: colors.orange400, letterSpacing: 0.8, marginBottom: spacing.xs, textTransform: 'uppercase' },
+  topBannerTitle: { ...typography.heading2, color: colors.textPrimary, marginBottom: spacing.sm },
+  topBannerSubtitle: { ...typography.caption, color: colors.textSecondary, lineHeight: 17, marginBottom: spacing.md },
+  topBannerCta: { alignItems: 'center', alignSelf: 'flex-start', backgroundColor: colors.purple500, borderRadius: radii.pill, flexDirection: 'row', minHeight: 34, paddingHorizontal: spacing.md },
+  playIcon: { color: colors.white, fontSize: 11, marginRight: spacing.xs },
+  topBannerCtaText: { ...typography.label, color: colors.white, fontSize: 10 },
+  topBannerArt: { alignItems: 'center', backgroundColor: colors.purpleAlpha20, borderRadius: radii.xl, justifyContent: 'center', overflow: 'hidden', width: 105 },
+  topBannerPhone: { alignItems: 'center', backgroundColor: colors.whiteAlpha14, borderColor: colors.borderStrong, borderRadius: radii.xl, borderWidth: 1, height: 112, justifyContent: 'center', width: 78 },
+  topBannerPlay: { color: colors.orange400, fontSize: 44 },
+  prizeText: { ...typography.label, color: colors.textPrimary, marginTop: spacing.sm },
+  topBannerDot: { backgroundColor: colors.borderStrong, borderRadius: 3, height: 6, marginHorizontal: 3, width: 6 },
+  topBannerDotActive: { backgroundColor: colors.purple500, width: 18 },
+  servicesModule: { backgroundColor: colors.background, paddingTop: spacing.sm },
+  serviceSection: { marginBottom: spacing.md, width: '100%' },
+  serviceSectionTitle: { paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
+  serviceRows: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: spacing.lg, width: '100%' },
+  serviceItemWrapper: { alignItems: 'center', padding: spacing.xs, width: '25%' },
+  serviceItem: { minHeight: 92, paddingHorizontal: spacing.xs, width: '100%' },
+  serviceItemPrimary: { backgroundColor: colors.surfaceElevated, borderColor: colors.purpleAlpha45 },
+  serviceIcon: { color: colors.purple300, fontSize: 21, fontWeight: '700' },
+  favoriteTriggers: { alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end', minHeight: 44, paddingHorizontal: spacing.xl },
+  favoriteTriggerIcon: { color: colors.purple400, fontSize: 18, marginRight: spacing.xs },
+  favoriteTriggerText: { ...typography.caption, color: colors.textSecondary },
+  favoriteSquareTriggerIcon: { color: colors.orange400, fontSize: 20 },
+  moreServicesTrigger: { ...typography.bodyMedium, color: colors.purple300 },
+  promotionModule: { backgroundColor: colors.background },
+  promotionScrollContent: { paddingBottom: spacing.xxl, paddingHorizontal: spacing.xl, paddingTop: spacing.md },
+  promotionCard: { backgroundColor: colors.surface, borderColor: colors.borderSubtle, borderRadius: radii.xl, borderWidth: 1, marginRight: spacing.lg, overflow: 'hidden', ...shadows.card },
+  promotionContent: { padding: spacing.lg },
+  promotionTitle: { ...typography.heading3, color: colors.textPrimary, marginBottom: spacing.xs },
+  promotionText: { ...typography.caption, color: colors.textSecondary, height: 48, lineHeight: 16, marginBottom: spacing.md },
+  promotionButton: { alignItems: 'center', backgroundColor: colors.purple500, borderRadius: radii.md, paddingVertical: spacing.sm },
+  promotionButtonText: { ...typography.label, color: colors.white },
+  circleModalContent: { flexGrow: 1, paddingBottom: spacing.sm },
+  circleModalSubtitle: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.xl, textAlign: 'center' },
+  circleModalSection: { marginBottom: spacing.xl, width: '100%' },
+  circleModalSectionTitle: { ...typography.heading3, color: colors.textPrimary, marginBottom: spacing.lg },
+  circleModalDivider: { backgroundColor: colors.borderSubtle, height: 1, marginBottom: spacing.xl, width: '100%' },
+  favoriteListRow: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.borderSubtle, borderRadius: radii.md, borderWidth: 1, flexDirection: 'row', marginBottom: spacing.sm, minHeight: 58, width: '100%' },
+  favoriteListIcon: { color: colors.purple300, fontSize: 22 },
+  favoriteListText: { ...typography.bodyMedium, color: colors.textPrimary },
+  darkModalContent: { flexGrow: 1, paddingBottom: spacing.sm },
+  darkModalSubtitle: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.lg, textAlign: 'center' },
+  darkModalDivider: { backgroundColor: colors.borderSubtle, height: 1, width: '100%' },
+  darkModalSectionTitle: { ...typography.heading3, color: colors.textPrimary, marginBottom: spacing.md, textAlign: 'center' },
+  darkModalSectionTitleSecondary: { ...typography.heading3, color: colors.textPrimary, margin: spacing.md, textAlign: 'center' },
+  modalGridItem: { alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.borderSubtle, borderRadius: radii.md, borderWidth: 1, height: 95, justifyContent: 'center', width: '88%' },
+  modalGridIcon: { color: colors.purple300, fontSize: 24, fontWeight: '700' },
+  modalGridText: { ...typography.caption, color: colors.textPrimary, paddingHorizontal: spacing.xs, textAlign: 'center' },
+  gridRemoveIcon: { color: colors.danger, fontSize: 27, position: 'absolute', right: -5, top: -9, zIndex: 2 },
+  gridAddIcon: { color: colors.success, fontSize: 27, position: 'absolute', right: -5, top: -9, zIndex: 2 },
+  tabIcon: { color: colors.slate300, fontSize: 18 },
+  tabIconActive: { color: colors.purple400 },
 });
