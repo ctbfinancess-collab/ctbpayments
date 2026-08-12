@@ -36,6 +36,17 @@ import StatementDetailScreen from './src/screens/statement/StatementDetailScreen
 import StatementFiltersScreen from './src/screens/statement/StatementFiltersScreen';
 import StatementReceiptScreen from './src/screens/statement/StatementReceiptScreen';
 import StatementScreen from './src/screens/statement/StatementScreen';
+import CardsScreen from './src/screens/cards/CardsScreen';
+import CardDetailsScreen from './src/screens/cards/CardDetailsScreen';
+import CardActivationScreen from './src/screens/cards/CardActivationScreen';
+import CardRechargeScreen from './src/screens/cards/CardRechargeScreen';
+import CardPasswordScreen from './src/screens/cards/CardPasswordScreen';
+import CardSecurityScreen from './src/screens/cards/CardSecurityScreen';
+import CardStatementScreen from './src/screens/cards/CardStatementScreen';
+import CardTransactionScreen from './src/screens/cards/CardTransactionScreen';
+import CardReceiptsScreen from './src/screens/cards/CardReceiptsScreen';
+import CardRequestScreen from './src/screens/cards/CardRequestScreen';
+import TransportCardScreen from './src/screens/cards/TransportCardScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -83,6 +94,17 @@ export default function App() {
         <Stack.Screen name="StatementDetail" component={StatementDetailScreen} />
         <Stack.Screen name="StatementReceipt" component={StatementReceiptScreen} />
         <Stack.Screen name="StatementBlockedResponse" component={StatementBlockedResponseScreen} />
+        <Stack.Screen name="Cards" component={CardsScreen} />
+        <Stack.Screen name="CardDetails" component={CardDetailsScreen} />
+        <Stack.Screen name="CardActivation" component={CardActivationScreen} />
+        <Stack.Screen name="CardRecharge" component={CardRechargeScreen} />
+        <Stack.Screen name="CardPassword" component={CardPasswordScreen} />
+        <Stack.Screen name="CardSecurity" component={CardSecurityScreen} />
+        <Stack.Screen name="CardStatement" component={CardStatementScreen} />
+        <Stack.Screen name="CardTransaction" component={CardTransactionScreen} />
+        <Stack.Screen name="CardReceipts" component={CardReceiptsScreen} />
+        <Stack.Screen name="CardRequest" component={CardRequestScreen} />
+        <Stack.Screen name="TransportCard" component={TransportCardScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

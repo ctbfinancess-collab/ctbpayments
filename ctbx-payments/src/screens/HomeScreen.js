@@ -385,7 +385,7 @@ export default function HomeScreen({ navigation }) {
                 {MOCK_CARDS.map((card) => (
                   <View key={card.id} style={{ width: width * 0.82 }}>
                     {card.type === 'FINANCEIRO' ? (
-                      <TouchableOpacity activeOpacity={0.9} style={styles.financialCard}>
+                      <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Cards')} style={styles.financialCard}>
                         <View style={styles.cardWatermark}>
                           <Text style={styles.cardWatermarkText}>▰</Text>
                         </View>
@@ -434,7 +434,7 @@ export default function HomeScreen({ navigation }) {
                         </View>
                         <View style={styles.transportFooterRow}>
                           <Text style={styles.transportNumber}>**** {card.lastFourDigits}</Text>
-                          <TouchableOpacity activeOpacity={0.84} style={styles.rechargeButton}>
+                          <TouchableOpacity activeOpacity={0.84} onPress={() => navigation.navigate('CardRecharge', { transport: true })} style={styles.rechargeButton}>
                             <Text style={styles.rechargeText}>Recarregar</Text>
                           </TouchableOpacity>
                         </View>
@@ -594,6 +594,7 @@ export default function HomeScreen({ navigation }) {
           activeKey="home"
           onTabPress={(tab) => {
             if (tab.key === 'pix') navigation.navigate('Pix');
+            if (tab.key === 'cards') navigation.navigate('Cards');
           }}
           renderIcon={(tab, active) => (
             <Text style={[styles.tabIcon, active && styles.tabIconActive]}>
