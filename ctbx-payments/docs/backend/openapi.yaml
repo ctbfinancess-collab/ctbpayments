@@ -53,6 +53,7 @@ paths:
     post:
       tags: [Auth]
       operationId: logout
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '204': { description: Sessão revogada ou já encerrada }
         '401': { $ref: '#/components/responses/ErrorResponse' }
@@ -60,6 +61,7 @@ paths:
     get:
       tags: [Auth]
       operationId: getSession
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200':
           description: Sessão atual
@@ -71,6 +73,7 @@ paths:
     get:
       tags: [Accounts]
       operationId: getCurrentAccount
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200':
           description: Conta atual
@@ -86,6 +89,7 @@ paths:
     get:
       tags: [Accounts]
       operationId: getCurrentBalances
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200':
           description: Saldos normalizados
@@ -763,6 +767,12 @@ components:
       in: header
       required: true
       schema: { type: string, minLength: 16, maxLength: 128 }
+    DeviceId:
+      name: X-Device-Id
+      in: header
+      required: true
+      description: Identificador opaco devolvido no login e vinculado à sessão.
+      schema: { type: string, minLength: 8, maxLength: 128 }
   requestBodies:
     PixTransferIntent:
       required: true
@@ -951,12 +961,15 @@ components:
           properties:
             data:
               type: object
-              required: [state]
+              required: [state, sessionId, accessToken, refreshToken, expiresAt, deviceId, environment, user, account]
               properties:
                 state: { $ref: '#/components/schemas/AuthState' }
-                accessToken: { type: string, writeOnly: true }
-                refreshToken: { type: string, writeOnly: true }
-                expiresIn: { type: integer }
+                sessionId: { type: string }
+                accessToken: { type: string }
+                refreshToken: { type: string }
+                expiresAt: { type: string, format: date-time }
+                deviceId: { type: string }
+                environment: { type: string, enum: [sandbox] }
                 user: { $ref: '#/components/schemas/User' }
                 account: { $ref: '#/components/schemas/Account' }
                 availableAccounts: { type: array, items: { $ref: '#/components/schemas/Account' } }
@@ -968,11 +981,18 @@ components:
           properties:
             data:
               type: object
-              required: [user, account, device]
+              required: [user, account, session]
               properties:
                 user: { $ref: '#/components/schemas/User' }
                 account: { $ref: '#/components/schemas/Account' }
-                device: { $ref: '#/components/schemas/Device' }
+                session:
+                  type: object
+                  required: [id, deviceId, expiresAt, environment]
+                  properties:
+                    id: { type: string }
+                    deviceId: { type: string }
+                    expiresAt: { type: string, format: date-time }
+                    environment: { type: string, enum: [sandbox] }
     User:
       type: object
       required: [id, type, displayName]
@@ -989,6 +1009,8 @@ components:
       properties:
         id: { type: string }
         type: { type: string, enum: [PERSONAL, BUSINESS] }
+        accountType: { type: string, enum: [CHECKING] }
+        currency: { type: string, enum: [BRL] }
         status: { type: string, enum: [ACTIVE, UNDER_REVIEW, INCOMPLETE, BLOCKED, CLOSED] }
         bankCode: { type: string }
         maskedAgency: { type: string }

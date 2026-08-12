@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { ProviderRegistry } from '../providers/ports.js';
 import { ApiError, providerNotConfigured } from '../errors/ApiError.js';
+import { authenticate } from '../middleware/authenticate.js';
 import { requireIdempotencyKey } from '../security/idempotency.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, moneySchema, objectSchema } from '../validation/schemas.js';
@@ -12,6 +13,7 @@ const idParams = { type: 'object', additionalProperties: false, required: ['id']
 const unavailable = (domain: string) => async () => { throw providerNotConfigured(domain); };
 
 export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry): Promise<void> {
+  const authenticated = authenticate(providers.sessions, providers.deviceBinding);
   app.post('/auth/login', {
     schema: { body: objectSchema(['username', 'password', 'device'], {
       username: shortString,
@@ -26,12 +28,32 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     const data = await providers.auth.login(request.body);
     return envelope(request, { state: 'AUTHENTICATED', ...data });
   });
-  app.post('/auth/refresh', { schema: { body: objectSchema(['refreshToken'], { refreshToken: string }) } }, unavailable('de autenticação'));
-  app.post('/auth/logout', { schema: { body: emptyObjectSchema } }, unavailable('de autenticação'));
-  app.get('/auth/session', unavailable('de autenticação'));
+  app.post('/auth/refresh', { schema: { body: objectSchema(['refreshToken'], { refreshToken: string }) } }, async (request) => {
+    if (!providers.auth) throw new ApiError('AUTH_PROVIDER_NOT_CONFIGURED', 'O provedor de autenticação não está configurado.', { statusCode: 503 });
+    const data = await providers.auth.refresh((request.body as { refreshToken: string }).refreshToken);
+    return envelope(request, { state: 'AUTHENTICATED', ...data });
+  });
+  app.post('/auth/logout', { preHandler: authenticated, schema: { body: emptyObjectSchema } }, async (request, reply) => {
+    await providers.sessions?.revoke(request.auth!.sessionId);
+    return reply.status(204).send();
+  });
+  app.get('/auth/session', { preHandler: authenticated }, async (request) => {
+    const auth = request.auth!;
+    return envelope(request, {
+      user: auth.user,
+      account: auth.account,
+      session: { id: auth.sessionId, deviceId: auth.deviceId, expiresAt: auth.expiresAt, environment: 'sandbox' },
+    });
+  });
 
-  app.get('/accounts/current', unavailable('de contas'));
-  app.get('/accounts/current/balances', unavailable('de contas'));
+  app.get('/accounts/current', { preHandler: authenticated }, async (request) => {
+    if (!providers.account) throw providerNotConfigured('de contas');
+    return envelope(request, await providers.account.getCurrent(request.auth!));
+  });
+  app.get('/accounts/current/balances', { preHandler: authenticated }, async (request) => {
+    if (!providers.account) throw providerNotConfigured('de contas');
+    return envelope(request, await providers.account.getBalances(request.auth!));
+  });
   app.get('/accounts/current/statement', {
     schema: { querystring: objectSchema([], { cursor: shortString, from: { type: 'string', format: 'date' }, to: { type: 'string', format: 'date' }, direction: { type: 'string', enum: ['CREDIT', 'DEBIT'] } }) },
   }, unavailable('de contas'));

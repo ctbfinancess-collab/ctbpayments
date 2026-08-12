@@ -1,11 +1,18 @@
 import type { Account, Device, Operation, User } from '../domain/models.js';
 
-export interface AuthResult { user: User; account: Account; device: Device; accessToken: string | null; refreshToken: string | null }
+export interface AuthContext { sessionId: string; userId: string; accountId: string; deviceId: string; expiresAt: string; user: User; account: Account }
+export interface AuthResult extends AuthContext { accessToken: string; refreshToken: string; environment: 'sandbox' }
 export interface AuthProvider { login(input: unknown): Promise<AuthResult>; refresh(refreshToken: string): Promise<AuthResult>; }
-export interface SessionStore { get(sessionId: string): Promise<unknown>; put(sessionId: string, session: unknown): Promise<void>; revoke(sessionId: string): Promise<void>; }
-export interface DeviceBindingProvider { register(input: unknown): Promise<Device>; verify(deviceId: string, proof: string): Promise<boolean>; }
+export interface SessionStore {
+  create(input: { user: User; account: Account; deviceId: string }): Promise<AuthResult>;
+  getByAccessToken(accessToken: string): Promise<AuthContext | undefined>;
+  refresh(refreshToken: string): Promise<AuthResult>;
+  revoke(sessionId: string): Promise<void>;
+  revokeAllForUser(userId: string): Promise<void>;
+}
+export interface DeviceBindingProvider { register(input: unknown): Promise<Device>; verify(expectedDeviceId: string, presentedDeviceId: string): Promise<boolean>; }
 
-export interface AccountProvider { getCurrent(context: unknown): Promise<unknown>; getBalances(context: unknown): Promise<unknown>; listStatement(input: unknown): Promise<unknown>; }
+export interface AccountProvider { getCurrent(context: AuthContext): Promise<unknown>; getBalances(context: AuthContext): Promise<unknown>; listStatement(input: unknown): Promise<unknown>; }
 export interface PixProvider { lookupKey(input: unknown): Promise<unknown>; lookupQr(input: unknown): Promise<unknown>; listKeys(context: unknown): Promise<unknown>; createKey(input: unknown): Promise<Operation>; deleteKey(id: string): Promise<Operation>; createReceiveQr(input: unknown): Promise<unknown>; validateTransfer(input: unknown): Promise<unknown>; createTransfer(input: unknown): Promise<Operation>; scheduleTransfer(input: unknown): Promise<Operation>; }
 export interface TransferProvider { listBanks(): Promise<unknown>; listFavorites(context: unknown): Promise<unknown>; lookupBeneficiary(input: unknown): Promise<unknown>; validate(input: unknown): Promise<unknown>; create(input: unknown): Promise<Operation>; schedule(input: unknown): Promise<Operation>; }
 export interface PaymentProvider { lookupBill(input: unknown): Promise<unknown>; validateBill(input: unknown): Promise<unknown>; payBill(input: unknown): Promise<Operation>; scheduleBill(input: unknown): Promise<Operation>; simulateInstallments(input: unknown): Promise<unknown>; payInstallments(input: unknown): Promise<Operation>; }

@@ -5,16 +5,31 @@ import { loadConfig, type AppConfig } from './config/env.js';
 import { registerErrorHandler } from './middleware/errorHandler.js';
 import { requestIdFactory } from './middleware/requestId.js';
 import { loggerOptions } from './observability/logger.js';
-import { DemoAuthProvider } from './providers/DemoAuthProvider.js';
 import type { ProviderRegistry } from './providers/ports.js';
+import { SandboxAccountProvider } from './providers/sandbox/SandboxAccountProvider.js';
+import { SandboxAuthProvider } from './providers/sandbox/SandboxAuthProvider.js';
+import { SandboxDeviceBindingProvider } from './providers/sandbox/SandboxDeviceBindingProvider.js';
+import { SandboxSessionStore } from './providers/sandbox/SandboxSessionStore.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 
 export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean }
 
+function sandboxProviders(config: AppConfig): ProviderRegistry {
+  if (config.nodeEnv === 'production') return {};
+  const sessions = new SandboxSessionStore({ environment: config.nodeEnv });
+  const deviceBinding = new SandboxDeviceBindingProvider(config.nodeEnv);
+  return {
+    sessions,
+    deviceBinding,
+    auth: new SandboxAuthProvider(sessions, deviceBinding, config.nodeEnv),
+    account: new SandboxAccountProvider(config.nodeEnv),
+  };
+}
+
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const config = options.config ?? loadConfig();
-  const providers: ProviderRegistry = options.providers ?? (config.nodeEnv === 'production' ? {} : { auth: new DemoAuthProvider(config.nodeEnv) });
+  const providers: ProviderRegistry = options.providers ?? sandboxProviders(config);
   const app = Fastify({
     logger: loggerOptions(config.logLevel, options.logger ?? config.nodeEnv !== 'test'),
     genReqId: requestIdFactory,

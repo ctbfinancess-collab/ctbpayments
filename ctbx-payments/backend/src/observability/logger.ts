@@ -9,7 +9,7 @@ export function loggerOptions(level: string, enabled = true): false | { level: s
   return { level, redact: { paths: redactPaths, censor: '[REDACTED]' } };
 }
 
-const sensitiveKeys = /^(password|senha|otp|cvv|token|authorization|pan|document|documento)$/i;
+const sensitiveKeys = /^(password|senha|otp|cvv|token|accessToken|refreshToken|authorization|pan|document|documento)$/i;
 export function redactSensitive(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactSensitive);
   if (value && typeof value === 'object') {
