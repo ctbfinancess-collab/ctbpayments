@@ -1,19 +1,19 @@
-import { isDemoMode } from '../config';
+import { isDemoMode, isProductionMode, isSandboxMode } from '../config';
 
-let demoSession = null;
+let memorySession = null;
 
 export async function readSession() {
-  if (!isDemoMode) return null;
-  return demoSession;
+  if (isProductionMode) return null;
+  return memorySession;
 }
 
 export async function writeSession(session) {
-  if (!isDemoMode) throw new Error('Secure storage not configured');
-  demoSession = { ...session, accessToken: null, refreshToken: null };
+  if (isProductionMode) throw new Error('Secure storage not configured');
+  memorySession = isDemoMode ? { ...session, accessToken: null, refreshToken: null } : { ...session };
 }
 
-export async function clearSession() { demoSession = null; }
+export async function clearSession() { memorySession = null; }
 
-// Produção deve usar um adaptador seguro (por exemplo, SecureStore). Este fallback
-// é deliberadamente volátil e recusa persistência fora do modo DEMO.
-export const sessionStorageSecurity = Object.freeze({ persistent: false, productionReady: false });
+// TODO: adotar SecureStore/Keychain antes de persistir sessões fora do processo.
+// Refresh tokens SANDBOX permanecem exclusivamente em memória e nunca usam AsyncStorage.
+export const sessionStorageSecurity = Object.freeze({ persistent: false, productionReady: false, sandboxMemoryOnly: isSandboxMode });

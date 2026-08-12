@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { isDemoMode, isProductionMode } from '../config';
+import { isDemoMode, isProductionMode, isSandboxMode } from '../config';
 import { useSession } from '../session';
 
 export default function LoginScreen({ navigation }) {
@@ -22,10 +22,17 @@ export default function LoginScreen({ navigation }) {
   const { login } = useSession();
 
   const handleLogin = async () => {
-    if (isProductionMode && (!email.trim() || !senha)) return Alert.alert('Preencha e-mail e senha');
+    if ((isProductionMode || isSandboxMode) && (!email.trim() || !senha)) return Alert.alert('Preencha e-mail e senha');
     setSubmitting(true);
     try { await login({ email: email.trim(), password: senha }); }
-    catch (error) { Alert.alert('Não foi possível entrar', error.message); }
+    catch (error) {
+      const message = error.code === 'AUTH_INVALID_CREDENTIALS'
+        ? 'E-mail ou senha sandbox inválidos.'
+        : error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT'
+          ? 'O BFF sandbox não está acessível. Verifique a configuração local.'
+          : error.status === 503 ? 'O ambiente sandbox está temporariamente indisponível.' : 'Não foi possível iniciar a sessão.';
+      Alert.alert('Não foi possível entrar', message);
+    }
     finally { setSubmitting(false); }
   };
 
@@ -47,6 +54,7 @@ export default function LoginScreen({ navigation }) {
 
           <Text style={styles.welcome}>Acesse sua conta</Text>
           {isDemoMode ? <Text style={styles.demoNotice}>Ambiente de demonstração · nenhuma operação bancária real</Text> : null}
+          {isSandboxMode ? <Text style={styles.sandboxNotice}>AMBIENTE SANDBOX · DADOS FICTÍCIOS</Text> : null}
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>E-MAIL</Text>
@@ -78,9 +86,9 @@ export default function LoginScreen({ navigation }) {
                 onChangeText={setSenha}
                 placeholder="digite sua senha"
                 placeholderTextColor="#687278"
-                keyboardType="numeric"
+                keyboardType={isDemoMode ? 'numeric' : 'default'}
                 secureTextEntry={!mostrarSenha}
-                maxLength={6}
+                maxLength={isDemoMode ? 6 : undefined}
                 style={styles.input}
               />
 
@@ -146,6 +154,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   demoNotice: { color: '#FFB45B', fontSize: 11, marginBottom: 18, textAlign: 'center' },
+  sandboxNotice: { color: '#AAB2FF', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 18, textAlign: 'center' },
 
   fieldGroup: {
     width: '100%',

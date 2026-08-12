@@ -1,6 +1,7 @@
 import { MOCK_ACCOUNT, MOCK_DEVICES, MOCK_PROFILE, PROFILE_TERMS } from '../data/profileMockData';
 import { demoOrThrow } from './serviceMode';
-export const getProfile = () => demoOrThrow(() => MOCK_PROFILE);
+import { isSandboxMode } from '../config';
+export const getProfile = () => isSandboxMode ? Promise.resolve({ ...MOCK_PROFILE, name: 'Usuário Sandbox', email: 'demo@ctbx.local' }) : demoOrThrow(() => MOCK_PROFILE);
 export const getAccount = () => demoOrThrow(() => MOCK_ACCOUNT);
 export const listDevices = () => demoOrThrow(() => MOCK_DEVICES);
 export const listTerms = () => demoOrThrow(() => PROFILE_TERMS);

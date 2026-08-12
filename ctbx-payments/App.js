@@ -68,7 +68,7 @@ import ProfileBiometricsScreen from './src/screens/profile/ProfileBiometricsScre
 import ProfileDevicesScreen from './src/screens/profile/ProfileDevicesScreen';
 import ProfileTokenScreen from './src/screens/profile/ProfileTokenScreen';
 import ProfileTermsScreen from './src/screens/profile/ProfileTermsScreen';
-import { isDemoMode } from './src/config';
+import { appMode, isProductionMode } from './src/config';
 import { DemoEnvironmentBadge, LoadingState } from './src/components/ui';
 import { SessionProvider, useSession } from './src/session';
 
@@ -158,5 +158,5 @@ function AppNavigator() {
 }
 
 export default function App() {
-  return <SessionProvider><View style={{ flex: 1 }}><AppNavigator />{isDemoMode ? <DemoEnvironmentBadge /> : null}</View></SessionProvider>;
+  return <SessionProvider><View style={{ flex: 1 }}><AppNavigator />{!isProductionMode ? <DemoEnvironmentBadge mode={appMode} /> : null}</View></SessionProvider>;
 }

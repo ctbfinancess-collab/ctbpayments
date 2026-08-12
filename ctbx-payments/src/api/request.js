@@ -7,7 +7,14 @@ export async function request(url, options = {}, timeoutMs = 15000) {
     const response = await fetch(url, { ...options, signal: controller.signal });
     const text = await response.text();
     const data = text ? JSON.parse(text) : null;
-    if (!response.ok) throw new ApiError(data?.message || 'Request failed', { status: response.status, details: data });
+    if (!response.ok) {
+      const serverError = data?.error;
+      throw new ApiError(serverError?.message || 'Não foi possível processar a solicitação.', {
+        code: serverError?.code || 'API_ERROR',
+        status: response.status,
+        details: serverError?.retryable === true ? { retryable: true } : null,
+      });
+    }
     return data;
   } catch (error) {
     if (error instanceof ApiError) throw error;
