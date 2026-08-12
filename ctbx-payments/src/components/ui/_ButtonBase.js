@@ -13,6 +13,7 @@ export default function ButtonBase({
   style,
   textColor = colors.white,
   textStyle,
+  title,
   ...props
 }) {
   return (
@@ -32,7 +33,7 @@ export default function ButtonBase({
       {loading ? (
         <ActivityIndicator color={textColor} size="small" />
       ) : (
-        <Text style={[styles.text, { color: textColor }, textStyle]}>{children}</Text>
+        <Text style={[styles.text, { color: textColor }, textStyle]}>{children ?? title}</Text>
       )}
     </TouchableOpacity>
   );

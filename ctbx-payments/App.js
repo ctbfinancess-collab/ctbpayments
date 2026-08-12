@@ -47,6 +47,18 @@ import CardTransactionScreen from './src/screens/cards/CardTransactionScreen';
 import CardReceiptsScreen from './src/screens/cards/CardReceiptsScreen';
 import CardRequestScreen from './src/screens/cards/CardRequestScreen';
 import TransportCardScreen from './src/screens/cards/TransportCardScreen';
+import ServicesScreen from './src/screens/services/ServicesScreen';
+import InvestmentsScreen from './src/screens/services/investments/InvestmentsScreen';
+import InvestmentSimulationScreen from './src/screens/services/investments/InvestmentSimulationScreen';
+import InvestmentReviewScreen from './src/screens/services/investments/InvestmentReviewScreen';
+import BillingStartScreen from './src/screens/services/billing/BillingStartScreen';
+import BillingReviewScreen from './src/screens/services/billing/BillingReviewScreen';
+import BillingReceiptScreen from './src/screens/services/billing/BillingReceiptScreen';
+import ConsignedCreditScreen from './src/screens/services/credit/ConsignedCreditScreen';
+import ConsignedRequestScreen from './src/screens/services/credit/ConsignedRequestScreen';
+import ConsignedStatusScreen from './src/screens/services/credit/ConsignedStatusScreen';
+import ServiceReceiptsScreen from './src/screens/services/ServiceReceiptsScreen';
+import ServiceInfoScreen from './src/screens/services/ServiceInfoScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -105,6 +117,18 @@ export default function App() {
         <Stack.Screen name="CardReceipts" component={CardReceiptsScreen} />
         <Stack.Screen name="CardRequest" component={CardRequestScreen} />
         <Stack.Screen name="TransportCard" component={TransportCardScreen} />
+        <Stack.Screen name="Services" component={ServicesScreen} />
+        <Stack.Screen name="Investments" component={InvestmentsScreen} />
+        <Stack.Screen name="InvestmentSimulation" component={InvestmentSimulationScreen} />
+        <Stack.Screen name="InvestmentReview" component={InvestmentReviewScreen} />
+        <Stack.Screen name="BillingStart" component={BillingStartScreen} />
+        <Stack.Screen name="BillingReview" component={BillingReviewScreen} />
+        <Stack.Screen name="BillingReceipt" component={BillingReceiptScreen} />
+        <Stack.Screen name="ConsignedCredit" component={ConsignedCreditScreen} />
+        <Stack.Screen name="ConsignedRequest" component={ConsignedRequestScreen} />
+        <Stack.Screen name="ConsignedStatus" component={ConsignedStatusScreen} />
+        <Stack.Screen name="ServiceReceipts" component={ServiceReceiptsScreen} />
+        <Stack.Screen name="ServiceInfo" component={ServiceInfoScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -2,10 +2,10 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, spacing, typography } from '../../theme';
 
-export default function SectionTitle({ actionLabel, children, onActionPress, style }) {
+export default function SectionTitle({ actionLabel, children, onActionPress, style, title }) {
   return (
     <View style={[styles.container, style]}>
-      <Text style={styles.title}>{children}</Text>
+      <Text style={styles.title}>{children ?? title}</Text>
       {actionLabel ? (
         <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={onActionPress}>
           <Text style={styles.action}>{actionLabel}</Text>

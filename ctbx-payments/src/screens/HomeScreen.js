@@ -595,6 +595,7 @@ export default function HomeScreen({ navigation }) {
           onTabPress={(tab) => {
             if (tab.key === 'pix') navigation.navigate('Pix');
             if (tab.key === 'cards') navigation.navigate('Cards');
+            if (tab.key === 'services') navigation.navigate('Services');
           }}
           renderIcon={(tab, active) => (
             <Text style={[styles.tabIcon, active && styles.tabIconActive]}>
