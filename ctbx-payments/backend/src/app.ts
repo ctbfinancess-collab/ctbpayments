@@ -9,8 +9,10 @@ import type { ProviderRegistry } from './providers/ports.js';
 import { SandboxAccountProvider } from './providers/sandbox/SandboxAccountProvider.js';
 import { SandboxAuthProvider } from './providers/sandbox/SandboxAuthProvider.js';
 import { SandboxCardProvider } from './providers/sandbox/SandboxCardProvider.js';
+import { SandboxChallengeProvider } from './providers/sandbox/SandboxChallengeProvider.js';
 import { SandboxDeviceBindingProvider } from './providers/sandbox/SandboxDeviceBindingProvider.js';
 import { SandboxPixProvider } from './providers/sandbox/SandboxPixProvider.js';
+import { SandboxPaymentProvider } from './providers/sandbox/SandboxPaymentProvider.js';
 import { SandboxSessionStore } from './providers/sandbox/SandboxSessionStore.js';
 import { SandboxTransferProvider } from './providers/sandbox/SandboxTransferProvider.js';
 import { healthRoutes } from './routes/health.js';
@@ -22,6 +24,7 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
   if (config.nodeEnv === 'production') return {};
   const sessions = new SandboxSessionStore({ environment: config.nodeEnv });
   const deviceBinding = new SandboxDeviceBindingProvider(config.nodeEnv);
+  const challenge = new SandboxChallengeProvider(config.nodeEnv);
   return {
     sessions,
     deviceBinding,
@@ -30,6 +33,8 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
     card: new SandboxCardProvider(config.nodeEnv),
     pix: new SandboxPixProvider(config.nodeEnv),
     transfer: new SandboxTransferProvider(config.nodeEnv),
+    challenge,
+    payment: new SandboxPaymentProvider(config.nodeEnv, challenge),
   };
 }
 

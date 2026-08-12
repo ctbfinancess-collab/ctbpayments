@@ -7,8 +7,10 @@ import type { ProviderRegistry } from '../src/providers/ports.js';
 import { SandboxAccountProvider } from '../src/providers/sandbox/SandboxAccountProvider.js';
 import { SANDBOX_EMAIL, SANDBOX_PASSWORD, SandboxAuthProvider } from '../src/providers/sandbox/SandboxAuthProvider.js';
 import { SandboxCardProvider } from '../src/providers/sandbox/SandboxCardProvider.js';
+import { SandboxChallengeProvider } from '../src/providers/sandbox/SandboxChallengeProvider.js';
 import { SandboxDeviceBindingProvider } from '../src/providers/sandbox/SandboxDeviceBindingProvider.js';
 import { SandboxPixProvider } from '../src/providers/sandbox/SandboxPixProvider.js';
+import { SandboxPaymentProvider } from '../src/providers/sandbox/SandboxPaymentProvider.js';
 import { SandboxSessionStore } from '../src/providers/sandbox/SandboxSessionStore.js';
 import { SandboxTransferProvider } from '../src/providers/sandbox/SandboxTransferProvider.js';
 
@@ -422,6 +424,113 @@ test('transfer reads reject device mismatch and sandbox provider is forbidden in
   assert.throws(() => new SandboxTransferProvider('production'), /forbidden in production/);
 });
 
+const sandboxBillCode = '00190500954014481606906809350314337370000000100';
+
+test('payment lookup handles valid, invalid and missing SANDBOX bills securely', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  assert.equal((await app.inject({ method: 'POST', url: '/v1/payments/bills/lookup', payload: { code: sandboxBillCode } })).statusCode, 401);
+  const session = await login(app);
+  const valid = await app.inject({ method: 'POST', url: '/v1/payments/bills/lookup', headers: authHeaders(session), payload: { code: sandboxBillCode } });
+  assert.equal(valid.statusCode, 200);
+  assert.equal(valid.json().data.billId, 'sbx_bill_001');
+  assert.equal(valid.json().data.totalAmountMinor, 12500);
+  assert.ok(['originalAmountMinor', 'discountMinor', 'interestMinor', 'fineMinor', 'totalAmountMinor'].every((field) => Number.isInteger(valid.json().data[field])));
+  const invalid = await app.inject({ method: 'POST', url: '/v1/payments/bills/lookup', headers: authHeaders(session), payload: { code: 'abc' } });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.json().error.code, 'PAYMENT_BARCODE_INVALID');
+  const missing = await app.inject({ method: 'POST', url: '/v1/payments/bills/lookup', headers: authHeaders(session), payload: { code: '99999999999999999999999999999999999999999999999' } });
+  assert.equal(missing.statusCode, 404);
+  assert.equal(missing.json().error.code, 'PAYMENT_BILL_NOT_FOUND');
+});
+
+test('payment validation enforces amount, balance, ownership and future scheduling', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const valid = await app.inject({ method: 'POST', url: '/v1/payments/bills/validate', headers: authHeaders(session), payload: { billId: 'sbx_bill_001', amountMinor: 12500, currency: 'BRL' } });
+  assert.equal(valid.statusCode, 200);
+  assert.equal(valid.json().data.status, 'VALIDATED');
+  assert.equal(valid.json().data.totalDebitMinor, 12500);
+  const scheduled = await app.inject({ method: 'POST', url: '/v1/payments/bills/validate', headers: authHeaders(session), payload: { billId: 'sbx_bill_001', amountMinor: 12500, currency: 'BRL', scheduledFor: new Date(Date.now() + 86_400_000).toISOString() } });
+  assert.equal(scheduled.statusCode, 200);
+  const cases = [
+    [{ billId: 'sbx_bill_001', amountMinor: 0, currency: 'BRL' }, 'PAYMENT_VALIDATION_FAILED', 422],
+    [{ billId: 'sbx_bill_001', amountMinor: 125001, currency: 'BRL' }, 'INSUFFICIENT_FUNDS', 422],
+    [{ billId: 'sbx_bill_001', amountMinor: 100, currency: 'BRL', scheduledFor: new Date(Date.now() - 86_400_000).toISOString() }, 'PAYMENT_VALIDATION_FAILED', 422],
+    [{ billId: 'sbx_bill_other_account', amountMinor: 100, currency: 'BRL' }, 'PAYMENT_BILL_NOT_FOUND', 404],
+  ] as const;
+  for (const [payload, code, status] of cases) { const response = await app.inject({ method: 'POST', url: '/v1/payments/bills/validate', headers: authHeaders(session), payload }); assert.equal(response.statusCode, status); assert.equal(response.json().error.code, code); }
+});
+
+test('SANDBOX OTP challenge authorizes simulated payment and receipt', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const validation = (await app.inject({ method: 'POST', url: '/v1/payments/bills/validate', headers: authHeaders(session), payload: { billId: 'sbx_bill_001', amountMinor: 12500, currency: 'BRL' } })).json().data;
+  const challenge = await app.inject({ method: 'POST', url: '/v1/security/challenges', headers: authHeaders(session), payload: { purpose: 'PAYMENT', operationId: validation.validationId, type: 'OTP' } });
+  assert.equal(challenge.statusCode, 201);
+  const wrong = await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.json().data.id}/verify`, headers: authHeaders(session), payload: { proof: '000000' } });
+  assert.equal(wrong.statusCode, 401);
+  assert.equal(wrong.json().error.code, 'AUTH_CHALLENGE_INVALID');
+  const verified = await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.json().data.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } });
+  assert.equal(verified.statusCode, 200);
+  const payload = { validationId: validation.validationId, challengeId: challenge.json().data.id, description: 'Pagamento SANDBOX' };
+  const headers = { ...authHeaders(session), 'idempotency-key': 'idem-payment-test-0001' };
+  const payment = await app.inject({ method: 'POST', url: '/v1/payments/bills', headers, payload });
+  assert.equal(payment.statusCode, 200);
+  assert.equal(payment.json().data.status, 'COMPLETED');
+  assert.equal(payment.json().data.environment, 'SANDBOX');
+  assert.equal(payment.json().data.simulated, true);
+  const detail = await app.inject({ method: 'GET', url: `/v1/payments/${payment.json().data.paymentId}`, headers: authHeaders(session) });
+  const receipt = await app.inject({ method: 'GET', url: `/v1/payments/${payment.json().data.paymentId}/receipt`, headers: { ...authHeaders(session), 'x-request-id': 'payment-receipt-test' } });
+  assert.equal(detail.statusCode, 200);
+  assert.equal(receipt.statusCode, 200);
+  assert.equal(receipt.json().data.simulated, true);
+  assert.equal(receipt.json().data.requestId, 'payment-receipt-test');
+  const serialized = JSON.stringify({ payment: payment.json().data, receipt: receipt.json().data }).toLowerCase();
+  for (const forbidden of ['cvv', 'pan', 'password', 'gatewaytoken', '123456']) assert.equal(serialized.includes(forbidden), false);
+});
+
+test('payment idempotency replays identical submits and rejects payload conflicts', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const validation = (await app.inject({ method: 'POST', url: '/v1/payments/bills/validate', headers: authHeaders(session), payload: { billId: 'sbx_bill_001', amountMinor: 12500, currency: 'BRL' } })).json().data;
+  const challenge = (await app.inject({ method: 'POST', url: '/v1/security/challenges', headers: authHeaders(session), payload: { purpose: 'PAYMENT', operationId: validation.validationId } })).json().data;
+  await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } });
+  const headers = { ...authHeaders(session), 'idempotency-key': 'idem-payment-replay-0001' };
+  const payload = { validationId: validation.validationId, challengeId: challenge.id };
+  const first = await app.inject({ method: 'POST', url: '/v1/payments/bills', headers, payload });
+  const replay = await app.inject({ method: 'POST', url: '/v1/payments/bills', headers, payload });
+  assert.equal(replay.json().data.paymentId, first.json().data.paymentId);
+  const conflict = await app.inject({ method: 'POST', url: '/v1/payments/bills', headers, payload: { ...payload, description: 'diferente' } });
+  assert.equal(conflict.statusCode, 409);
+  assert.equal(conflict.json().error.code, 'IDEMPOTENCY_KEY_CONFLICT');
+});
+
+test('scheduled and installment SANDBOX payments remain simulated in memory', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app);
+  const scheduledFor = new Date(Date.now() + 86_400_000).toISOString();
+  const validation = (await app.inject({ method: 'POST', url: '/v1/payments/bills/validate', headers: authHeaders(session), payload: { billId: 'sbx_bill_001', amountMinor: 12500, currency: 'BRL', scheduledFor } })).json().data;
+  const challenge = (await app.inject({ method: 'POST', url: '/v1/security/challenges', headers: authHeaders(session), payload: { purpose: 'PAYMENT', operationId: validation.validationId } })).json().data;
+  await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } });
+  const scheduled = await app.inject({ method: 'POST', url: '/v1/payments/bills/schedule', headers: { ...authHeaders(session), 'idempotency-key': 'idem-payment-schedule-01' }, payload: { validationId: validation.validationId, challengeId: challenge.id, scheduledFor } });
+  assert.equal(scheduled.json().data.status, 'SCHEDULED');
+  const simulation = await app.inject({ method: 'POST', url: '/v1/payments/installments/simulate', headers: authHeaders(session), payload: { billId: 'sbx_bill_001', amountMinor: 12500 } });
+  assert.equal(simulation.statusCode, 200); assert.equal(simulation.json().data.options.length, 8);
+  const option = simulation.json().data.options[1];
+  const installmentChallenge = (await app.inject({ method: 'POST', url: '/v1/security/challenges', headers: authHeaders(session), payload: { purpose: 'PAYMENT', operationId: simulation.json().data.simulationId } })).json().data;
+  await app.inject({ method: 'POST', url: `/v1/security/challenges/${installmentChallenge.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } });
+  const installment = await app.inject({ method: 'POST', url: '/v1/payments/installments', headers: { ...authHeaders(session), 'idempotency-key': 'idem-payment-install-001' }, payload: { simulationId: simulation.json().data.simulationId, optionId: option.optionId, challengeId: installmentChallenge.id } });
+  assert.equal(installment.statusCode, 200); assert.equal(installment.json().data.installments, 2); assert.equal(installment.json().data.simulated, true);
+});
+
+test('payment reads reject device mismatch and sandbox providers are forbidden in production', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app);
+  const mismatch = await app.inject({ method: 'POST', url: '/v1/payments/bills/lookup', headers: { authorization: `Bearer ${session.accessToken}`, 'x-device-id': 'sbx_dev_wrong' }, payload: { code: sandboxBillCode } });
+  assert.equal(mismatch.statusCode, 401); assert.equal(mismatch.json().error.code, 'AUTH_DEVICE_MISMATCH');
+  const challenge = new SandboxChallengeProvider('test');
+  assert.throws(() => new SandboxPaymentProvider('production', challenge), /forbidden in production/);
+  assert.throws(() => new SandboxChallengeProvider('production'), /forbidden in production/);
+});
+
 test('production refuses sandbox auth and account providers', () => {
   const sessions = new SandboxSessionStore({ environment: 'test' });
   const devices = new SandboxDeviceBindingProvider('test');
@@ -445,12 +554,11 @@ test('password and tokens are removed by structured redaction', () => {
   assert.equal(serialized.includes('safe'), true);
 });
 
-test('transactional domains remain unavailable', async (t) => {
+test('remaining transactional domains remain unavailable', async (t) => {
   const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
   const requests = [
     { method: 'POST', url: '/v1/pix/transfers', headers: { 'idempotency-key': 'idem-test-pix-0001' }, payload: { beneficiaryToken: 'sbx_beneficiary', amount: { amount: 100, currency: 'BRL' } } },
     { method: 'POST', url: '/v1/transfers', headers: { 'idempotency-key': 'idem-test-transfer-0001' }, payload: { type: 'INTERNAL', beneficiaryId: 'sbx_beneficiary', amount: { amount: 100, currency: 'BRL' } } },
-    { method: 'POST', url: '/v1/payments/bills', headers: { 'idempotency-key': 'idem-test-payment-0001' }, payload: { billId: 'sbx_bill', amount: { amount: 100, currency: 'BRL' } } },
   ] as const;
   for (const request of requests) {
     const response = await app.inject(request);

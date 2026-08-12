@@ -33,7 +33,16 @@ export interface TransferProvider {
   lookupBeneficiary(context: AuthContext, input: unknown): Promise<unknown>;
   validate(context: AuthContext, input: unknown): Promise<unknown>;
 }
-export interface PaymentProvider { lookupBill(input: unknown): Promise<unknown>; validateBill(input: unknown): Promise<unknown>; payBill(input: unknown): Promise<Operation>; scheduleBill(input: unknown): Promise<Operation>; simulateInstallments(input: unknown): Promise<unknown>; payInstallments(input: unknown): Promise<Operation>; }
+export interface PaymentProvider {
+  lookupBill(context: AuthContext, input: unknown): Promise<unknown>;
+  validateBill(context: AuthContext, input: unknown): Promise<unknown>;
+  payBill(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string): Promise<unknown>;
+  scheduleBill(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string): Promise<unknown>;
+  simulateInstallments(context: AuthContext, input: unknown): Promise<unknown>;
+  payInstallments(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string): Promise<unknown>;
+  getPayment(context: AuthContext, paymentId: string): Promise<unknown>;
+  getReceipt(context: AuthContext, paymentId: string, requestId: string): Promise<unknown>;
+}
 export interface CardProvider {
   list(context: AuthContext): Promise<unknown>;
   get(context: AuthContext, cardId: string): Promise<unknown>;
@@ -47,7 +56,11 @@ export interface InvestmentProvider { listProducts(): Promise<unknown>; simulate
 export interface BillingProvider { listPayers(): Promise<unknown>; createBill(input: unknown): Promise<Operation>; }
 export interface ConsignedProvider { listProducts(): Promise<unknown>; simulate(input: unknown): Promise<unknown>; apply(input: unknown): Promise<Operation>; }
 export interface ProfileProvider { getProfile(context: unknown): Promise<unknown>; updatePhoto(input: unknown): Promise<unknown>; listTerms(): Promise<unknown>; }
-export interface ChallengeProvider { create(input: unknown): Promise<unknown>; verify(id: string, input: unknown): Promise<unknown>; }
+export interface ChallengeProvider {
+  create(context: AuthContext, input: unknown): Promise<unknown>;
+  verify(context: AuthContext, id: string, input: unknown): Promise<unknown>;
+  isVerified(context: AuthContext, id: string, operationId: string): boolean;
+}
 
 export interface ProviderRegistry {
   auth?: AuthProvider;

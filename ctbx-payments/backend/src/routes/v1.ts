@@ -134,19 +134,46 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     schema: { body: objectSchema(['type', 'beneficiaryId', 'amount', 'scheduledFor'], { type: { type: 'string', enum: ['INTERNAL', 'EXTERNAL'] }, beneficiaryId: idSchema, amount: moneySchema, scheduledFor: { type: 'string', format: 'date-time' }, purpose: string, description: string, saveFavorite: boolean, challengeId: idSchema }) },
   }, unavailable('de transferências'));
 
-  app.post('/payments/bills/lookup', { schema: { body: objectSchema(['code'], { code: { type: 'string', minLength: 8, maxLength: 64, pattern: '^[0-9 ]+$' } }) } }, unavailable('de pagamentos'));
-  const billIntent = objectSchema(['billId', 'amount'], { billId: idSchema, amount: moneySchema, description: string, challengeId: idSchema });
-  app.post('/payments/bills/validate', { schema: { body: billIntent } }, unavailable('de pagamentos'));
-  app.post('/payments/bills', { preHandler: requireIdempotencyKey, schema: { body: billIntent } }, unavailable('de pagamentos'));
+  app.post('/payments/bills/lookup', { preHandler: authenticated, schema: { body: objectSchema(['code'], { code: { type: 'string', minLength: 1, maxLength: 64 } }) } }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.lookupBill(request.auth!, request.body));
+  });
+  const billValidation = objectSchema(['billId', 'amountMinor', 'currency'], { billId: idSchema, amountMinor: { type: 'integer' }, currency: { type: 'string', enum: ['BRL'] }, scheduledFor: { type: 'string', format: 'date-time' }, description: string });
+  app.post('/payments/bills/validate', { preHandler: authenticated, schema: { body: billValidation } }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.validateBill(request.auth!, request.body));
+  });
+  const billSubmit = objectSchema(['validationId', 'challengeId'], { validationId: idSchema, challengeId: idSchema, description: string });
+  app.post('/payments/bills', { preHandler: [authenticated, requireIdempotencyKey], schema: { body: billSubmit } }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.payBill(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
   app.post('/payments/bills/schedule', {
-    preHandler: requireIdempotencyKey,
-    schema: { body: objectSchema(['billId', 'amount', 'scheduledFor'], { billId: idSchema, amount: moneySchema, scheduledFor: { type: 'string', format: 'date-time' }, description: string, challengeId: idSchema }) },
-  }, unavailable('de pagamentos'));
-  app.post('/payments/installments/simulate', { schema: { body: objectSchema(['billId', 'amount'], { billId: idSchema, amount: moneySchema }) } }, unavailable('de pagamentos'));
+    preHandler: [authenticated, requireIdempotencyKey],
+    schema: { body: objectSchema(['validationId', 'challengeId', 'scheduledFor'], { validationId: idSchema, challengeId: idSchema, scheduledFor: { type: 'string', format: 'date-time' }, description: string }) },
+  }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.scheduleBill(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.post('/payments/installments/simulate', { preHandler: authenticated, schema: { body: objectSchema(['billId', 'amountMinor'], { billId: idSchema, amountMinor: { type: 'integer' }, installments: { type: 'integer', minimum: 1, maximum: 12 } }) } }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.simulateInstallments(request.auth!, request.body));
+  });
   app.post('/payments/installments', {
-    preHandler: requireIdempotencyKey,
-    schema: { body: objectSchema(['simulationId', 'optionId', 'paymentMethodToken'], { simulationId: idSchema, optionId: idSchema, paymentMethodToken: string }) },
-  }, unavailable('de pagamentos'));
+    preHandler: [authenticated, requireIdempotencyKey],
+    schema: { body: objectSchema(['simulationId', 'optionId', 'challengeId'], { simulationId: idSchema, optionId: idSchema, challengeId: idSchema, description: string }) },
+  }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.payInstallments(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.get('/payments/:id', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.getPayment(request.auth!, (request.params as { id: string }).id));
+  });
+  app.get('/payments/:id/receipt', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.payment) throw providerNotConfigured('de pagamentos');
+    return envelope(request, await providers.payment.getReceipt(request.auth!, (request.params as { id: string }).id, request.id));
+  });
 
   app.get('/cards', { preHandler: authenticated }, async (request) => {
     if (!providers.card) throw providerNotConfigured('de cartões');
@@ -191,6 +218,12 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
   });
   app.post('/cards/:id/recharge', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['amount'], { amount: moneySchema }) } }, unavailable('de cartões'));
 
-  app.post('/security/challenges', { schema: { body: objectSchema(['purpose', 'operationId'], { purpose: shortString, operationId: idSchema }) } }, unavailable('de segurança'));
-  app.post('/security/challenges/:id/verify', { schema: { params: idParams, body: objectSchema(['proof'], { proof: string }) } }, unavailable('de segurança'));
+  app.post('/security/challenges', { preHandler: authenticated, schema: { body: objectSchema(['purpose', 'operationId'], { purpose: shortString, operationId: idSchema, type: { type: 'string', enum: ['OTP'] } }) } }, async (request, reply) => {
+    if (!providers.challenge) throw providerNotConfigured('de segurança');
+    return reply.status(201).send(envelope(request, await providers.challenge.create(request.auth!, request.body)));
+  });
+  app.post('/security/challenges/:id/verify', { preHandler: authenticated, schema: { params: idParams, body: objectSchema(['proof'], { proof: string }) } }, async (request) => {
+    if (!providers.challenge) throw providerNotConfigured('de segurança');
+    return envelope(request, await providers.challenge.verify(request.auth!, (request.params as { id: string }).id, request.body));
+  });
 }

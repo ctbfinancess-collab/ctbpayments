@@ -8,8 +8,8 @@ import { colors, radii, spacing, typography } from '../../theme';
 export default function PaymentInstallmentsScreen({ navigation, route }) {
   const payment = route.params?.payment;
   const loadInstallments = useCallback(
-    () => getInstallments(payment?.bill?.total),
-    [payment?.bill?.total],
+    () => getInstallments(payment),
+    [payment],
   );
   const { data: installments, error, loading, retry } = useAsyncResource(loadInstallments, []);
   const [selected, setSelected] = useState(null);

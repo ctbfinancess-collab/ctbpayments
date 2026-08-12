@@ -470,6 +470,7 @@ paths:
     post:
       tags: [Payments]
       operationId: lookupBill
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       requestBody:
         required: true
         content:
@@ -488,12 +489,19 @@ paths:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
                     properties: { data: { $ref: '#/components/schemas/Bill' } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/bills/validate:
     post:
       tags: [Payments]
       operationId: validateBillPayment
-      requestBody: { $ref: '#/components/requestBodies/BillPaymentIntent' }
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BillValidationIntent' }
       responses:
         '200':
           description: Validação sem pagamento
@@ -503,63 +511,91 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
-                    properties: { data: { $ref: '#/components/schemas/ValidationResult' } }
+                    properties: { data: { $ref: '#/components/schemas/BillValidation' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
         '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/bills:
     post:
       tags: [Payments]
       operationId: payBill
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
-      requestBody: { $ref: '#/components/requestBodies/BillPaymentIntent' }
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody: { $ref: '#/components/requestBodies/SandboxPaymentSubmit' }
       responses:
-        '202': { $ref: '#/components/responses/PaymentResponse' }
+        '200': { $ref: '#/components/responses/PaymentResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
         '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/bills/schedule:
     post:
       tags: [Payments]
       operationId: scheduleBillPayment
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BillPaymentIntent'
+                - $ref: '#/components/schemas/SandboxPaymentSubmit'
                 - type: object
                   required: [scheduledFor]
                   properties: { scheduledFor: { type: string, format: date-time } }
       responses:
-        '202': { $ref: '#/components/responses/PaymentResponse' }
+        '200': { $ref: '#/components/responses/PaymentResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/{id}:
     get:
       tags: [Payments]
       operationId: getPayment
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
         '200': { $ref: '#/components/responses/PaymentResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/{id}/receipt:
     get:
       tags: [Payments]
       operationId: getPaymentReceipt
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
-        '200': { $ref: '#/components/responses/ReceiptResponse' }
+        '200':
+          description: Comprovante estrutural SANDBOX
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/SandboxPaymentReceipt' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/installments/simulate:
     post:
       tags: [Payments]
       operationId: simulatePaymentInstallments
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [billId, amount]
+              required: [billId, amountMinor]
               properties:
                 billId: { type: string }
-                amount: { $ref: '#/components/schemas/Money' }
+                amountMinor: { type: integer, minimum: 1 }
+                installments: { type: integer, minimum: 1, maximum: 12 }
       responses:
         '200':
           description: Opções calculadas pelo provider
@@ -570,27 +606,34 @@ paths:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
                     properties:
-                      data:
-                        type: array
-                        items: { $ref: '#/components/schemas/InstallmentOption' }
+                      data: { $ref: '#/components/schemas/SandboxInstallmentSimulation' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/installments:
     post:
       tags: [Payments]
       operationId: createInstallmentPayment
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [simulationId, optionId, paymentMethodToken]
+              required: [simulationId, optionId, challengeId]
               properties:
                 simulationId: { type: string }
                 optionId: { type: string }
-                paymentMethodToken: { type: string, writeOnly: true }
+                challengeId: { type: string }
+                description: { type: string }
       responses:
-        '202': { $ref: '#/components/responses/PaymentResponse' }
+        '200': { $ref: '#/components/responses/PaymentResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/cards:
     get:
       tags: [Cards]
@@ -800,6 +843,7 @@ paths:
     post:
       tags: [Security]
       operationId: createChallenge
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       requestBody:
         required: true
         content:
@@ -810,13 +854,17 @@ paths:
               properties:
                 purpose: { type: string }
                 operationId: { type: string }
+                type: { type: string, enum: [OTP] }
       responses:
         '201': { $ref: '#/components/responses/ChallengeResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/security/challenges/{id}/verify:
     post:
       tags: [Security]
       operationId: verifyChallenge
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       requestBody:
         required: true
         content:
@@ -827,7 +875,7 @@ paths:
               properties: { proof: { type: string, writeOnly: true } }
       responses:
         '200': { $ref: '#/components/responses/ChallengeResponse' }
-        '422': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
 components:
   securitySchemes:
     bearerAuth:
@@ -866,11 +914,16 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/BankTransferIntent' }
+    SandboxPaymentSubmit:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/SandboxPaymentSubmit' }
     BillPaymentIntent:
       required: true
       content:
         application/json:
-          schema: { $ref: '#/components/schemas/BillPaymentIntent' }
+          schema: { $ref: '#/components/schemas/BillValidationIntent' }
     ChallengeProof:
       required: true
       content:
@@ -1227,6 +1280,13 @@ components:
         description: { type: string, maxLength: 140 }
         saveFavorite: { type: boolean, default: false }
         challengeId: { type: string }
+    SandboxPaymentSubmit:
+      type: object
+      required: [validationId, challengeId]
+      properties:
+        validationId: { type: string }
+        challengeId: { type: string }
+        description: { type: string }
     PixTransfer:
       allOf:
         - $ref: '#/components/schemas/Operation'
@@ -1317,38 +1377,106 @@ components:
             scheduledFor: { type: string, format: date-time }
     Bill:
       type: object
-      required: [id, maskedCode, beneficiaryName, dueDate, originalAmount, payableAmount]
-      properties:
-        id: { type: string }
-        maskedCode: { type: string }
-        beneficiaryName: { type: string }
-        maskedBeneficiaryDocument: { type: string }
-        payerName: { type: string }
-        maskedPayerDocument: { type: string }
-        dueDate: { type: string, format: date }
-        originalAmount: { $ref: '#/components/schemas/Money' }
-        discount: { $ref: '#/components/schemas/Money' }
-        interest: { $ref: '#/components/schemas/Money' }
-        fine: { $ref: '#/components/schemas/Money' }
-        payableAmount: { $ref: '#/components/schemas/Money' }
-        validUntil: { type: string, format: date-time }
-    BillPaymentIntent:
-      type: object
-      required: [billId, amount]
+      required: [billId, barcode, digitableLine, beneficiary, bankName, dueDate, originalAmountMinor, discountMinor, interestMinor, fineMinor, totalAmountMinor, currency, status]
       properties:
         billId: { type: string }
-        amount: { $ref: '#/components/schemas/Money' }
-        description: { type: string }
-        challengeId: { type: string }
-    Payment:
-      allOf:
-        - $ref: '#/components/schemas/Operation'
-        - type: object
-          required: [bill, amount]
+        barcode: { type: string }
+        digitableLine: { type: string }
+        beneficiary:
+          type: object
+          required: [name, documentMasked]
           properties:
-            bill: { $ref: '#/components/schemas/Bill' }
-            amount: { $ref: '#/components/schemas/Money' }
-            scheduledFor: { type: string, format: date-time }
+            name: { type: string }
+            documentMasked: { type: string }
+        bankName: { type: string }
+        dueDate: { type: string, format: date }
+        originalAmountMinor: { type: integer }
+        discountMinor: { type: integer }
+        interestMinor: { type: integer }
+        fineMinor: { type: integer }
+        totalAmountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        status: { type: string, enum: [OPEN] }
+    BillValidationIntent:
+      type: object
+      required: [billId, amountMinor, currency]
+      properties:
+        billId: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        scheduledFor: { type: string, format: date-time }
+        description: { type: string }
+    BillValidation:
+      type: object
+      required: [validationId, bill, amountMinor, currency, feeMinor, totalDebitMinor, status, requiresChallenge, warnings]
+      properties:
+        validationId: { type: string }
+        bill: { $ref: '#/components/schemas/Bill' }
+        amountMinor: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [BRL] }
+        feeMinor: { type: integer, minimum: 0 }
+        totalDebitMinor: { type: integer, minimum: 1 }
+        scheduledFor: { type: string, format: date-time }
+        status: { type: string, enum: [VALIDATED] }
+        requiresChallenge: { type: boolean }
+        warnings: { type: array, items: { type: string } }
+    Payment:
+      type: object
+      required: [paymentId, operationId, requestId, environment, simulated, status, createdAt, amountMinor, currency, beneficiary, barcodeMasked]
+      properties:
+        paymentId: { type: string }
+        operationId: { type: string }
+        requestId: { type: string }
+        environment: { type: string, enum: [SANDBOX] }
+        simulated: { type: boolean, enum: [true] }
+        status: { type: string, enum: [COMPLETED, SCHEDULED] }
+        createdAt: { type: string, format: date-time }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        beneficiary:
+          type: object
+          properties: { name: { type: string }, documentMasked: { type: string } }
+        barcodeMasked: { type: string }
+        description: { type: string }
+        scheduledFor: { type: string, format: date-time }
+        installments: { type: integer }
+    SandboxPaymentReceipt:
+      type: object
+      required: [operationId, paymentId, createdAt, amountMinor, currency, beneficiary, barcodeMasked, status, environment, simulated, requestId]
+      properties:
+        operationId: { type: string }
+        paymentId: { type: string }
+        createdAt: { type: string, format: date-time }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        beneficiary:
+          type: object
+          properties: { name: { type: string }, documentMasked: { type: string } }
+        barcodeMasked: { type: string }
+        status: { type: string, enum: [COMPLETED, SCHEDULED] }
+        environment: { type: string, enum: [SANDBOX] }
+        simulated: { type: boolean, enum: [true] }
+        requestId: { type: string }
+    SandboxInstallmentSimulation:
+      type: object
+      required: [simulationId, environment, simulated, options]
+      properties:
+        simulationId: { type: string }
+        environment: { type: string, enum: [SANDBOX] }
+        simulated: { type: boolean, enum: [true] }
+        options:
+          type: array
+          items:
+            type: object
+            required: [optionId, installments, installmentAmountMinor, totalAmountMinor, feeMinor, currency, rule]
+            properties:
+              optionId: { type: string }
+              installments: { type: integer }
+              installmentAmountMinor: { type: integer }
+              totalAmountMinor: { type: integer }
+              feeMinor: { type: integer }
+              currency: { type: string, enum: [BRL] }
+              rule: { type: string, enum: [SANDBOX_1_2_PERCENT_PER_ADDITIONAL_INSTALLMENT] }
     ValidationResult:
       type: object
       required: [valid]

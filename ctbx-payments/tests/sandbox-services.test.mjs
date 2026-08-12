@@ -11,6 +11,8 @@ import pixMapperModule from '../src/services/mappers/pixMapper.js';
 import pixServiceModule from '../src/services/pixService.js';
 import transferMapperModule from '../src/services/mappers/transferMapper.js';
 import transferServiceModule from '../src/services/transferService.js';
+import paymentMapperModule from '../src/services/mappers/paymentMapper.js';
+import paymentServiceModule from '../src/services/paymentService.js';
 import statementServiceModule from '../src/services/statementService.js';
 import sandboxAuthModule from '../src/services/sandboxAuthClient.js';
 import reducerModule from '../src/session/sessionReducer.js';
@@ -26,6 +28,8 @@ const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxQrLookup, mapSandboxRe
 const { createPixService } = pixServiceModule;
 const { mapSandboxBank, mapSandboxTransferBeneficiary, mapSandboxTransferFavorites, mapSandboxTransferValidation } = transferMapperModule;
 const { createTransferService } = transferServiceModule;
+const { mapSandboxBill, mapSandboxInstallments, mapSandboxPayment, mapSandboxPaymentReceipt, mapSandboxPaymentValidation } = paymentMapperModule;
+const { createPaymentService } = paymentServiceModule;
 const { createStatementService } = statementServiceModule;
 const { mapSandboxSession, refreshSandboxSession, sandboxLogin, logoutSandboxSession } = sandboxAuthModule;
 const { initialSessionState, sessionReducer } = reducerModule;
@@ -395,6 +399,64 @@ test('transfer lookup refreshes once after 401 and retries with rotated access t
   assert.equal(result.mode, 'internal');
   assert.equal(refreshCalls, 1);
   assert.equal(lookupCalls, 2);
+});
+
+const rawSandboxBill = { billId: 'sbx_bill_001', barcode: '00190500954014481606906809350314337370000000100', digitableLine: '00190500954014481606906809350314337370000000100', beneficiary: { name: 'Empresa Beneficiária SANDBOX', documentMasked: '**.***.***/****-**' }, bankName: 'Banco Emissor SANDBOX', dueDate: '2099-12-30', originalAmountMinor: 12500, discountMinor: 0, interestMinor: 0, fineMinor: 0, totalAmountMinor: 12500, currency: 'BRL', status: 'OPEN' };
+
+test('payment mapper normalizes bills, validation, installments, payment and receipt using integer cents', () => {
+  const bill = mapSandboxBill(rawSandboxBill);
+  assert.equal(bill.total, '125,00'); assert.equal(bill.beneficiary, 'Empresa Beneficiária SANDBOX');
+  const validation = mapSandboxPaymentValidation({ validationId: 'sbx_validation', bill: rawSandboxBill, amountMinor: 12500, feeMinor: 0, totalDebitMinor: 12500, currency: 'BRL', status: 'VALIDATED', requiresChallenge: true, warnings: [] });
+  assert.equal(validation.totalDebit, '125,00');
+  const installments = mapSandboxInstallments({ simulationId: 'sbx_simulation', options: [{ optionId: 'sbx_option_2', installments: 2, installmentAmountMinor: 6325, totalAmountMinor: 12650, feeMinor: 150, currency: 'BRL' }] });
+  assert.equal(installments[0].count, 2); assert.equal(installments[0].total, '126,50');
+  assert.equal(mapSandboxPayment({ amountMinor: 12500, environment: 'SANDBOX', simulated: true }).amount, '125,00');
+  assert.equal(mapSandboxPaymentReceipt({ amountMinor: 12500, beneficiary: rawSandboxBill.beneficiary, simulated: true }).beneficiaryName, 'Empresa Beneficiária SANDBOX');
+  assert.throws(() => mapSandboxBill({ ...rawSandboxBill, totalAmountMinor: 12.5 }), /integer minor units/);
+});
+
+test('payment service SANDBOX completes lookup, validation, OTP submit and receipt', async () => {
+  const validation = { validationId: 'sbx_validation', bill: rawSandboxBill, amountMinor: 12500, feeMinor: 0, totalDebitMinor: 12500, currency: 'BRL', status: 'VALIDATED', requiresChallenge: true, warnings: [] };
+  const payment = { paymentId: 'sbx_payment', operationId: 'sbx_operation', requestId: 'request', environment: 'SANDBOX', simulated: true, status: 'COMPLETED', createdAt: new Date().toISOString(), amountMinor: 12500, currency: 'BRL', beneficiary: rawSandboxBill.beneficiary, barcodeMasked: '00190••••00100' };
+  const receipt = { ...payment, requestId: 'receipt-request' };
+  const calls = [];
+  const client = async (path, options) => { calls.push({ path, options, body: options.body ? JSON.parse(options.body) : undefined }); if (path.endsWith('/lookup')) return { data: rawSandboxBill }; if (path.endsWith('/validate')) return { data: validation }; if (path === '/v1/security/challenges') return { data: { id: 'sbx_challenge' } }; if (path.includes('/verify')) return { data: { status: 'VERIFIED' } }; if (path.endsWith('/receipt')) return { data: receipt }; if (path === '/v1/payments/bills') return { data: payment }; throw new Error(path); };
+  const service = createPaymentService({ sandboxMode: true, client, balanceLoader: async () => [{ value: '1.250,00' }] });
+  const bill = await service.lookupBarcode(rawSandboxBill.barcode);
+  const intent = await service.validatePayment({ bill, description: 'Teste', scheduled: false });
+  const result = await service.authorizePayment(intent, '123456');
+  assert.equal(result.simulated, true); assert.equal(result.receipt.simulated, true); assert.equal(result.bill.total, '125,00');
+  assert.equal(calls.find((call) => call.path === '/v1/payments/bills/validate').body.amountMinor, 12500);
+  assert.equal(calls.find((call) => call.path === '/v1/payments/bills').options.headers['Idempotency-Key'], `ctbx-payment-${validation.validationId}`);
+  assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
+});
+
+test('payment service supports installment simulation, scheduling and stable idempotent double submit', async () => {
+  const future = '2099-12-31T12:00:00.000Z';
+  const simulation = { simulationId: 'sbx_simulation', environment: 'SANDBOX', simulated: true, options: [{ optionId: 'sbx_option_2', installments: 2, installmentAmountMinor: 6325, totalAmountMinor: 12650, feeMinor: 150, currency: 'BRL' }] };
+  const paymentResult = { paymentId: 'sbx_payment', operationId: 'sbx_operation', requestId: 'request', environment: 'SANDBOX', simulated: true, status: 'COMPLETED', createdAt: new Date().toISOString(), amountMinor: 12650, currency: 'BRL', beneficiary: rawSandboxBill.beneficiary, barcodeMasked: 'masked' };
+  let submitCalls = 0; const keys = [];
+  const client = async (path, options) => { if (path.endsWith('/simulate')) return { data: simulation }; if (path === '/v1/security/challenges') return { data: { id: 'challenge' } }; if (path.includes('/verify')) return { data: {} }; if (path.endsWith('/receipt')) return { data: paymentResult }; if (path === '/v1/payments/installments' || path === '/v1/payments/bills/schedule') { submitCalls += 1; keys.push(options.headers['Idempotency-Key']); return { data: { ...paymentResult, status: path.endsWith('schedule') ? 'SCHEDULED' : 'COMPLETED' } }; } throw new Error(path); };
+  const service = createPaymentService({ sandboxMode: true, client });
+  const installments = await service.getInstallments({ bill: mapSandboxBill(rawSandboxBill) });
+  const intent = { bill: mapSandboxBill(rawSandboxBill), installmentData: installments[0] };
+  const [first, second] = await Promise.all([service.authorizePayment(intent, '123456'), service.authorizePayment(intent, '123456')]);
+  assert.equal(first.paymentId, second.paymentId); assert.equal(submitCalls, 1); assert.equal(keys[0], 'ctbx-payment-sbx_simulation-sbx_option_2');
+  const scheduledService = createPaymentService({ sandboxMode: true, client });
+  const scheduled = await scheduledService.schedulePayment({ bill: mapSandboxBill(rawSandboxBill), validationId: 'sbx_validation_schedule', idempotencyKey: 'ctbx-payment-schedule-stable', scheduled: true, scheduledFor: future, date: '31/12/2099' }, '123456');
+  assert.equal(scheduled.status, 'SCHEDULED'); assert.equal(keys[1], 'ctbx-payment-schedule-stable');
+});
+
+test('payment service propagates errors, refreshes after 401 and keeps DEMO/PRODUCTION modes', async (t) => {
+  const demo = createPaymentService({ demoMode: true }); assert.equal((await demo.lookupBarcode(rawSandboxBill.barcode)).code, rawSandboxBill.barcode); assert.ok((await demo.getInstallments('125,00')).length > 0);
+  await assert.rejects(createPaymentService().lookupBarcode(rawSandboxBill.barcode), (error) => error.code === 'BACKEND_NOT_CONFIGURED');
+  const missing = createPaymentService({ sandboxMode: true, client: async () => { throw new ApiError('Boleto não encontrado.', { code: 'PAYMENT_BILL_NOT_FOUND', status: 404 }); } });
+  await assert.rejects(missing.lookupBarcode(rawSandboxBill.barcode), (error) => error.code === 'PAYMENT_BILL_NOT_FOUND');
+  const originalFetch = globalThis.fetch; t.after(() => { globalThis.fetch = originalFetch; configureApiClient(); }); let token = 'expired-payment'; let refreshCalls = 0; let calls = 0;
+  globalThis.fetch = async (_url, options) => { calls += 1; if (options.headers.Authorization === 'Bearer expired-payment') return new Response(JSON.stringify({ error: { code: 'AUTH_ACCESS_TOKEN_EXPIRED', message: 'expired' } }), { status: 401 }); return new Response(JSON.stringify({ data: rawSandboxBill }), { status: 200 }); };
+  configureApiClient({ getBaseURL: () => 'http://sandbox.test', getAccessToken: () => token, getDeviceId: () => 'sandbox-device', onUnauthorized: async () => { refreshCalls += 1; token = 'rotated-payment'; } });
+  assert.equal((await createPaymentService({ sandboxMode: true, client: apiClient }).lookupBarcode(rawSandboxBill.barcode)).id, 'sbx_bill_001');
+  assert.equal(refreshCalls, 1); assert.equal(calls, 2);
 });
 
 test('refresh calls are deduplicated and rotate mapped session', async () => {
