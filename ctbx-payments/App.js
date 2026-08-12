@@ -1,4 +1,5 @@
 import React from 'react';
+import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -67,20 +68,17 @@ import ProfileBiometricsScreen from './src/screens/profile/ProfileBiometricsScre
 import ProfileDevicesScreen from './src/screens/profile/ProfileDevicesScreen';
 import ProfileTokenScreen from './src/screens/profile/ProfileTokenScreen';
 import ProfileTermsScreen from './src/screens/profile/ProfileTermsScreen';
+import { isDemoMode } from './src/config';
+import { DemoEnvironmentBadge, LoadingState } from './src/components/ui';
+import { SessionProvider, useSession } from './src/session';
 
 const Stack = createNativeStackNavigator();
 
-export default function App() {
+const stackOptions = { headerShown: false, animation: 'fade' };
+
+function AuthenticatedStack() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator
-        initialRouteName="Login"
-        screenOptions={{
-          headerShown: false,
-          animation: 'fade',
-        }}
-      >
-        <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Navigator initialRouteName="Home" screenOptions={stackOptions}>
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Pix" component={PixScreen} />
         <Stack.Screen name="PixKeyEntry" component={PixKeyEntryScreen} />
@@ -146,6 +144,19 @@ export default function App() {
         <Stack.Screen name="ProfileToken" component={ProfileTokenScreen} />
         <Stack.Screen name="ProfileTerms" component={ProfileTermsScreen} />
       </Stack.Navigator>
-    </NavigationContainer>
   );
+}
+
+function PublicStack() {
+  return <Stack.Navigator screenOptions={stackOptions}><Stack.Screen name="Login" component={LoginScreen} /></Stack.Navigator>;
+}
+
+function AppNavigator() {
+  const { status } = useSession();
+  if (status === 'loading') return <LoadingState label="Preparando sessão…" />;
+  return <NavigationContainer>{status === 'authenticated' ? <AuthenticatedStack /> : <PublicStack />}</NavigationContainer>;
+}
+
+export default function App() {
+  return <SessionProvider><View style={{ flex: 1 }}><AppNavigator />{isDemoMode ? <DemoEnvironmentBadge /> : null}</View></SessionProvider>;
 }

@@ -1,0 +1,7 @@
+import { MOCK_ACCOUNT, MOCK_DEVICES, MOCK_PROFILE, PROFILE_TERMS } from '../data/profileMockData';
+import { demoOrThrow } from './serviceMode';
+export const getProfile = () => demoOrThrow(() => MOCK_PROFILE);
+export const getAccount = () => demoOrThrow(() => MOCK_ACCOUNT);
+export const listDevices = () => demoOrThrow(() => MOCK_DEVICES);
+export const listTerms = () => demoOrThrow(() => PROFILE_TERMS);
+export const updatePhoto = () => demoOrThrow(() => null);

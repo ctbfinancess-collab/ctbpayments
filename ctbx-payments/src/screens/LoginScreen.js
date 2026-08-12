@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Alert,
   Image,
   ImageBackground,
   SafeAreaView,
@@ -10,11 +11,23 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { isDemoMode, isProductionMode } from '../config';
+import { useSession } from '../session';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { login } = useSession();
+
+  const handleLogin = async () => {
+    if (isProductionMode && (!email.trim() || !senha)) return Alert.alert('Preencha e-mail e senha');
+    setSubmitting(true);
+    try { await login({ email: email.trim(), password: senha }); }
+    catch (error) { Alert.alert('Não foi possível entrar', error.message); }
+    finally { setSubmitting(false); }
+  };
 
   return (
     <ImageBackground
@@ -33,6 +46,7 @@ export default function LoginScreen({ navigation }) {
           />
 
           <Text style={styles.welcome}>Acesse sua conta</Text>
+          {isDemoMode ? <Text style={styles.demoNotice}>Ambiente de demonstração · nenhuma operação bancária real</Text> : null}
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>E-MAIL</Text>
@@ -86,11 +100,12 @@ export default function LoginScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
+            disabled={submitting}
             style={styles.loginButton}
-            // DEMO ONLY / BACKEND REQUIRED: preservado sem autenticação real nesta fase.
-            onPress={() => navigation.navigate('Home')}
+            // DEMO ONLY / BACKEND REQUIRED: produção não possui bypass.
+            onPress={handleLogin}
           >
-            <Text style={styles.loginButtonText}>ENTRAR</Text>
+            <Text style={styles.loginButtonText}>{submitting ? 'ENTRANDO…' : isDemoMode ? 'ENTRAR NO MODO DEMONSTRAÇÃO' : 'ENTRAR'}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -130,6 +145,7 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     textAlign: 'center',
   },
+  demoNotice: { color: '#FFB45B', fontSize: 11, marginBottom: 18, textAlign: 'center' },
 
   fieldGroup: {
     width: '100%',
