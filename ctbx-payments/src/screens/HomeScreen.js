@@ -20,6 +20,7 @@ import {
   ServiceCard,
 } from '../components/ui';
 import useAsyncResource from '../hooks/useAsyncResource';
+import { isSandboxMode } from '../config';
 import { getHomeData } from '../services/accountService';
 import { colors, radii, shadows, spacing, typography } from '../theme';
 
@@ -230,7 +231,12 @@ export default function HomeScreen({ navigation }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [showTransportBalance, setShowTransportBalance] = useState(true);
-  const [visibleBalances, setVisibleBalances] = useState({});
+  // SANDBOX: exibe inicialmente o saldo disponível recebido do BFF para que o
+  // teste integrado não confunda o saldo bloqueado com o saldo principal.
+  // O controle de ocultar/mostrar permanece disponível e DEMO não é alterado.
+  const [visibleBalances, setVisibleBalances] = useState(() => (
+    isSandboxMode ? { digital: true } : {}
+  ));
   const [favoriteKeys, setFavoriteKeys] = useState(INITIAL_FAVORITE_KEYS);
   const [favoritesCircleVisible, setFavoritesCircleVisible] = useState(false);
   const [favoritesSquareVisible, setFavoritesSquareVisible] = useState(false);

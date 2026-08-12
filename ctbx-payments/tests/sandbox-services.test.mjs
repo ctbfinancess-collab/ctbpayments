@@ -55,6 +55,30 @@ test('account mapper keeps integer cents as source and formats only presentation
   assert.equal(balances[1].value, '2.000,00');
 });
 
+test('BFF balance envelope maps available cents to the Home balance presentation', () => {
+  const response = {
+    data: {
+      available: { amount: 125000, currency: 'BRL' },
+      ledger: { amount: 130000, currency: 'BRL' },
+      components: {
+        blocked: { amount: 5000, currency: 'BRL' },
+        investments: { amount: 200000, currency: 'BRL' },
+        cardAccount: { amount: 25000, currency: 'BRL' },
+        credit: { amount: 75000, currency: 'BRL' },
+      },
+    },
+    meta: {},
+    requestId: 'test-request-id',
+  };
+
+  const homeBalances = mapSandboxBalances(response.data);
+  const availableBalance = homeBalances[0];
+
+  assert.equal(availableBalance.value, '1.250,00');
+  assert.equal(`${availableBalance.tag} ${availableBalance.value}`, 'R$ 1.250,00');
+  assert.equal(availableBalance.blockedValue, '50,00');
+});
+
 test('refresh calls are deduplicated and rotate mapped session', async () => {
   let calls = 0;
   let resolveRequest;
