@@ -4,4 +4,7 @@ export const getProfile = () => demoOrThrow(() => MOCK_PROFILE);
 export const getAccount = () => demoOrThrow(() => MOCK_ACCOUNT);
 export const listDevices = () => demoOrThrow(() => MOCK_DEVICES);
 export const listTerms = () => demoOrThrow(() => PROFILE_TERMS);
+export const getAccountData = getAccount;
+export const getDevices = listDevices;
+export const getTerms = listTerms;
 export const updatePhoto = () => demoOrThrow(() => null);

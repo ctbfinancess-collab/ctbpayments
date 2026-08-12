@@ -2,6 +2,12 @@ import { MOCK_CARD_TRANSACTIONS, MOCK_FINANCIAL_CARD, MOCK_TRANSPORT_CARD } from
 import { demoOrThrow } from './serviceMode';
 export const listCards = () => demoOrThrow(() => [MOCK_FINANCIAL_CARD, MOCK_TRANSPORT_CARD]);
 export const listTransactions = () => demoOrThrow(() => MOCK_CARD_TRANSACTIONS);
+export const getCards = listCards;
+export const getCardTransactions = listTransactions;
+export const getTransportCard = () => demoOrThrow(() => MOCK_TRANSPORT_CARD);
+export const getCardReceipts = () => demoOrThrow(() => MOCK_CARD_TRANSACTIONS.filter((item) => item.value.startsWith('-')));
 export const activateCard = (card) => demoOrThrow(() => ({ ...card, status: 'Demonstração' }));
 export const changePassword = () => demoOrThrow(() => true);
 export const setBlocked = (blocked) => demoOrThrow(() => ({ blocked }));
+export const rechargeCard = (value) => demoOrThrow(() => ({ value, demoMode: true }));
+export const requestCard = (options) => demoOrThrow(() => ({ ...options, demoMode: true }));

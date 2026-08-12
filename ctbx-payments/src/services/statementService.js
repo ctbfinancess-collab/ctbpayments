@@ -5,3 +5,8 @@ export const listTransactions = () => demoOrThrow(() => MOCK_TRANSACTIONS);
 export const listFutureTransactions = () => demoOrThrow(() => MOCK_FUTURE_TRANSACTIONS);
 export const listBlockedTransactions = () => demoOrThrow(() => MOCK_BLOCKED_TRANSACTIONS);
 export const exportStatement = () => demoOrThrow(() => null);
+export const getStatement = listTransactions;
+export const getFutureTransactions = listFutureTransactions;
+export const getBlockedTransactions = listBlockedTransactions;
+export const getReceipt = (transaction) => demoOrThrow(() => transaction || null);
+export const getStatementData = () => demoOrThrow(() => ({ balance: MOCK_STATEMENT_BALANCE, transactions: MOCK_TRANSACTIONS, futureTransactions: MOCK_FUTURE_TRANSACTIONS, blockedTransactions: MOCK_BLOCKED_TRANSACTIONS }));

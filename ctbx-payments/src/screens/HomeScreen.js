@@ -11,12 +11,16 @@ import {
 import {
   BalanceCard,
   BottomTabBar,
+  ErrorState,
+  LoadingState,
   ModalSheet,
   PrimaryButton,
   Screen,
   SectionTitle,
   ServiceCard,
 } from '../components/ui';
+import useAsyncResource from '../hooks/useAsyncResource';
+import { getHomeData } from '../services/accountService';
 import { colors, radii, shadows, spacing, typography } from '../theme';
 
 const COLORS = {
@@ -27,34 +31,6 @@ const COLORS = {
 };
 
 // MOCK TEMPORARIO: estes valores serao substituidos pelos retornos da API original.
-const MOCK_BALANCES = [
-  {
-    id: 'digital',
-    description: 'Conta Digital',
-    tag: 'R$',
-    value: '2.480,75',
-    blockedValue: '0,00',
-  },
-  {
-    id: 'investment',
-    description: 'Investimentos',
-    tag: 'R$',
-    value: '1.350,00',
-  },
-  {
-    id: 'agreement',
-    description: 'Saldo Convênio',
-    tag: 'R$',
-    value: '680,40',
-  },
-  {
-    id: 'card',
-    description: 'Conta Cartão',
-    tag: 'R$',
-    value: '920,10',
-  },
-];
-
 // MOCK TEMPORARIO: numero, titular, validade e saldo virao das APIs de cartoes.
 const MOCK_CARDS = [
   {
@@ -247,6 +223,8 @@ function ServiceGrid({ items, editable = false, selectedKeys = [], onItemPress, 
 }
 
 export default function HomeScreen({ navigation }) {
+  const { data: homeData, error: homeError, loading: homeLoading, retry: retryHome } = useAsyncResource(getHomeData, { balances: [], summary: null });
+  const balances = homeData?.balances || [];
   const { width } = useWindowDimensions();
   const balanceScrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -270,7 +248,7 @@ export default function HomeScreen({ navigation }) {
 
   const handleBalanceScroll = ({ nativeEvent }) => {
     const nextIndex = Math.round(nativeEvent.contentOffset.x / width);
-    setActiveIndex(Math.max(0, Math.min(nextIndex, MOCK_BALANCES.length - 1)));
+    setActiveIndex(Math.max(0, Math.min(nextIndex, balances.length - 1)));
   };
 
   const toggleFavorite = (key) => {
@@ -284,12 +262,15 @@ export default function HomeScreen({ navigation }) {
   const favoriteItems = HOME_MODAL_ITEMS.filter((item) => favoriteKeys.includes(item.key));
   const otherItems = HOME_MODAL_ITEMS.filter((item) => !favoriteKeys.includes(item.key));
 
+  if (homeLoading) return <Screen><LoadingState label="Carregando conta…" /></Screen>;
+  if (homeError) return <Screen><ErrorState message="Não foi possível carregar os dados da conta." onRetry={retryHome} /></Screen>;
+
   return (
     <Screen contentContainerStyle={styles.screenContent} gradient={false}>
       <View style={styles.safeArea}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Olá, Cliente</Text>
+            <Text style={styles.greeting}>Olá, {homeData.summary.displayName}</Text>
             <Text style={styles.greetingSubtitle}>Bem-vinda de volta!</Text>
           </View>
           <TouchableOpacity accessibilityLabel="Notificações" activeOpacity={0.7} style={styles.headerAction}>
@@ -315,7 +296,7 @@ export default function HomeScreen({ navigation }) {
             showsHorizontalScrollIndicator={false}
             style={styles.balanceCarousel}
           >
-            {MOCK_BALANCES.map((balance) => {
+            {balances.map((balance) => {
               const isVisible = Boolean(visibleBalances[balance.id]);
 
               return (
@@ -346,7 +327,7 @@ export default function HomeScreen({ navigation }) {
           </ScrollView>
 
           <View style={styles.pagination}>
-            {MOCK_BALANCES.map((balance, index) => (
+            {balances.map((balance, index) => (
               <TouchableOpacity
                 key={balance.id}
                 accessibilityLabel={`Ir para saldo ${index + 1}`}
