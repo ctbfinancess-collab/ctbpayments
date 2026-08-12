@@ -1,7 +1,14 @@
-import { MOCK_BANKS, MOCK_TRANSFER_BALANCE, MOCK_TRANSFER_FAVORITES, buildMockBeneficiary } from '../data/transferMockData';
+import { ACCOUNT_TYPES, MOCK_BANKS, MOCK_TRANSFER_BALANCE, MOCK_TRANSFER_FAVORITES, MOCK_TRANSFER_FEE, TRANSFER_PURPOSES, buildMockBeneficiary } from '../data/transferMockData';
 import { demoOrThrow } from './serviceMode';
 export const getBalance = () => demoOrThrow(() => MOCK_TRANSFER_BALANCE);
 export const listBanks = () => demoOrThrow(() => MOCK_BANKS);
 export const listFavorites = () => demoOrThrow(() => MOCK_TRANSFER_FAVORITES);
 export const lookupBeneficiary = (mode, values) => demoOrThrow(() => buildMockBeneficiary(mode, values));
 export const submitTransfer = (transfer) => demoOrThrow(() => ({ ...transfer, demoMode: true }));
+export const getBanks = listBanks; export const getFavorites = listFavorites;
+export const getTransferOptions = () => demoOrThrow(() => ({ accountTypes: ACCOUNT_TYPES, fee: MOCK_TRANSFER_FEE, purposes: TRANSFER_PURPOSES }));
+export const getTransferFormData = () => demoOrThrow(() => ({ accountTypes: ACCOUNT_TYPES, banks: MOCK_BANKS }));
+export const getTransferDetailsData = () => demoOrThrow(() => ({ balance: MOCK_TRANSFER_BALANCE, fee: MOCK_TRANSFER_FEE, purposes: TRANSFER_PURPOSES }));
+export const validateTransfer = (transfer) => demoOrThrow(() => transfer);
+export const authorizeTransfer = submitTransfer; export const scheduleTransfer = submitTransfer;
+export const getReceipt = (transfer) => demoOrThrow(() => transfer);

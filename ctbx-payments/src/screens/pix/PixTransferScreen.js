@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { InfoRow, PixButton, PixField } from '../../components/pix/PixForm';
-import { MOCK_PIX_BALANCE } from '../../data/pixMockData';
+import { getPixTransferData } from '../../services/pixService'; import useAsyncResource from '../../hooks/useAsyncResource';
 import { parseCurrency } from '../../utils/pixValidation';
 import { isTodayOrFutureDate } from '../../utils/dateValidation';
 import { MissingDataState } from '../../components/ui';
 
 export default function PixTransferScreen({ navigation, route }) {
-  const transfer = route.params?.transfer;
+  const {data: pixData} = useAsyncResource(getPixTransferData, {balance: ''}); const transfer = route.params?.transfer;
   const lockedAmount = Boolean(route.params?.lockedAmount);
   const [amount, setAmount] = useState(transfer?.amount || '');
   const [message, setMessage] = useState(transfer?.message || '');
@@ -53,7 +53,7 @@ export default function PixTransferScreen({ navigation, route }) {
       />
       <TouchableOpacity onPress={() => setShowBalance((current) => !current)} style={styles.balanceRow}>
         <Text style={styles.balanceLabel}>Saldo disponível</Text>
-        <Text style={styles.balanceValue}>{showBalance ? `R$ ${MOCK_PIX_BALANCE}` : 'R$ *******'}</Text>
+        <Text style={styles.balanceValue}>{showBalance ? `R$ ${pixData.balance}` : 'R$ *******'}</Text>
       </TouchableOpacity>
       <PixField label="Mensagem" multiline onChangeText={setMessage} value={message} />
       <TouchableOpacity onPress={() => setFavorite((current) => !current)} style={styles.favoriteRow}>

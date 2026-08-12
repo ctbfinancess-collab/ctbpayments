@@ -1,25 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
-import { MOCK_PIX_KEYS } from '../../data/pixMockData';
+import useAsyncResource from '../../hooks/useAsyncResource';
+import { generateReceiveQr, getKeys } from '../../services/pixService';
 
 export default function PixReceiveScreen({ navigation }) {
-  const [selectedKey, setSelectedKey] = useState(MOCK_PIX_KEYS[0]?.value || '');
+  const { data: keys } = useAsyncResource(getKeys, []);
+  const [selectedKey, setSelectedKey] = useState('');
   const [amount, setAmount] = useState('');
 
-  const generateQr = () => {
+  useEffect(() => {
+    if (!selectedKey && keys.length > 0) setSelectedKey(keys[0].value);
+  }, [keys, selectedKey]);
+
+  const generateQr = async () => {
     if (!selectedKey) {
       Alert.alert('Escolha uma chave');
       return;
     }
-    navigation.navigate('PixReceiveQr', { keyValue: selectedKey, amount });
+    try { const qr = await generateReceiveQr({ keyValue: selectedKey, amount }); navigation.navigate('PixReceiveQr', qr); } catch { Alert.alert('Serviço indisponível'); }
   };
 
   return (
     <PixLayout navigation={navigation} title="Receber Pix">
       <Text style={styles.title}>Selecione uma chave para receber</Text>
-      {MOCK_PIX_KEYS.map((item) => (
+      {keys.map((item) => (
         <PixButton key={item.id} onPress={() => setSelectedKey(item.value)} secondary={selectedKey !== item.value}>
           {item.type}: {item.value}
         </PixButton>

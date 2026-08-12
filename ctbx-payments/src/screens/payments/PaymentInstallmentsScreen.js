@@ -1,8 +1,46 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import PaymentLayout from '../../components/payments/PaymentLayout';
 import { Card, MissingDataState, PrimaryButton } from '../../components/ui';
-import { buildMockInstallments } from '../../data/paymentMockData';
+import useAsyncResource from '../../hooks/useAsyncResource';
+import { getInstallments } from '../../services/paymentService';
 import { colors, radii, spacing, typography } from '../../theme';
-export default function PaymentInstallmentsScreen({ navigation, route }) { const payment = route.params?.payment; const installments = buildMockInstallments(payment?.bill?.total); const [selected, setSelected] = useState(installments[0]); if (!payment) return <MissingDataState navigation={navigation} title="Pagamento parcelado" />; return <PaymentLayout navigation={navigation} title="Pagamento parcelado"><Text style={styles.title}>Em quantas parcelas?</Text><Text style={styles.subtitle}>Simulação temporária para pagamento com cartão.</Text>{installments.map((item) => <TouchableOpacity key={item.count} onPress={() => setSelected(item)} style={[styles.option, selected.count === item.count && styles.selected]}><Text style={styles.installment}>{item.count}x de R$ {item.installmentValue}</Text><Text style={styles.total}>Total R$ {item.total}</Text></TouchableOpacity>)}<Card style={styles.summary}><Text style={styles.summaryLabel}>Você pagará</Text><Text style={styles.summaryValue}>{selected.count}x de R$ {selected.installmentValue}</Text><Text style={styles.summaryTotal}>Total: R$ {selected.total}</Text></Card><PrimaryButton onPress={() => navigation.navigate('PaymentReview', { payment: { ...payment, installmentData: selected, bill: { ...payment.bill, total: selected.total } } })}>Continuar</PrimaryButton></PaymentLayout>; }
+export default function PaymentInstallmentsScreen({ navigation, route }) {
+  const payment = route.params?.payment;
+  const loadInstallments = useCallback(
+    () => getInstallments(payment?.bill?.total),
+    [payment?.bill?.total],
+  );
+  const { data: installments } = useAsyncResource(loadInstallments, []);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    if (!selected && installments.length > 0) setSelected(installments[0]);
+  }, [installments, selected]);
+
+  if (!payment) return <MissingDataState navigation={navigation} title="Pagamento parcelado" />;
+
+  return (
+    <PaymentLayout navigation={navigation} title="Pagamento parcelado">
+      <Text style={styles.title}>Em quantas parcelas?</Text>
+      <Text style={styles.subtitle}>Simulação temporária para pagamento com cartão.</Text>
+      {installments.map((item) => (
+        <TouchableOpacity key={item.count} onPress={() => setSelected(item)} style={[styles.option, selected?.count === item.count && styles.selected]}>
+          <Text style={styles.installment}>{item.count}x de R$ {item.installmentValue}</Text>
+          <Text style={styles.total}>Total R$ {item.total}</Text>
+        </TouchableOpacity>
+      ))}
+      {selected ? (
+        <>
+          <Card style={styles.summary}>
+            <Text style={styles.summaryLabel}>Você pagará</Text>
+            <Text style={styles.summaryValue}>{selected.count}x de R$ {selected.installmentValue}</Text>
+            <Text style={styles.summaryTotal}>Total: R$ {selected.total}</Text>
+          </Card>
+          <PrimaryButton onPress={() => navigation.navigate('PaymentReview', { payment: { ...payment, installmentData: selected, bill: { ...payment.bill, total: selected.total } } })}>Continuar</PrimaryButton>
+        </>
+      ) : null}
+    </PaymentLayout>
+  );
+}
 const styles = StyleSheet.create({ title: { ...typography.heading2, color: colors.textPrimary }, subtitle: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.xl, marginTop: spacing.sm }, option: { backgroundColor: colors.surface, borderColor: colors.borderSubtle, borderRadius: radii.md, borderWidth: 1, marginBottom: spacing.sm, padding: spacing.lg }, selected: { backgroundColor: colors.purpleAlpha20, borderColor: colors.purple500 }, installment: { ...typography.bodyMedium, color: colors.textPrimary }, total: { ...typography.caption, color: colors.textSecondary, marginTop: 3 }, summary: { marginBottom: spacing.xl, marginTop: spacing.lg, padding: spacing.lg }, summaryLabel: { ...typography.caption, color: colors.textSecondary }, summaryValue: { ...typography.heading2, color: colors.textPrimary, marginTop: spacing.sm }, summaryTotal: { ...typography.body, color: colors.orange400, marginTop: spacing.sm } });

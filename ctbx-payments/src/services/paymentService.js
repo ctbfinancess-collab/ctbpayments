@@ -4,3 +4,8 @@ export const getBalance = () => demoOrThrow(() => MOCK_PAYMENT_BALANCE);
 export const lookupBill = (code) => demoOrThrow(() => buildMockBill(code));
 export const simulateInstallments = (value) => demoOrThrow(() => buildMockInstallments(value));
 export const submitPayment = (payment) => demoOrThrow(() => ({ ...payment, demoMode: true }));
+export const lookupBarcode = lookupBill; export const getInstallments = simulateInstallments;
+export const validatePayment = (payment) => demoOrThrow(() => payment);
+export const authorizePayment = submitPayment; export const schedulePayment = submitPayment;
+export const getReceipt = (payment) => demoOrThrow(() => payment);
+export const getPaymentDetailsData = () => demoOrThrow(() => ({ balance: MOCK_PAYMENT_BALANCE }));

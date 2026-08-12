@@ -21,9 +21,9 @@ export function PixField({ label, multiline = false, onBlur, onFocus, ...props }
   );
 }
 
-export function PixButton({ children, confirmation = false, disabled = false, onPress, secondary = false }) {
+export function PixButton({ children, confirmation = false, disabled = false, loading = false, onPress, secondary = false }) {
   const Button = confirmation ? ConfirmationButton : secondary ? OutlineButton : PrimaryButton;
-  return <Button disabled={disabled} onPress={onPress} style={styles.button}>{children}</Button>;
+  return <Button disabled={disabled} loading={loading} onPress={onPress} style={styles.button}>{children}</Button>;
 }
 
 export function InfoRow({ label, value }) {

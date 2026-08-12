@@ -2,16 +2,20 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
-import { PIX_KEY_TYPES } from '../../data/pixMockData';
+import useAsyncAction from '../../hooks/useAsyncAction';
+import useAsyncResource from '../../hooks/useAsyncResource';
+import { createKey as createPixKey, getAvailableKeyTypes } from '../../services/pixService';
 import { isValidEmail, onlyDigits } from '../../utils/pixValidation';
 
 export default function PixCreateKeyScreen({ navigation }) {
-  const [type, setType] = useState(PIX_KEY_TYPES[0].id);
+  const [type, setType] = useState('EVP');
   const [value, setValue] = useState('');
   const [tokenSent, setTokenSent] = useState(false);
   const [token, setToken] = useState('');
 
-  const selected = PIX_KEY_TYPES.find((item) => item.id === type);
+  const { data: keyTypes } = useAsyncResource(getAvailableKeyTypes, []);
+  const { execute: submitKey, loading: creating } = useAsyncAction(createPixKey);
+  const selected = keyTypes.find((item) => item.id === type);
   const needsValue = type === 'PHONE' || type === 'EMAIL';
 
   const requestToken = () => {
@@ -27,7 +31,7 @@ export default function PixCreateKeyScreen({ navigation }) {
     Alert.alert('Token de demonstração', 'Digite qualquer token de 6 dígitos.');
   };
 
-  const createKey = () => {
+  const createKey = async () => {
     if (needsValue && !tokenSent) {
       requestToken();
       return;
@@ -39,15 +43,18 @@ export default function PixCreateKeyScreen({ navigation }) {
     const generatedValue = type === 'EVP'
       ? '00000000-0000-4000-8000-000000000000'
       : type === 'documento' ? '000.000.000-00' : value;
-    navigation.navigate('PixKeys', {
-      createdKey: { id: `key-${Date.now()}`, type: selected.label, value: generatedValue, status: 'Ativo' },
-    });
+    try {
+      const createdKey = await submitKey({ type: selected?.label || type, value: generatedValue });
+      if (createdKey) navigation.navigate('PixKeys', { createdKey });
+    } catch {
+      Alert.alert('Serviço indisponível', 'Não foi possível cadastrar a chave agora.');
+    }
   };
 
   return (
     <PixLayout navigation={navigation} title="Cadastrar chave PIX">
       <Text style={styles.title}>Escolha o tipo de chave</Text>
-      {PIX_KEY_TYPES.map((item) => (
+      {keyTypes.map((item) => (
         <TouchableOpacity key={item.id} onPress={() => { setType(item.id); setTokenSent(false); setToken(''); setValue(''); }} style={[styles.typeButton, type === item.id && styles.typeButtonSelected]}>
           <Text style={[styles.typeText, type === item.id && styles.typeTextSelected]}>{item.label}</Text>
         </TouchableOpacity>
@@ -65,7 +72,7 @@ export default function PixCreateKeyScreen({ navigation }) {
         <PixField keyboardType="numeric" label="Token" maxLength={6} onChangeText={setToken} value={token} />
       ) : null}
       {needsValue && !tokenSent ? <PixButton onPress={requestToken} secondary>ENVIAR TOKEN</PixButton> : null}
-      <PixButton confirmation onPress={createKey}>CADASTRAR CHAVE</PixButton>
+      <PixButton confirmation disabled={creating} loading={creating} onPress={createKey}>CADASTRAR CHAVE</PixButton>
       <Text style={styles.mockNote}>OTP e registro da chave são simulados localmente.</Text>
     </PixLayout>
   );

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
-import { buildMockPixTransfer } from '../../data/pixMockData';
+import { createTransfer } from '../../services/pixService';
 import { validatePixKey } from '../../utils/pixValidation';
 
 const KEY_CONFIG = {
@@ -19,7 +19,7 @@ export default function PixKeyEntryScreen({ navigation, route }) {
   const config = KEY_CONFIG[type] || KEY_CONFIG.random_key;
   const [keyValue, setKeyValue] = useState('');
 
-  const continueFlow = () => {
+  const continueFlow = async () => {
     const error = validatePixKey(type, keyValue);
     if (error) {
       Alert.alert(error);
@@ -27,9 +27,8 @@ export default function PixKeyEntryScreen({ navigation, route }) {
     }
 
     // MOCK TEMPORARIO: no APK, consultar-chave/consultar-qrcode retorna o favorecido.
-    navigation.navigate('PixTransfer', {
-      transfer: buildMockPixTransfer({ key: keyValue.trim(), keyType: type }),
-    });
+    try { navigation.navigate('PixTransfer', { transfer: await createTransfer({ key: keyValue.trim(), keyType: type }) }); }
+    catch { Alert.alert('Serviço indisponível', 'A consulta PIX ainda não está configurada.'); }
   };
 
   return (

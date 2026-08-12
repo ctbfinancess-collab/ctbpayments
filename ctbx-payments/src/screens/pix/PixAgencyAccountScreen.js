@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
-import { buildMockPixTransfer } from '../../data/pixMockData';
+import { createTransfer } from '../../services/pixService';
 
 export default function PixAgencyAccountScreen({ navigation }) {
   const [bank, setBank] = useState('');
@@ -10,14 +10,13 @@ export default function PixAgencyAccountScreen({ navigation }) {
   const [account, setAccount] = useState('');
   const [document, setDocument] = useState('');
 
-  const continueFlow = () => {
+  const continueFlow = async () => {
     if (![bank, agency, account, document].every((value) => value.trim())) {
       Alert.alert('Preencha os dados bancários');
       return;
     }
-    navigation.navigate('PixTransfer', {
-      transfer: buildMockPixTransfer({ key: `${agency}/${account}`, keyType: 'agency_account' }),
-    });
+    try { navigation.navigate('PixTransfer', { transfer: await createTransfer({ key: `${agency}/${account}`, keyType: 'agency_account' }) }); }
+    catch { Alert.alert('Serviço indisponível', 'A consulta PIX ainda não está configurada.'); }
   };
 
   return (

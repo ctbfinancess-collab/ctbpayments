@@ -1,17 +1,15 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
-import { buildMockPixTransfer } from '../../data/pixMockData';
+import { lookupQrCode } from '../../services/pixService';
 
 export default function PixQrScannerScreen({ navigation }) {
   const [emv, setEmv] = useState('00020101021226800014BR.GOV.BCB.PIX');
 
-  const simulateScan = () => {
-    navigation.navigate('PixTransfer', {
-      transfer: buildMockPixTransfer({ key: emv, keyType: 'qr_code', amount: '125,00' }),
-      lockedAmount: true,
-    });
+  const simulateScan = async () => {
+    try { navigation.navigate('PixTransfer', { transfer: await lookupQrCode({ key: emv, keyType: 'qr_code', amount: '125,00' }), lockedAmount: true }); }
+    catch { Alert.alert('Serviço indisponível', 'A consulta do QR Code ainda não está configurada.'); }
   };
 
   return (

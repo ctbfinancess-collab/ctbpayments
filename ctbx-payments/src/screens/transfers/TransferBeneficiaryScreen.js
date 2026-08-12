@@ -1,24 +1,25 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import TransferLayout from '../../components/transfers/TransferLayout';
 import { TransferField } from '../../components/transfers/TransferForm';
 import { Card, PrimaryButton, SectionTitle } from '../../components/ui';
-import { ACCOUNT_TYPES, MOCK_BANKS, buildMockBeneficiary } from '../../data/transferMockData';
+import { getTransferFormData, lookupBeneficiary } from '../../services/transferService'; import useAsyncResource from '../../hooks/useAsyncResource';
 import { colors, radii, spacing, typography } from '../../theme';
 import { onlyTransferDigits, validateTransferDocument } from '../../utils/transferValidation';
 
 const INTERNAL_METHODS = [{ id: 'phone', label: 'Telefone' }, { id: 'document', label: 'CPF/CNPJ' }, { id: 'account', label: 'Agência e conta' }];
 export default function TransferBeneficiaryScreen({ navigation, route }) {
   const mode = route.params?.mode === 'external' ? 'external' : 'internal';
-  const [method, setMethod] = useState('phone'); const [form, setForm] = useState({ bank: MOCK_BANKS[0].name, accountType: ACCOUNT_TYPES[0] });
+  const {data: formData} = useAsyncResource(getTransferFormData, {banks: [], accountTypes: []}); const [method, setMethod] = useState('phone'); const [form, setForm] = useState({});
+  useEffect(() => { if (formData.banks[0]) setForm((current) => ({ bank: formData.banks[0].name, accountType: formData.accountTypes[0], ...current })); }, [formData]);
   const set = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
-  const continueFlow = () => {
+  const continueFlow = async () => {
     if (mode === 'internal') {
       if (method === 'phone' && onlyTransferDigits(form.phone).length < 10) return Alert.alert('Informe um telefone válido');
       if (method === 'document' && !validateTransferDocument(form.document)) return Alert.alert('Informe um CPF ou CNPJ válido');
       if (method === 'account' && (!form.agency?.trim() || !form.account?.trim())) return Alert.alert('Informe agência e conta');
     } else if (!form.name?.trim() || !validateTransferDocument(form.document) || !form.agency?.trim() || !form.account?.trim() || !form.digit?.trim()) return Alert.alert('Preencha os dados do favorecido');
-    navigation.navigate('TransferDetails', { beneficiary: buildMockBeneficiary(mode, form) });
+    try { navigation.navigate('TransferDetails', { beneficiary: await lookupBeneficiary(mode, form) }); } catch { Alert.alert('Serviço indisponível', 'A consulta do favorecido ainda não está configurada.'); }
   };
   return <TransferLayout navigation={navigation} title={mode === 'internal' ? 'Entre contas CTBX' : 'Outros bancos'}>
     <SectionTitle title="Favorecido" />

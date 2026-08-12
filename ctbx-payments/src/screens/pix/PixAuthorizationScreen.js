@@ -3,19 +3,24 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { InfoRow, PixButton, PixField } from '../../components/pix/PixForm';
 import { MissingDataState } from '../../components/ui';
+import useAsyncAction from '../../hooks/useAsyncAction';
+import { authorizeTransfer, scheduleTransfer } from '../../services/pixService';
 
 export default function PixAuthorizationScreen({ navigation, route }) {
   const transfer = route.params?.transfer;
   const [password, setPassword] = useState('');
   const [token, setToken] = useState('');
   const [tokenRequested, setTokenRequested] = useState(false);
+  const { execute: submitTransfer, loading } = useAsyncAction(
+    transfer?.scheduled ? scheduleTransfer : authorizeTransfer,
+  );
 
   const requestToken = () => {
     setTokenRequested(true);
     Alert.alert('Token de demonstração', 'Use qualquer código de 6 dígitos para continuar.');
   };
 
-  const authorize = () => {
+  const authorize = async () => {
     if (password.length < 4) {
       Alert.alert('Digite sua senha');
       return;
@@ -29,8 +34,12 @@ export default function PixAuthorizationScreen({ navigation, route }) {
       return;
     }
 
-    // MOCK TEMPORARIO: substitui senha transacional, biometria, push/OTP e API PIX.
-    navigation.replace('PixReceipt', { transfer });
+    try {
+      const authorizedTransfer = await submitTransfer(transfer);
+      if (authorizedTransfer) navigation.replace('PixReceipt', { transfer: authorizedTransfer });
+    } catch {
+      Alert.alert('Serviço indisponível', 'Não foi possível autorizar o PIX agora.');
+    }
   };
 
   if (!transfer) return <MissingDataState navigation={navigation} title="Autorizar Pix" />;
@@ -64,7 +73,7 @@ export default function PixAuthorizationScreen({ navigation, route }) {
       ) : (
         <PixButton onPress={requestToken} secondary>ENVIAR TOKEN</PixButton>
       )}
-      <PixButton confirmation onPress={authorize}>CONFIRMAR PIX</PixButton>
+      <PixButton confirmation disabled={loading} loading={loading} onPress={authorize}>CONFIRMAR PIX</PixButton>
       <Text style={styles.mockNote}>Autorização simulada. Nenhuma transação bancária será enviada.</Text>
     </PixLayout>
   );

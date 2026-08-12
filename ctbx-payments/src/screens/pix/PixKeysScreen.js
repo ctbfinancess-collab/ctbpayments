@@ -2,10 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton } from '../../components/pix/PixForm';
-import { MOCK_PIX_KEYS } from '../../data/pixMockData';
+import useAsyncResource from '../../hooks/useAsyncResource';
+import { deleteKey, getKeys } from '../../services/pixService';
 
 export default function PixKeysScreen({ navigation, route }) {
-  const [keys, setKeys] = useState(MOCK_PIX_KEYS);
+  const { data: loadedKeys } = useAsyncResource(getKeys, []);
+  const [keys, setKeys] = useState([]);
+
+  useEffect(() => {
+    setKeys(loadedKeys);
+  }, [loadedKeys]);
 
   useEffect(() => {
     const createdKey = route.params?.createdKey;
@@ -19,7 +25,7 @@ export default function PixKeysScreen({ navigation, route }) {
   const removeKey = (key) => {
     Alert.alert('Excluir chave', 'Deseja realmente excluir sua chave?', [
       { text: 'Não', style: 'cancel' },
-      { text: 'Sim', style: 'destructive', onPress: () => setKeys((current) => current.filter((item) => item.id !== key.id)) },
+      { text: 'Sim', style: 'destructive', onPress: async () => { try { await deleteKey(key); setKeys((current) => current.filter((item) => item.id !== key.id)); } catch { Alert.alert('Serviço indisponível'); } } },
     ]);
   };
 
