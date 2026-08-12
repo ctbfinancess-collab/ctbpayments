@@ -1,0 +1,23 @@
+export type Environment = 'development' | 'test' | 'production';
+
+export interface AppConfig {
+  nodeEnv: Environment;
+  port: number;
+  apiVersion: string;
+  logLevel: string;
+}
+
+const environments = new Set<Environment>(['development', 'test', 'production']);
+
+export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
+  const rawEnvironment = source.NODE_ENV ?? 'development';
+  if (!environments.has(rawEnvironment as Environment)) throw new Error('NODE_ENV must be development, test, or production');
+
+  const port = Number(source.PORT ?? 3000);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port');
+
+  const apiVersion = source.API_VERSION ?? 'v1';
+  if (!/^v[1-9][0-9]*$/.test(apiVersion)) throw new Error('API_VERSION must match v<number>');
+
+  return { nodeEnv: rawEnvironment as Environment, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info' };
+}

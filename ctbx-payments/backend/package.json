@@ -1,0 +1,27 @@
+{
+  "name": "@ctbx/payments-bff",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20.19.0" },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "lint": "tsc --noEmit",
+    "validate:openapi": "node --import tsx scripts/validate-openapi.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "fastify": "^5.6.0",
+    "yaml": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
