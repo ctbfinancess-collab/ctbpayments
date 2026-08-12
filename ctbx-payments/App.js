@@ -31,6 +31,11 @@ import PaymentReceiptScreen from './src/screens/payments/PaymentReceiptScreen';
 import PaymentReviewScreen from './src/screens/payments/PaymentReviewScreen';
 import PaymentScannerScreen from './src/screens/payments/PaymentScannerScreen';
 import PaymentStartScreen from './src/screens/payments/PaymentStartScreen';
+import StatementBlockedResponseScreen from './src/screens/statement/StatementBlockedResponseScreen';
+import StatementDetailScreen from './src/screens/statement/StatementDetailScreen';
+import StatementFiltersScreen from './src/screens/statement/StatementFiltersScreen';
+import StatementReceiptScreen from './src/screens/statement/StatementReceiptScreen';
+import StatementScreen from './src/screens/statement/StatementScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -73,6 +78,11 @@ export default function App() {
         <Stack.Screen name="PaymentReview" component={PaymentReviewScreen} />
         <Stack.Screen name="PaymentAuthorization" component={PaymentAuthorizationScreen} />
         <Stack.Screen name="PaymentReceipt" component={PaymentReceiptScreen} />
+        <Stack.Screen name="Statement" component={StatementScreen} />
+        <Stack.Screen name="StatementFilters" component={StatementFiltersScreen} />
+        <Stack.Screen name="StatementDetail" component={StatementDetailScreen} />
+        <Stack.Screen name="StatementReceipt" component={StatementReceiptScreen} />
+        <Stack.Screen name="StatementBlockedResponse" component={StatementBlockedResponseScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
