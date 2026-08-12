@@ -59,6 +59,14 @@ import ConsignedRequestScreen from './src/screens/services/credit/ConsignedReque
 import ConsignedStatusScreen from './src/screens/services/credit/ConsignedStatusScreen';
 import ServiceReceiptsScreen from './src/screens/services/ServiceReceiptsScreen';
 import ServiceInfoScreen from './src/screens/services/ServiceInfoScreen';
+import ProfileScreen from './src/screens/profile/ProfileScreen';
+import ProfilePersonalDataScreen from './src/screens/profile/ProfilePersonalDataScreen';
+import ProfileAccountDataScreen from './src/screens/profile/ProfileAccountDataScreen';
+import ProfilePhotoScreen from './src/screens/profile/ProfilePhotoScreen';
+import ProfileBiometricsScreen from './src/screens/profile/ProfileBiometricsScreen';
+import ProfileDevicesScreen from './src/screens/profile/ProfileDevicesScreen';
+import ProfileTokenScreen from './src/screens/profile/ProfileTokenScreen';
+import ProfileTermsScreen from './src/screens/profile/ProfileTermsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -129,6 +137,14 @@ export default function App() {
         <Stack.Screen name="ConsignedStatus" component={ConsignedStatusScreen} />
         <Stack.Screen name="ServiceReceipts" component={ServiceReceiptsScreen} />
         <Stack.Screen name="ServiceInfo" component={ServiceInfoScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="ProfilePersonalData" component={ProfilePersonalDataScreen} />
+        <Stack.Screen name="ProfileAccountData" component={ProfileAccountDataScreen} />
+        <Stack.Screen name="ProfilePhoto" component={ProfilePhotoScreen} />
+        <Stack.Screen name="ProfileBiometrics" component={ProfileBiometricsScreen} />
+        <Stack.Screen name="ProfileDevices" component={ProfileDevicesScreen} />
+        <Stack.Screen name="ProfileToken" component={ProfileTokenScreen} />
+        <Stack.Screen name="ProfileTerms" component={ProfileTermsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

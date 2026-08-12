@@ -596,6 +596,7 @@ export default function HomeScreen({ navigation }) {
             if (tab.key === 'pix') navigation.navigate('Pix');
             if (tab.key === 'cards') navigation.navigate('Cards');
             if (tab.key === 'services') navigation.navigate('Services');
+            if (tab.key === 'profile') navigation.navigate('Profile');
           }}
           renderIcon={(tab, active) => (
             <Text style={[styles.tabIcon, active && styles.tabIconActive]}>

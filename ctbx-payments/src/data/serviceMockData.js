@@ -29,7 +29,7 @@ export const SERVICE_SECTIONS=[
   {key:27,label:'Tarifas',nav:'NavScreen51',route:'ServiceInfo',params:{type:'fees'},class:'B',icon:'☷'},
   {key:31,label:'Ajuda',nav:'NavScreen10',route:'ServiceInfo',params:{type:'help'},class:'B',icon:'?'},
   {key:30,label:'Indicar Amigos',nav:'NavScreen87',class:'C',icon:'◇'},
-  {key:26,label:'Perfil',nav:'NavScreen9',class:'C',icon:'●'},
+  {key:26,label:'Perfil',nav:'NavScreen9',route:'Profile',class:'A',icon:'●'},
  ],},
 ];
 export const MOCK_INVESTMENTS=[{id:'cdb',name:'CDB CTBX',return:'105% do CDI',term:'12 meses',risk:'Baixo'},{id:'fixed',name:'Renda Fixa',return:'Pré-fixado',term:'6 meses',risk:'Baixo'}];
