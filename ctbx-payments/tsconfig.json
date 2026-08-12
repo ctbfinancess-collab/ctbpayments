@@ -1,0 +1,14 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {},
+  "include": [
+    "App.js",
+    "index.js",
+    "src/**/*"
+  ],
+  "exclude": [
+    "backend",
+    "dist",
+    "hermes-modules"
+  ]
+}

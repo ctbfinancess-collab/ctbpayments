@@ -2,6 +2,7 @@ export type Environment = 'development' | 'test' | 'production';
 
 export interface AppConfig {
   nodeEnv: Environment;
+  host: string;
   port: number;
   apiVersion: string;
   logLevel: string;
@@ -16,8 +17,12 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   const port = Number(source.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port');
 
+  const defaultHost = rawEnvironment === 'production' ? '127.0.0.1' : '0.0.0.0';
+  const host = source.HOST?.trim() || defaultHost;
+  if (!/^[A-Za-z0-9.:-]+$/.test(host)) throw new Error('HOST must be a valid hostname or IP address');
+
   const apiVersion = source.API_VERSION ?? 'v1';
   if (!/^v[1-9][0-9]*$/.test(apiVersion)) throw new Error('API_VERSION must match v<number>');
 
-  return { nodeEnv: rawEnvironment as Environment, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info' };
+  return { nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info' };
 }

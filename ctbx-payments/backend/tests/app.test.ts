@@ -9,7 +9,7 @@ import { SANDBOX_EMAIL, SANDBOX_PASSWORD, SandboxAuthProvider } from '../src/pro
 import { SandboxDeviceBindingProvider } from '../src/providers/sandbox/SandboxDeviceBindingProvider.js';
 import { SandboxSessionStore } from '../src/providers/sandbox/SandboxSessionStore.js';
 
-const testConfig: AppConfig = { nodeEnv: 'test', port: 3000, apiVersion: 'v1', logLevel: 'silent' };
+const testConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent' };
 const loginPayload = { username: SANDBOX_EMAIL, password: SANDBOX_PASSWORD, device: { installationId: 'sbx-installation-test', platform: 'ANDROID' } };
 
 function createProviders(options: { now?: () => number; accessTtlMs?: number } = {}): ProviderRegistry {
@@ -91,6 +91,30 @@ test('refresh rotates both tokens and invalidates the previous refresh token', a
   const reused = await app.inject({ method: 'POST', url: '/v1/auth/refresh', payload: { refreshToken: first.refreshToken } });
   assert.equal(reused.statusCode, 401);
   assert.equal(reused.json().error.code, 'AUTH_REFRESH_TOKEN_REUSED');
+});
+
+test('expired access token can refresh once and only the rotated access token remains valid', async (t) => {
+  let now = Date.now();
+  const providers = createProviders({ now: () => now, accessTtlMs: 100 });
+  const app = await buildApp({ config: testConfig, providers, logger: false }); t.after(() => app.close());
+  const first = await login(app);
+  now += 101;
+
+  const expired = await app.inject({ method: 'GET', url: '/v1/auth/session', headers: authHeaders(first) });
+  assert.equal(expired.statusCode, 401);
+  assert.equal(expired.json().error.code, 'AUTH_ACCESS_TOKEN_EXPIRED');
+
+  const refreshed = await app.inject({ method: 'POST', url: '/v1/auth/refresh', payload: { refreshToken: first.refreshToken } });
+  assert.equal(refreshed.statusCode, 200);
+  const second = refreshed.json().data as { accessToken: string; refreshToken: string; sessionId: string; deviceId: string };
+  assert.notEqual(second.accessToken, first.accessToken);
+  assert.notEqual(second.refreshToken, first.refreshToken);
+
+  const oldAccess = await app.inject({ method: 'GET', url: '/v1/auth/session', headers: authHeaders(first) });
+  assert.equal(oldAccess.statusCode, 401);
+  assert.equal(oldAccess.json().error.code, 'AUTH_ACCESS_TOKEN_INVALID');
+  const active = await app.inject({ method: 'GET', url: '/v1/auth/session', headers: authHeaders(second) });
+  assert.equal(active.statusCode, 200);
 });
 
 test('logout revokes the active session', async (t) => {

@@ -42,6 +42,22 @@ curl -X POST http://127.0.0.1:3000/v1/auth/login \
 
 Use o `deviceId` retornado como `X-Device-Id` junto do access token opaco nas rotas protegidas. Não copie tokens para documentação, commits ou logs.
 
+### Teste em aparelho físico
+
+Em `development` e `test`, o servidor escuta em `0.0.0.0` por padrão. Isso permite que um aparelho na mesma rede acesse o BFF pelo IP local do computador, sem gravar esse IP no código:
+
+```text
+http://<IP_LOCAL_DO_COMPUTADOR>:3000
+```
+
+Configure essa URL somente no ambiente do app com `EXPO_PUBLIC_API_BASE_URL`. Verifique o firewall local e use apenas uma rede confiável: o sandbox usa HTTP local e não é adequado para internet ou produção.
+
+`HOST` pode substituir o endereço de escuta. Em production, o default é `127.0.0.1`, permitindo que proxy/rede de implantação decidam conscientemente a exposição:
+
+```sh
+HOST=127.0.0.1 NODE_ENV=production npm start
+```
+
 ## Ambientes
 
 ```sh

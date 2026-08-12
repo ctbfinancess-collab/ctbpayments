@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 import apiClientModule from '../src/api/client.js';
+import ApiErrorModule from '../src/api/ApiError.js';
 import mapperModule from '../src/services/mappers/accountMapper.js';
 import sandboxAuthModule from '../src/services/sandboxAuthClient.js';
 import reducerModule from '../src/session/sessionReducer.js';
 
-const { buildAuthHeaders } = apiClientModule;
+const { apiClient, buildAuthHeaders, configureApiClient } = apiClientModule;
+const ApiError = ApiErrorModule.default || ApiErrorModule;
 const { formatCents, mapSandboxAccount, mapSandboxBalances } = mapperModule;
 const { mapSandboxSession, refreshSandboxSession, sandboxLogin, logoutSandboxSession } = sandboxAuthModule;
 const { initialSessionState, sessionReducer } = reducerModule;
@@ -94,6 +96,132 @@ test('refresh calls are deduplicated and rotate mapped session', async () => {
   const [a, b] = await Promise.all([first, second]);
   assert.equal(a.sessionId, 'new-session');
   assert.equal(b.refreshToken, 'new-refresh');
+});
+
+test('concurrent 401 responses perform one refresh and retry each account GET once', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    configureApiClient();
+  });
+
+  let session = {
+    ...initialSessionState,
+    status: 'authenticated',
+    accessToken: 'expired-access',
+    refreshToken: 'old-refresh',
+    deviceId: 'sandbox-device',
+  };
+  let refreshCalls = 0;
+  const getCalls = new Map();
+
+  globalThis.fetch = async (url, options) => {
+    const path = new URL(url).pathname;
+    getCalls.set(path, (getCalls.get(path) || 0) + 1);
+    const token = options.headers.Authorization;
+    if (token === 'Bearer expired-access') {
+      return new Response(JSON.stringify({ error: { code: 'AUTH_ACCESS_TOKEN_EXPIRED', message: 'expired' } }), { status: 401 });
+    }
+    assert.equal(token, 'Bearer rotated-access');
+    return new Response(JSON.stringify({ data: { path } }), { status: 200 });
+  };
+
+  configureApiClient({
+    getBaseURL: () => 'http://sandbox.test',
+    getAccessToken: () => session.accessToken,
+    getDeviceId: () => session.deviceId,
+    onUnauthorized: async () => {
+      refreshCalls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      session = sessionReducer(session, {
+        type: 'AUTHENTICATED',
+        payload: { ...session, accessToken: 'rotated-access', refreshToken: 'rotated-refresh' },
+      });
+      return session;
+    },
+  });
+
+  const [account, balances] = await Promise.all([
+    apiClient('/v1/accounts/current', { method: 'GET', retryOnUnauthorized: true }),
+    apiClient('/v1/accounts/current/balances', { method: 'GET', retryOnUnauthorized: true }),
+  ]);
+
+  assert.equal(refreshCalls, 1);
+  assert.equal(getCalls.get('/v1/accounts/current'), 2);
+  assert.equal(getCalls.get('/v1/accounts/current/balances'), 2);
+  assert.equal(account.data.path, '/v1/accounts/current');
+  assert.equal(balances.data.path, '/v1/accounts/current/balances');
+  assert.equal(session.status, 'authenticated');
+  assert.equal(session.accessToken, 'rotated-access');
+  assert.equal(session.refreshToken, 'rotated-refresh');
+});
+
+test('reused refresh token clears the authenticated app session without a refresh loop', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    configureApiClient();
+  });
+
+  let session = { ...initialSessionState, status: 'authenticated', accessToken: 'expired-access', refreshToken: 'reused-refresh', deviceId: 'sandbox-device' };
+  let refreshCalls = 0;
+  let requestCalls = 0;
+  globalThis.fetch = async () => {
+    requestCalls += 1;
+    return new Response(JSON.stringify({ error: { code: 'AUTH_ACCESS_TOKEN_EXPIRED', message: 'expired' } }), { status: 401 });
+  };
+  configureApiClient({
+    getBaseURL: () => 'http://sandbox.test',
+    getAccessToken: () => session.accessToken,
+    getDeviceId: () => session.deviceId,
+    onUnauthorized: async () => {
+      refreshCalls += 1;
+      session = sessionReducer(session, { type: 'LOGOUT', demoMode: false, sandboxMode: true });
+      throw new ApiError('refresh reused', { code: 'AUTH_REFRESH_TOKEN_REUSED', status: 401 });
+    },
+  });
+
+  await assert.rejects(
+    apiClient('/v1/auth/session', { method: 'GET', retryOnUnauthorized: true }),
+    (error) => error.code === 'AUTH_REFRESH_TOKEN_REUSED',
+  );
+  assert.equal(refreshCalls, 1);
+  assert.equal(requestCalls, 1);
+  assert.equal(session.status, 'unauthenticated');
+  assert.equal(session.accessToken, null);
+  assert.equal(session.refreshToken, null);
+});
+
+test('device mismatch invokes terminal cleanup and does not attempt refresh', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    configureApiClient();
+  });
+
+  let session = { ...initialSessionState, status: 'authenticated', accessToken: 'access', refreshToken: 'refresh', deviceId: 'wrong-device' };
+  let refreshCalls = 0;
+  let cleanupCalls = 0;
+  globalThis.fetch = async () => new Response(JSON.stringify({ error: { code: 'AUTH_DEVICE_MISMATCH', message: 'device mismatch' } }), { status: 401 });
+  configureApiClient({
+    getBaseURL: () => 'http://sandbox.test',
+    getAccessToken: () => session.accessToken,
+    getDeviceId: () => session.deviceId,
+    onUnauthorized: async () => { refreshCalls += 1; },
+    onSessionInvalid: async () => {
+      cleanupCalls += 1;
+      session = sessionReducer(session, { type: 'LOGOUT', demoMode: false, sandboxMode: true });
+    },
+  });
+
+  await assert.rejects(
+    apiClient('/v1/auth/session', { method: 'GET', retryOnUnauthorized: true }),
+    (error) => error.code === 'AUTH_DEVICE_MISMATCH',
+  );
+  assert.equal(cleanupCalls, 1);
+  assert.equal(refreshCalls, 0);
+  assert.equal(session.status, 'unauthenticated');
+  assert.equal(session.accessToken, null);
 });
 
 test('logout calls BFF route and reducer cleanup removes all tokens', async () => {
