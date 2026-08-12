@@ -5,10 +5,10 @@ import { PixButton, PixField } from '../../components/pix/PixForm';
 import { lookupQrCode } from '../../services/pixService';
 
 export default function PixQrScannerScreen({ navigation }) {
-  const [emv, setEmv] = useState('00020101021226800014BR.GOV.BCB.PIX');
+  const [emv, setEmv] = useState('CTBXPIX-SANDBOX|QR|12500');
 
   const simulateScan = async () => {
-    try { navigation.navigate('PixTransfer', { transfer: await lookupQrCode({ key: emv, keyType: 'qr_code', amount: '125,00' }), lockedAmount: true }); }
+    try { const transfer = await lookupQrCode({ payload: emv }); navigation.navigate('PixTransfer', { transfer, lockedAmount: Boolean(transfer.amount) }); }
     catch { Alert.alert('Serviço indisponível', 'A consulta do QR Code ainda não está configurada.'); }
   };
 

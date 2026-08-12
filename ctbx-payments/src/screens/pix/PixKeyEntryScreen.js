@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
-import { createTransfer } from '../../services/pixService';
+import { lookupKey, lookupQrCode } from '../../services/pixService';
 import { validatePixKey } from '../../utils/pixValidation';
 
 const KEY_CONFIG = {
@@ -26,8 +26,7 @@ export default function PixKeyEntryScreen({ navigation, route }) {
       return;
     }
 
-    // MOCK TEMPORARIO: no APK, consultar-chave/consultar-qrcode retorna o favorecido.
-    try { navigation.navigate('PixTransfer', { transfer: await createTransfer({ key: keyValue.trim(), keyType: type }) }); }
+    try { const transfer = type === 'copy_paste' ? await lookupQrCode({ payload: keyValue.trim() }) : await lookupKey({ key: keyValue.trim(), keyType: type }); navigation.navigate('PixTransfer', { transfer, lockedAmount: Boolean(transfer.amount) }); }
     catch { Alert.alert('Serviço indisponível', 'A consulta PIX ainda não está configurada.'); }
   };
 
@@ -44,7 +43,7 @@ export default function PixKeyEntryScreen({ navigation, route }) {
       />
       <PixButton onPress={continueFlow}>Pesquisar</PixButton>
       <Text style={styles.mockNote}>
-        Consulta DICT simulada localmente para permitir a navegação do fluxo.
+        A consulta usa dados fictícios no ambiente SANDBOX.
       </Text>
     </PixLayout>
   );

@@ -8,7 +8,9 @@ import { loggerOptions } from './observability/logger.js';
 import type { ProviderRegistry } from './providers/ports.js';
 import { SandboxAccountProvider } from './providers/sandbox/SandboxAccountProvider.js';
 import { SandboxAuthProvider } from './providers/sandbox/SandboxAuthProvider.js';
+import { SandboxCardProvider } from './providers/sandbox/SandboxCardProvider.js';
 import { SandboxDeviceBindingProvider } from './providers/sandbox/SandboxDeviceBindingProvider.js';
+import { SandboxPixProvider } from './providers/sandbox/SandboxPixProvider.js';
 import { SandboxSessionStore } from './providers/sandbox/SandboxSessionStore.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
@@ -24,6 +26,8 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
     deviceBinding,
     auth: new SandboxAuthProvider(sessions, deviceBinding, config.nodeEnv),
     account: new SandboxAccountProvider(config.nodeEnv),
+    card: new SandboxCardProvider(config.nodeEnv),
+    pix: new SandboxPixProvider(config.nodeEnv),
   };
 }
 

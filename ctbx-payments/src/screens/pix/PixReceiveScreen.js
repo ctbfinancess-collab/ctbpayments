@@ -12,7 +12,7 @@ export default function PixReceiveScreen({ navigation }) {
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
-    if (!selectedKey && keys.length > 0) setSelectedKey(keys[0].value);
+    if (!selectedKey && keys.length > 0) setSelectedKey(keys[0].id);
   }, [keys, selectedKey]);
 
   if (loading) return <PixLayout navigation={navigation} title="Receber Pix"><LoadingState /></PixLayout>;
@@ -23,18 +23,19 @@ export default function PixReceiveScreen({ navigation }) {
       Alert.alert('Escolha uma chave');
       return;
     }
-    try { const qr = await generateReceiveQr({ keyValue: selectedKey, amount }); navigation.navigate('PixReceiveQr', qr); } catch { Alert.alert('Serviço indisponível'); }
+    const key = keys.find((item) => item.id === selectedKey);
+    try { const qr = await generateReceiveQr({ keyId: selectedKey, keyValue: key?.value || '', amount }); navigation.navigate('PixReceiveQr', qr); } catch { Alert.alert('Serviço indisponível'); }
   };
 
   return (
     <PixLayout navigation={navigation} title="Receber Pix">
       <Text style={styles.title}>Selecione uma chave para receber</Text>
       {keys.map((item) => (
-        <PixButton key={item.id} onPress={() => setSelectedKey(item.value)} secondary={selectedKey !== item.value}>
+        <PixButton key={item.id} onPress={() => setSelectedKey(item.id)} secondary={selectedKey !== item.id}>
           {item.type}: {item.value}
         </PixButton>
       ))}
-      <Text style={styles.selected}>Chave selecionada: {selectedKey}</Text>
+      <Text style={styles.selected}>Chave selecionada: {keys.find((item) => item.id === selectedKey)?.value || ''}</Text>
       <PixField keyboardType="decimal-pad" label="Valor" onChangeText={setAmount} placeholder="R$ 0,00" value={amount} />
       <Text style={styles.hint}>*Para não estipular valor deixar R$ 0,00</Text>
       <PixButton confirmation onPress={generateQr}>GERAR QR CODE</PixButton>

@@ -55,18 +55,50 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     return envelope(request, await providers.account.getBalances(request.auth!));
   });
   app.get('/accounts/current/statement', {
+    preHandler: authenticated,
     schema: { querystring: objectSchema([], { cursor: shortString, from: { type: 'string', format: 'date' }, to: { type: 'string', format: 'date' }, direction: { type: 'string', enum: ['CREDIT', 'DEBIT'] } }) },
-  }, unavailable('de contas'));
+  }, async (request) => {
+    if (!providers.account) throw providerNotConfigured('de contas');
+    return envelope(request, await providers.account.listStatement(request.auth!, request.query));
+  });
+  app.get('/accounts/current/statement/future', { preHandler: authenticated }, async (request) => {
+    if (!providers.account) throw providerNotConfigured('de contas');
+    return envelope(request, await providers.account.listFutureTransactions(request.auth!));
+  });
+  app.get('/accounts/current/statement/blocked', { preHandler: authenticated }, async (request) => {
+    if (!providers.account) throw providerNotConfigured('de contas');
+    return envelope(request, await providers.account.listBlockedTransactions(request.auth!));
+  });
+  app.get('/accounts/current/transactions/:id', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.account) throw providerNotConfigured('de contas');
+    return envelope(request, await providers.account.getTransaction(request.auth!, (request.params as { id: string }).id));
+  });
+  app.get('/accounts/current/transactions/:id/receipt', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.account) throw providerNotConfigured('de contas');
+    return envelope(request, await providers.account.getTransactionReceipt(request.auth!, (request.params as { id: string }).id, request.id));
+  });
 
-  app.post('/pix/keys/lookup', { schema: { body: objectSchema(['key'], { key: string }) } }, unavailable('PIX'));
-  app.get('/pix/keys', unavailable('PIX'));
+  app.post('/pix/keys/lookup', { preHandler: authenticated, schema: { body: objectSchema(['key'], { key: string }) } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.lookupKey(request.auth!, request.body, request.id));
+  });
+  app.get('/pix/keys', { preHandler: authenticated }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.listKeys(request.auth!));
+  });
   app.post('/pix/keys', {
     preHandler: requireIdempotencyKey,
     schema: { body: objectSchema(['type', 'value'], { type: { type: 'string', enum: ['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'RANDOM'] }, value: string }) },
   }, unavailable('PIX'));
   app.delete('/pix/keys/:id', { preHandler: requireIdempotencyKey, schema: { params: idParams } }, unavailable('PIX'));
-  app.post('/pix/qr/lookup', { schema: { body: objectSchema(['payload'], { payload: string }) } }, unavailable('PIX'));
-  app.post('/pix/receive/qr', { schema: { body: objectSchema(['keyId'], { keyId: idSchema, amount: moneySchema, description: string }) } }, unavailable('PIX'));
+  app.post('/pix/qr/lookup', { preHandler: authenticated, schema: { body: objectSchema(['payload'], { payload: string }) } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.lookupQr(request.auth!, request.body));
+  });
+  app.post('/pix/receive/qr', { preHandler: authenticated, schema: { body: objectSchema(['keyId'], { keyId: idSchema, amountMinor: { type: 'integer', minimum: 0 }, description: string }) } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.createReceiveQr(request.auth!, request.body));
+  });
   const pixIntent = objectSchema(['beneficiaryToken', 'amount'], { beneficiaryToken: idSchema, amount: moneySchema, description: string, saveFavorite: boolean, challengeId: idSchema });
   app.post('/pix/transfers/validate', { schema: { body: pixIntent } }, unavailable('PIX'));
   app.post('/pix/transfers', { preHandler: requireIdempotencyKey, schema: { body: pixIntent } }, unavailable('PIX'));
@@ -102,18 +134,47 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     schema: { body: objectSchema(['simulationId', 'optionId', 'paymentMethodToken'], { simulationId: idSchema, optionId: idSchema, paymentMethodToken: string }) },
   }, unavailable('de pagamentos'));
 
-  app.get('/cards', unavailable('de cartões'));
+  app.get('/cards', { preHandler: authenticated }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.list(request.auth!));
+  });
   app.post('/cards/requests', {
     preHandler: requireIdempotencyKey,
     schema: { body: objectSchema(['productId', 'termsAcceptanceId'], { productId: idSchema, designId: idSchema, termsAcceptanceId: idSchema }) },
   }, unavailable('de cartões'));
-  app.get('/cards/:id', { schema: { params: idParams } }, unavailable('de cartões'));
+  app.get('/cards/:cardId', { preHandler: authenticated, schema: { params: { ...idParams, required: ['cardId'], properties: { cardId: idSchema } } } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.get(request.auth!, (request.params as { cardId: string }).cardId));
+  });
   app.post('/cards/:id/activation/challenge', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: emptyObjectSchema } }, unavailable('de cartões'));
   app.post('/cards/:id/activate', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['challengeId'], { challengeId: idSchema }) } }, unavailable('de cartões'));
   app.post('/cards/:id/block', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: emptyObjectSchema } }, unavailable('de cartões'));
   app.post('/cards/:id/unblock', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['challengeId'], { challengeId: idSchema }) } }, unavailable('de cartões'));
   app.post('/cards/:id/password', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['encryptedPinBlock', 'challengeId'], { encryptedPinBlock: string, challengeId: idSchema }) } }, unavailable('de cartões'));
-  app.get('/cards/:id/transactions', { schema: { params: idParams } }, unavailable('de cartões'));
+  const cardParams = { type: 'object', additionalProperties: false, required: ['cardId'], properties: { cardId: idSchema } } as const;
+  const cardTransactionParams = { type: 'object', additionalProperties: false, required: ['cardId', 'transactionId'], properties: { cardId: idSchema, transactionId: idSchema } } as const;
+  app.get('/cards/:cardId/transactions', { preHandler: authenticated, schema: { params: cardParams } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.listTransactions(request.auth!, (request.params as { cardId: string }).cardId));
+  });
+  app.get('/cards/:cardId/transactions/:transactionId', { preHandler: authenticated, schema: { params: cardTransactionParams } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { cardId, transactionId } = request.params as { cardId: string; transactionId: string };
+    return envelope(request, await providers.card.getTransaction(request.auth!, cardId, transactionId));
+  });
+  app.get('/cards/:cardId/receipts', { preHandler: authenticated, schema: { params: cardParams } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.listReceipts(request.auth!, (request.params as { cardId: string }).cardId));
+  });
+  app.get('/cards/:cardId/transactions/:transactionId/receipt', { preHandler: authenticated, schema: { params: cardTransactionParams } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { cardId, transactionId } = request.params as { cardId: string; transactionId: string };
+    return envelope(request, await providers.card.getTransactionReceipt(request.auth!, cardId, transactionId, request.id));
+  });
+  app.get('/transport-card', { preHandler: authenticated }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.getTransportCard(request.auth!));
+  });
   app.post('/cards/:id/recharge', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['amount'], { amount: moneySchema }) } }, unavailable('de cartões'));
 
   app.post('/security/challenges', { schema: { body: objectSchema(['purpose', 'operationId'], { purpose: shortString, operationId: idSchema }) } }, unavailable('de segurança'));

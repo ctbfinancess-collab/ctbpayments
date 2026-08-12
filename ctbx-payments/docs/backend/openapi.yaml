@@ -106,6 +106,7 @@ paths:
       tags: [Accounts]
       operationId: listStatement
       parameters:
+        - $ref: '#/components/parameters/DeviceId'
         - $ref: '#/components/parameters/Cursor'
         - { name: from, in: query, schema: { type: string, format: date } }
         - { name: to, in: query, schema: { type: string, format: date } }
@@ -117,19 +118,25 @@ paths:
     get:
       tags: [Accounts]
       operationId: listFutureTransactions
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200': { $ref: '#/components/responses/TransactionListResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/accounts/current/statement/blocked:
     get:
       tags: [Accounts]
       operationId: listBlockedTransactions
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200': { $ref: '#/components/responses/TransactionListResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/accounts/current/transactions/{id}:
     get:
       tags: [Accounts]
       operationId: getTransaction
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
         '200':
           description: Transação
@@ -141,18 +148,23 @@ paths:
                   - type: object
                     properties: { data: { $ref: '#/components/schemas/Transaction' } }
         '404': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/accounts/current/transactions/{id}/receipt:
     get:
       tags: [Accounts]
       operationId: getTransactionReceipt
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
-        '200': { $ref: '#/components/responses/ReceiptResponse' }
+        '200': { $ref: '#/components/responses/StatementReceiptResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/keys/lookup:
     post:
       tags: [Pix]
       operationId: lookupPixKey
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       requestBody:
         required: true
         content:
@@ -164,19 +176,21 @@ paths:
                 key: { type: string }
       responses:
         '200':
-          description: Beneficiário normalizado
+          description: Consulta fictícia de chave no SANDBOX
           content:
             application/json:
               schema:
                 allOf:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
-                    properties: { data: { $ref: '#/components/schemas/PixBeneficiary' } }
+                    properties: { data: { $ref: '#/components/schemas/PixKeyLookup' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/qr/lookup:
     post:
       tags: [Pix]
       operationId: lookupPixQr
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       requestBody:
         required: true
         content:
@@ -187,7 +201,7 @@ paths:
               properties: { payload: { type: string } }
       responses:
         '200':
-          description: QR normalizado
+          description: Consulta fictícia de QR reconhecido no SANDBOX
           content:
             application/json:
               schema:
@@ -195,18 +209,14 @@ paths:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
                     properties:
-                      data:
-                        type: object
-                        required: [beneficiary]
-                        properties:
-                          beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
-                          amount: { $ref: '#/components/schemas/Money' }
-                          description: { type: string }
-        '422': { $ref: '#/components/responses/ErrorResponse' }
+                      data: { $ref: '#/components/schemas/PixQrLookup' }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/keys:
     get:
       tags: [Pix]
       operationId: listPixKeys
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200':
           description: Chaves da conta
@@ -220,6 +230,7 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/PixKey' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
     post:
       tags: [Pix]
       operationId: createPixKey
@@ -251,6 +262,7 @@ paths:
     post:
       tags: [Pix]
       operationId: createReceivePixQr
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       requestBody:
         required: true
         content:
@@ -260,7 +272,7 @@ paths:
               required: [keyId]
               properties:
                 keyId: { type: string }
-                amount: { $ref: '#/components/schemas/Money' }
+                amountMinor: { type: integer, minimum: 0, description: Valor opcional em centavos inteiros }
                 description: { type: string, maxLength: 140 }
       responses:
         '200':
@@ -272,12 +284,10 @@ paths:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
                     properties:
-                      data:
-                        type: object
-                        required: [copyPastePayload]
-                        properties:
-                          copyPastePayload: { type: string }
-                          qrImage: { type: string, description: Conteúdo ou referência segura; formato final pendente }
+                      data: { $ref: '#/components/schemas/PixReceiveQr' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/transfers/validate:
     post:
       tags: [Pix]
@@ -571,6 +581,7 @@ paths:
     get:
       tags: [Cards]
       operationId: listCards
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200':
           description: Cartões autorizados para a conta
@@ -581,14 +592,18 @@ paths:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
                     properties: { data: { type: array, items: { $ref: '#/components/schemas/Card' } } }
-  /v1/cards/{id}:
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/cards/{cardId}:
     get:
       tags: [Cards]
       operationId: getCard
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - { name: cardId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/DeviceId'
       responses:
         '200': { $ref: '#/components/responses/CardResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/cards/{id}/activation/challenge:
     post:
       tags: [Cards]
@@ -646,12 +661,13 @@ paths:
                 challengeId: { type: string }
       responses:
         '202': { $ref: '#/components/responses/OperationResponse' }
-  /v1/cards/{id}/transactions:
+  /v1/cards/{cardId}/transactions:
     get:
       tags: [Cards]
       operationId: listCardTransactions
       parameters:
-        - $ref: '#/components/parameters/ResourceId'
+        - { name: cardId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/DeviceId'
         - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
@@ -664,11 +680,34 @@ paths:
                   - type: object
                     properties:
                       data: { type: array, items: { $ref: '#/components/schemas/CardTransaction' } }
-  /v1/cards/{id}/receipts:
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/cards/{cardId}/transactions/{transactionId}:
+    get:
+      tags: [Cards]
+      operationId: getCardTransaction
+      parameters:
+        - { name: cardId, in: path, required: true, schema: { type: string } }
+        - { name: transactionId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Detalhe da transação do cartão
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/CardTransaction' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/cards/{cardId}/receipts:
     get:
       tags: [Cards]
       operationId: listCardReceipts
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - { name: cardId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/DeviceId'
       responses:
         '200':
           description: Comprovantes disponíveis
@@ -678,7 +717,36 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
-                    properties: { data: { type: array, items: { $ref: '#/components/schemas/Receipt' } } }
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/CardReceipt' } } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/cards/{cardId}/transactions/{transactionId}/receipt:
+    get:
+      tags: [Cards]
+      operationId: getCardTransactionReceipt
+      parameters:
+        - { name: cardId, in: path, required: true, schema: { type: string } }
+        - { name: transactionId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Comprovante estrutural da transação do cartão
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/CardReceipt' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/transport-card:
+    get:
+      tags: [Cards]
+      operationId: getTransportCard
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/CardResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/cards/requests:
     post:
       tags: [Cards]
@@ -828,6 +896,15 @@ components:
               - $ref: '#/components/schemas/SuccessEnvelope'
               - type: object
                 properties: { data: { $ref: '#/components/schemas/Receipt' } }
+    StatementReceiptResponse:
+      description: Comprovante estrutural de movimentação da conta
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/StatementReceipt' } }
     OperationResponse:
       description: Operação aceita ou consultada
       content:
@@ -1033,17 +1110,37 @@ components:
         asOf: { type: string, format: date-time }
     Transaction:
       type: object
-      required: [id, type, direction, amount, status, occurredAt]
+      required: [id, occurredAt, type, direction, description, counterparty, amountMinor, currency, status, category, feeMinor, receiptAvailable]
       properties:
         id: { type: string }
+        occurredAt: { type: string, format: date-time }
         type: { type: string }
         direction: { type: string, enum: [CREDIT, DEBIT] }
-        amount: { $ref: '#/components/schemas/Money' }
-        status: { $ref: '#/components/schemas/OperationStatus' }
         description: { type: string }
-        occurredAt: { type: string, format: date-time }
-        counterparty: { $ref: '#/components/schemas/Beneficiary' }
+        counterparty: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        status: { type: string, enum: [COMPLETED, SCHEDULED, UNDER_REVIEW] }
+        category: { type: string }
+        feeMinor: { type: integer }
         receiptAvailable: { type: boolean }
+        institution: { type: string }
+        document: { type: string }
+        reason: { type: string }
+    StatementReceipt:
+      type: object
+      required: [operationId, transactionId, occurredAt, amountMinor, currency, payer, payee, institution, status, requestId]
+      properties:
+        operationId: { type: string }
+        transactionId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        payer: { type: string }
+        payee: { type: string }
+        institution: { type: string }
+        status: { type: string, enum: [COMPLETED] }
+        requestId: { type: string }
     Receipt:
       type: object
       required: [id, operationId, status, issuedAt]
@@ -1056,22 +1153,57 @@ components:
         downloadUrl: { type: string, format: uri, description: URL curta, autorizada e temporária }
     PixKey:
       type: object
-      required: [id, type, maskedValue, status]
+      required: [id, type, keyMasked, status, createdAt]
       properties:
         id: { type: string }
         type: { type: string, enum: [CPF, CNPJ, EMAIL, PHONE, RANDOM] }
-        maskedValue: { type: string }
+        keyMasked: { type: string }
         status: { type: string, enum: [PENDING, ACTIVE, DELETION_PENDING, DELETED, ERROR] }
+        createdAt: { type: string, format: date-time }
     PixBeneficiary:
       type: object
-      required: [name, maskedDocument, institution]
+      required: [name, documentMasked, bankName, branch, accountMasked, accountType]
       properties:
         name: { type: string }
-        maskedDocument: { type: string }
-        institution: { $ref: '#/components/schemas/Bank' }
-        maskedAgency: { type: string }
-        maskedAccount: { type: string }
+        documentMasked: { type: string }
+        bankName: { type: string }
+        branch: { type: string }
+        accountMasked: { type: string }
         accountType: { type: string }
+    PixKeyLookup:
+      type: object
+      required: [key, keyType, beneficiary, status, requestId]
+      properties:
+        key: { type: string }
+        keyType: { type: string, enum: [CPF, CNPJ, EMAIL, PHONE, RANDOM] }
+        beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
+        status: { type: string, enum: [ACTIVE] }
+        requestId: { type: string }
+    PixQrLookup:
+      type: object
+      required: [payloadId, key, keyType, beneficiary, currency, txId, status]
+      properties:
+        payloadId: { type: string }
+        key: { type: string }
+        keyType: { type: string, enum: [CPF, CNPJ, EMAIL, PHONE, RANDOM] }
+        beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
+        amountMinor: { type: integer, minimum: 0 }
+        currency: { type: string, enum: [BRL] }
+        txId: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [VALID] }
+    PixReceiveQr:
+      type: object
+      required: [qrId, copyPaste, qrPayload, amountMinor, currency, expiresAt, status]
+      properties:
+        qrId: { type: string }
+        copyPaste: { type: string }
+        qrPayload: { type: string }
+        amountMinor: { type: integer, minimum: 0 }
+        currency: { type: string, enum: [BRL] }
+        expiresAt: { type: string, format: date-time }
+        status: { type: string, enum: [READY] }
+        description: { type: string }
     PixTransferIntent:
       type: object
       required: [beneficiaryToken, amount]
@@ -1203,17 +1335,43 @@ components:
         lastFour: { type: string, pattern: '^[0-9]{4}$' }
         holderName: { type: string }
         status: { type: string, enum: [PENDING_ACTIVATION, ACTIVE, TEMPORARILY_BLOCKED, BLOCKED, EXPIRED, CANCELLED] }
-        balance: { $ref: '#/components/schemas/Money' }
+        availableMinor: { type: integer }
+        balanceMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        expiryMonth: { type: integer, minimum: 1, maximum: 12 }
+        expiryYear: { type: integer }
     CardTransaction:
       type: object
-      required: [id, amount, status, occurredAt]
+      required: [id, cardId, occurredAt, type, direction, merchantName, description, amountMinor, currency, status, authorizationCodeMasked, receiptAvailable]
       properties:
         id: { type: string }
         merchantName: { type: string }
-        amount: { $ref: '#/components/schemas/Money' }
+        cardId: { type: string }
+        type: { type: string }
+        direction: { type: string, enum: [CREDIT, DEBIT] }
+        description: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
         status: { type: string }
         occurredAt: { type: string, format: date-time }
         authorizationCodeMasked: { type: string }
+        receiptAvailable: { type: boolean }
+    CardReceipt:
+      type: object
+      required: [id, operationId, cardId, transactionId, occurredAt, direction, merchantName, amountMinor, currency, status, authorizationCodeMasked, requestId]
+      properties:
+        id: { type: string }
+        operationId: { type: string }
+        cardId: { type: string }
+        transactionId: { type: string }
+        occurredAt: { type: string, format: date-time }
+        direction: { type: string, enum: [CREDIT, DEBIT] }
+        merchantName: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        status: { type: string }
+        authorizationCodeMasked: { type: string }
+        requestId: { type: string }
     Challenge:
       type: object
       required: [id, type, purpose, status, expiresAt]

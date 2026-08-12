@@ -22,6 +22,7 @@ import {
 import useAsyncResource from '../hooks/useAsyncResource';
 import { isSandboxMode } from '../config';
 import { getHomeData } from '../services/accountService';
+import { getCards } from '../services/cardService';
 import { colors, radii, shadows, spacing, typography } from '../theme';
 
 const COLORS = {
@@ -225,7 +226,9 @@ function ServiceGrid({ items, editable = false, selectedKeys = [], onItemPress, 
 
 export default function HomeScreen({ navigation }) {
   const { data: homeData, error: homeError, loading: homeLoading, retry: retryHome } = useAsyncResource(getHomeData, { balances: [], summary: null });
+  const { data: serviceCards, error: cardsError, loading: cardsLoading, retry: retryCards } = useAsyncResource(getCards, []);
   const balances = homeData?.balances || [];
+  const homeCards = isSandboxMode ? serviceCards.map((card) => card.type === 'TRANSPORT' ? { ...card, type: 'TRANSPORTE', label: 'Cartão TOP', lastFourDigits: card.lastFour, logo: require('../../assets/legacy/assets_images_top.png') } : { ...card, type: 'FINANCEIRO', label: `${card.brand} - Crédito`, lastFourDigits: card.lastFour, holderName: card.holder, expiration: card.expiry, logo: require('../../assets/legacy/assets_images_master.png') }) : MOCK_CARDS;
   const { width } = useWindowDimensions();
   const balanceScrollRef = useRef(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -268,8 +271,9 @@ export default function HomeScreen({ navigation }) {
   const favoriteItems = HOME_MODAL_ITEMS.filter((item) => favoriteKeys.includes(item.key));
   const otherItems = HOME_MODAL_ITEMS.filter((item) => !favoriteKeys.includes(item.key));
 
-  if (homeLoading) return <Screen><LoadingState label="Carregando conta…" /></Screen>;
+  if (homeLoading || cardsLoading) return <Screen><LoadingState label="Carregando conta…" /></Screen>;
   if (homeError) return <Screen><ErrorState message="Não foi possível carregar os dados da conta." onRetry={retryHome} /></Screen>;
+  if (cardsError) return <Screen><ErrorState message="Não foi possível carregar os cartões." onRetry={retryCards} /></Screen>;
 
   return (
     <Screen contentContainerStyle={styles.screenContent} gradient={false}>
@@ -375,7 +379,7 @@ export default function HomeScreen({ navigation }) {
                 snapToInterval={width * 0.82}
                 contentContainerStyle={styles.cardsScrollContent}
               >
-                {MOCK_CARDS.map((card) => (
+                {homeCards.map((card) => (
                   <View key={card.id} style={{ width: width * 0.82 }}>
                     {card.type === 'FINANCEIRO' ? (
                       <TouchableOpacity activeOpacity={0.9} onPress={() => navigation.navigate('Cards')} style={styles.financialCard}>
@@ -438,7 +442,7 @@ export default function HomeScreen({ navigation }) {
               </ScrollView>
 
               <View style={styles.cardPagination}>
-                {MOCK_CARDS.map((card, index) => (
+                {homeCards.map((card, index) => (
                   <View
                     key={card.id}
                     style={[

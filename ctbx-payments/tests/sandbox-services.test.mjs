@@ -4,14 +4,31 @@ import test from 'node:test';
 import apiClientModule from '../src/api/client.js';
 import ApiErrorModule from '../src/api/ApiError.js';
 import mapperModule from '../src/services/mappers/accountMapper.js';
+import statementMapperModule from '../src/services/mappers/statementMapper.js';
+import cardMapperModule from '../src/services/mappers/cardMapper.js';
+import cardServiceModule from '../src/services/cardService.js';
+import pixMapperModule from '../src/services/mappers/pixMapper.js';
+import pixServiceModule from '../src/services/pixService.js';
+import statementServiceModule from '../src/services/statementService.js';
 import sandboxAuthModule from '../src/services/sandboxAuthClient.js';
 import reducerModule from '../src/session/sessionReducer.js';
+import statementUtilsModule from '../src/utils/statementUtils.js';
 
 const { apiClient, buildAuthHeaders, configureApiClient } = apiClientModule;
 const ApiError = ApiErrorModule.default || ApiErrorModule;
 const { formatCents, mapSandboxAccount, mapSandboxBalances } = mapperModule;
+const { mapSandboxReceipt, mapSandboxStatement, mapSandboxTransaction } = statementMapperModule;
+const { mapSandboxCard, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSandboxCardTransactions } = cardMapperModule;
+const { createCardService } = cardServiceModule;
+const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxQrLookup, mapSandboxReceiveQr } = pixMapperModule;
+const { createPixService } = pixServiceModule;
+const { createStatementService } = statementServiceModule;
 const { mapSandboxSession, refreshSandboxSession, sandboxLogin, logoutSandboxSession } = sandboxAuthModule;
 const { initialSessionState, sessionReducer } = reducerModule;
+const { filterTransactions } = statementUtilsModule;
+
+const statementIso = (days, hour = 12) => { const value = new Date(); value.setDate(value.getDate() + days); value.setHours(hour, 0, 0, 0); return value.toISOString(); };
+const rawStatementItem = (overrides = {}) => ({ id: 'sbx_txn_test', occurredAt: statementIso(0), type: 'PIX_RECEIVED', direction: 'CREDIT', description: 'Pix recebido', counterparty: 'Cliente Sandbox', amountMinor: 125050, currency: 'BRL', status: 'COMPLETED', category: 'Pix', feeMinor: 0, receiptAvailable: true, institution: 'Banco Sandbox', document: '***', ...overrides });
 
 function readMode(mode) {
   const code = "import('./src/config/appMode.js').then((m) => console.log(JSON.stringify(m.default || m)))";
@@ -79,6 +96,232 @@ test('BFF balance envelope maps available cents to the Home balance presentation
   assert.equal(availableBalance.value, '1.250,00');
   assert.equal(`${availableBalance.tag} ${availableBalance.value}`, 'R$ 1.250,00');
   assert.equal(availableBalance.blockedValue, '50,00');
+});
+
+test('statement mapper preserves integer cents until presentation mapping', () => {
+  const mapped = mapSandboxTransaction(rawStatementItem());
+  assert.equal(mapped.amountMinor, 125050);
+  assert.equal(mapped.amount, 1250.5);
+  assert.equal(mapped.amountFormatted, '1.250,50');
+  assert.equal(mapped.direction, 'entrada');
+  assert.equal(mapped.status, 'Concluído');
+  assert.throws(() => mapSandboxTransaction(rawStatementItem({ amountMinor: 12.5 })), /integer minor units/);
+});
+
+test('statement filters cover quick periods, custom dates, directions and categories', () => {
+  const mapped = mapSandboxStatement([
+    rawStatementItem({ id: 'today-credit', occurredAt: statementIso(0), direction: 'CREDIT', category: 'Pix' }),
+    rawStatementItem({ id: 'seven-debit', occurredAt: statementIso(-6), direction: 'DEBIT', category: 'Pagamento' }),
+    rawStatementItem({ id: 'fifteen', occurredAt: statementIso(-14) }),
+    rawStatementItem({ id: 'thirty', occurredAt: statementIso(-29) }),
+    rawStatementItem({ id: 'sixty', occurredAt: statementIso(-59) }),
+    rawStatementItem({ id: 'ninety', occurredAt: statementIso(-89) }),
+  ]);
+  assert.equal(filterTransactions(mapped, { period: 1 }).length, 1);
+  assert.equal(filterTransactions(mapped, { period: 7 }).length, 2);
+  assert.equal(filterTransactions(mapped, { period: 15 }).length, 3);
+  assert.equal(filterTransactions(mapped, { period: 30 }).length, 4);
+  assert.equal(filterTransactions(mapped, { period: 60 }).length, 5);
+  assert.equal(filterTransactions(mapped, { period: 90 }).length, 6);
+  assert.equal(filterTransactions(mapped, { period: 90, direction: 'entrada' }).length, 5);
+  assert.equal(filterTransactions(mapped, { period: 90, category: 'Pagamento' }).length, 1);
+  assert.equal(filterTransactions(mapped, { period: 90, startDate: mapped[1].date, endDate: mapped[0].date }).length, 2);
+});
+
+test('statement service SANDBOX loads normal, future, blocked, detail and receipt routes', async () => {
+  const calls = [];
+  const normal = rawStatementItem();
+  const future = rawStatementItem({ id: 'sbx_future', occurredAt: statementIso(3), status: 'SCHEDULED', direction: 'DEBIT', receiptAvailable: false });
+  const blocked = rawStatementItem({ id: 'sbx_blocked', occurredAt: statementIso(-2), status: 'UNDER_REVIEW', direction: 'DEBIT', receiptAvailable: false });
+  const receipt = { operationId: 'sbx_op_test', transactionId: normal.id, occurredAt: normal.occurredAt, amountMinor: normal.amountMinor, currency: 'BRL', payer: 'Origem Sandbox', payee: 'Destino Sandbox', institution: 'CTBX Sandbox', status: 'COMPLETED', requestId: 'request-test' };
+  const responses = new Map([
+    ['/v1/accounts/current/statement', [normal]],
+    ['/v1/accounts/current/statement/future', [future]],
+    ['/v1/accounts/current/statement/blocked', [blocked]],
+    [`/v1/accounts/current/transactions/${normal.id}`, normal],
+    [`/v1/accounts/current/transactions/${normal.id}/receipt`, receipt],
+  ]);
+  const client = async (path, options) => { calls.push({ path, options }); return { data: responses.get(path) }; };
+  const service = createStatementService({ sandboxMode: true, client, balanceLoader: async () => [{ value: '1.250,00' }] });
+  const data = await service.getStatementData();
+  const detail = await service.getTransaction({ id: normal.id });
+  const mappedReceipt = await service.getReceipt({ id: normal.id });
+  assert.equal(data.balance, '1.250,00');
+  assert.equal(data.transactions.length, 1);
+  assert.equal(data.futureTransactions[0].status, 'Agendado');
+  assert.equal(data.blockedTransactions[0].status, 'Em análise');
+  assert.equal(detail.id, normal.id);
+  assert.equal(mappedReceipt.operationId, 'sbx_op_test');
+  assert.equal(mappedReceipt.amountFormatted, '1.250,50');
+  assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
+});
+
+test('statement service propagates sanitized 404 errors', async () => {
+  const service = createStatementService({ sandboxMode: true, client: async () => { throw new ApiError('Movimentação não encontrada.', { code: 'TRANSACTION_NOT_FOUND', status: 404 }); } });
+  await assert.rejects(service.getTransaction({ id: 'sbx_txn_missing' }), (error) => error.status === 404 && error.code === 'TRANSACTION_NOT_FOUND' && !error.details);
+});
+
+test('statement GET refreshes once after 401 and retries with the rotated access token', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; configureApiClient(); });
+  let accessToken = 'expired-statement-token';
+  let refreshCalls = 0;
+  let statementCalls = 0;
+  globalThis.fetch = async (_url, options) => {
+    statementCalls += 1;
+    if (options.headers.Authorization === 'Bearer expired-statement-token') {
+      return new Response(JSON.stringify({ error: { code: 'AUTH_ACCESS_TOKEN_EXPIRED', message: 'expired' } }), { status: 401 });
+    }
+    assert.equal(options.headers.Authorization, 'Bearer rotated-statement-token');
+    return new Response(JSON.stringify({ data: [rawStatementItem()] }), { status: 200 });
+  };
+  configureApiClient({
+    getBaseURL: () => 'http://sandbox.test',
+    getAccessToken: () => accessToken,
+    getDeviceId: () => 'sandbox-device',
+    onUnauthorized: async () => { refreshCalls += 1; accessToken = 'rotated-statement-token'; },
+  });
+  const service = createStatementService({ sandboxMode: true, client: apiClient });
+  const items = await service.listTransactions();
+  assert.equal(items.length, 1);
+  assert.equal(refreshCalls, 1);
+  assert.equal(statementCalls, 2);
+});
+
+test('statement modes preserve DEMO fixtures and reject unconfigured production', async () => {
+  const demo = createStatementService({ demoMode: true });
+  assert.ok((await demo.listTransactions()).length > 0);
+  const production = createStatementService();
+  await assert.rejects(production.listTransactions(), (error) => error.code === 'BACKEND_NOT_CONFIGURED');
+});
+
+test('receipt mapper produces the structural receipt presentation', () => {
+  const receipt = mapSandboxReceipt({ operationId: 'sbx_op_test', transactionId: 'sbx_txn_test', occurredAt: statementIso(0), amountMinor: 9900, currency: 'BRL', payer: 'Pagador Sandbox', payee: 'Recebedor Sandbox', institution: 'CTBX Sandbox', status: 'COMPLETED', requestId: 'request-test' });
+  assert.equal(receipt.amount, 99);
+  assert.equal(receipt.amountFormatted, '99,00');
+  assert.equal(receipt.counterparty, 'Recebedor Sandbox');
+  assert.equal(receipt.requestId, 'request-test');
+});
+
+test('card mapper formats integer cents and rejects fractional minor units', () => {
+  const card = mapSandboxCard({ id: 'sbx_card_test', type: 'PHYSICAL', lastFour: '4821', holderName: 'CLIENTE SANDBOX', expiryMonth: 8, expiryYear: 2029, status: 'ACTIVE', availableMinor: 245080, currency: 'BRL' });
+  assert.equal(card.balance, 'R$ 2.450,80');
+  assert.equal(card.holder, 'CLIENTE SANDBOX');
+  assert.equal(card.expiry, '08/29');
+  const transaction = mapSandboxCardTransaction({ id: 'sbx_ctx_test', cardId: card.id, occurredAt: new Date().toISOString(), direction: 'DEBIT', merchantName: 'Loja Sandbox', amountMinor: 8640, status: 'APPROVED', authorizationCodeMasked: 'SBX-**01', receiptAvailable: true });
+  assert.equal(transaction.value, '- R$ 86,40');
+  assert.equal(transaction.authorization, 'SBX-**01');
+  assert.throws(() => mapSandboxCard({ availableMinor: 12.5 }), /integer minor units/);
+});
+
+test('card statement periods include relative transactions for 7, 15 and 30 days', () => {
+  const now = Date.now();
+  const items = mapSandboxCardTransactions([0, 1, 4, 12, 25].map((days, index) => ({ id: `sbx_ctx_${index}`, cardId: 'sbx_card_test', occurredAt: new Date(now - days * 86400000).toISOString(), direction: 'DEBIT', merchantName: `Loja ${index}`, amountMinor: 1000, status: 'APPROVED', authorizationCodeMasked: `SBX-**0${index}`, receiptAvailable: true })));
+  const within = (period) => items.filter((item) => new Date(item.occurredAt).getTime() >= now - period * 86400000);
+  assert.equal(within(7).length, 3);
+  assert.equal(within(15).length, 4);
+  assert.equal(within(30).length, 5);
+});
+
+test('card service SANDBOX loads cards, detail, statement, transaction, receipts and TOP', async () => {
+  const card = { id: 'sbx_card_test', type: 'PHYSICAL', brand: 'Mastercard', lastFour: '4821', holderName: 'CLIENTE SANDBOX', expiryMonth: 8, expiryYear: 2029, status: 'ACTIVE', availableMinor: 245080, currency: 'BRL' };
+  const top = { id: 'sbx_top_test', type: 'TRANSPORT', brand: 'TOP', lastFour: '9073', holderName: 'CLIENTE SANDBOX', status: 'ACTIVE', balanceMinor: 4820, currency: 'BRL' };
+  const transaction = { id: 'sbx_ctx_test', cardId: card.id, occurredAt: new Date().toISOString(), direction: 'DEBIT', merchantName: 'Loja Sandbox', amountMinor: 8640, status: 'APPROVED', authorizationCodeMasked: 'SBX-**01', receiptAvailable: true };
+  const receipt = { id: 'sbx_cr_test', operationId: 'sbx_cop_test', cardId: card.id, transactionId: transaction.id, occurredAt: transaction.occurredAt, merchantName: transaction.merchantName, amountMinor: transaction.amountMinor, currency: 'BRL', status: 'APPROVED', authorizationCodeMasked: transaction.authorizationCodeMasked, requestId: 'request-test' };
+  const responses = new Map([['/v1/cards', [card]], ['/v1/transport-card', top], [`/v1/cards/${card.id}`, card], [`/v1/cards/${card.id}/transactions`, [transaction]], [`/v1/cards/${card.id}/transactions/${transaction.id}`, transaction], [`/v1/cards/${card.id}/receipts`, [receipt]], [`/v1/cards/${card.id}/transactions/${transaction.id}/receipt`, receipt]]);
+  const calls = [];
+  const service = createCardService({ sandboxMode: true, client: async (path, options) => { calls.push({ path, options }); return { data: responses.get(path) }; } });
+  const cards = await service.getCards();
+  assert.equal(cards.length, 2);
+  assert.equal((await service.getCard(card.id)).id, card.id);
+  assert.equal((await service.getCardTransactions(card.id))[0].id, transaction.id);
+  assert.equal((await service.getCardTransaction(transaction)).id, transaction.id);
+  assert.equal((await service.getCardReceipts(card.id))[0].transactionId, transaction.id);
+  assert.equal((await service.getCardReceipt(transaction)).requestId, 'request-test');
+  assert.equal((await service.getTransportCard()).balance, 'R$ 48,20');
+  assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
+});
+
+test('card mutations remain unavailable in SANDBOX while DEMO behavior is preserved', async () => {
+  const sandbox = createCardService({ sandboxMode: true });
+  for (const action of [() => sandbox.activateCard({}), () => sandbox.changePassword(), () => sandbox.setBlocked(true), () => sandbox.rechargeCard('10,00'), () => sandbox.requestCard({})]) {
+    await assert.rejects(action(), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
+  }
+  const demo = createCardService({ demoMode: true });
+  assert.equal((await demo.getCards()).length, 2);
+  assert.equal((await demo.setBlocked(true)).blocked, true);
+});
+
+test('card receipt mapper exposes only structural masked presentation fields', () => {
+  const receipt = mapSandboxCardReceipt({ id: 'sbx_cr_test', transactionId: 'sbx_ctx_test', occurredAt: new Date().toISOString(), merchantName: 'Loja Sandbox', amountMinor: 9900, authorizationCodeMasked: 'SBX-**99' });
+  assert.equal(receipt.value, '- R$ 99,00');
+  assert.equal(receipt.authorization, 'SBX-**99');
+});
+
+test('PIX mappers preserve cents and normalize SANDBOX reads for existing screens', () => {
+  const beneficiary = { name: 'Cliente Recebedor SANDBOX', documentMasked: '***.***.***-**', bankName: 'Banco SANDBOX', branch: '0001', accountMasked: '******-0', accountType: 'Conta corrente' };
+  const lookup = mapSandboxPixLookup({ key: 'recebedor@sandbox.invalid', keyType: 'EMAIL', beneficiary, status: 'ACTIVE', requestId: 'request-pix' });
+  assert.equal(lookup.beneficiary.bank, 'Banco SANDBOX');
+  assert.equal(lookup.beneficiary.document, '***.***.***-**');
+  const qr = mapSandboxQrLookup({ payloadId: 'sbx_qr', key: 'recebedor@sandbox.invalid', keyType: 'EMAIL', beneficiary, amountMinor: 12500, currency: 'BRL', txId: 'SBXQR001', status: 'VALID' });
+  assert.equal(qr.amountMinor, 12500);
+  assert.equal(qr.amount, '125,00');
+  const keys = mapSandboxPixKeys([{ id: 'sbx_key', type: 'PHONE', keyMasked: '+55 (**) *****-0000', status: 'ACTIVE' }]);
+  assert.equal(keys[0].value, '+55 (**) *****-0000');
+  const receive = mapSandboxReceiveQr({ qrId: 'sbx_receive', copyPaste: 'CTBXPIX-SANDBOX|RECEIVE', qrPayload: 'CTBXPIX-SANDBOX|RECEIVE', amountMinor: 5000, currency: 'BRL', status: 'READY' }, 'masked-key');
+  assert.equal(receive.amount, '50,00');
+});
+
+test('PIX service SANDBOX connects key, QR, own keys and receive QR reads', async () => {
+  const beneficiary = { name: 'Cliente Recebedor SANDBOX', documentMasked: '***.***.***-**', bankName: 'Banco SANDBOX', branch: '0001', accountMasked: '******-0', accountType: 'Conta corrente' };
+  const responses = new Map([
+    ['/v1/pix/keys/lookup', { key: 'recebedor@sandbox.invalid', keyType: 'EMAIL', beneficiary, status: 'ACTIVE', requestId: 'request-pix' }],
+    ['/v1/pix/qr/lookup', { payloadId: 'sbx_qr', key: 'recebedor@sandbox.invalid', keyType: 'EMAIL', beneficiary, amountMinor: 12500, currency: 'BRL', txId: 'SBXQR001', status: 'VALID' }],
+    ['/v1/pix/keys', [{ id: 'sbx_key', type: 'EMAIL', keyMasked: 'conta@sandbox.invalid', status: 'ACTIVE', createdAt: new Date().toISOString() }]],
+    ['/v1/pix/receive/qr', { qrId: 'sbx_receive', copyPaste: 'CTBXPIX-SANDBOX|RECEIVE', qrPayload: 'CTBXPIX-SANDBOX|RECEIVE', amountMinor: 12500, currency: 'BRL', expiresAt: new Date().toISOString(), status: 'READY' }],
+  ]);
+  const calls = [];
+  const client = async (path, options) => { calls.push({ path, options, body: options.body ? JSON.parse(options.body) : undefined }); return { data: responses.get(path) }; };
+  const service = createPixService({ sandboxMode: true, client, balanceLoader: async () => [{ value: '1.250,00' }] });
+  assert.equal((await service.lookupKey({ key: 'recebedor@sandbox.invalid' })).beneficiary.name, 'Cliente Recebedor SANDBOX');
+  assert.equal((await service.lookupQrCode({ payload: 'CTBXPIX-SANDBOX|QR|12500' })).amount, '125,00');
+  assert.equal((await service.getKeys())[0].type, 'E-mail');
+  assert.equal((await service.generateReceiveQr({ keyId: 'sbx_key', keyValue: 'conta@sandbox.invalid', amount: '125,00' })).amountMinor, 12500);
+  assert.equal((await service.getPixTransferData()).balance, '1.250,00');
+  assert.equal(calls.find((call) => call.path === '/v1/pix/receive/qr').body.amountMinor, 12500);
+  assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
+});
+
+test('PIX SANDBOX propagates lookup errors and blocks every mutation', async () => {
+  const service = createPixService({ sandboxMode: true, client: async () => { throw new ApiError('Chave PIX não encontrada.', { code: 'PIX_KEY_NOT_FOUND', status: 404 }); } });
+  await assert.rejects(service.lookupKey({ key: 'missing' }), (error) => error.code === 'PIX_KEY_NOT_FOUND' && error.status === 404);
+  for (const action of [() => service.createTransfer({}), () => service.validateTransfer({}), () => service.authorizeTransfer({}), () => service.scheduleTransfer({}), () => service.createKey({}), () => service.deleteKey({}), () => service.getReceipt({})]) {
+    await assert.rejects(action(), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
+  }
+  const production = createPixService();
+  await assert.rejects(production.getKeys(), (error) => error.code === 'BACKEND_NOT_CONFIGURED');
+  const demo = createPixService({ demoMode: true });
+  assert.ok((await demo.getKeys()).length > 0);
+});
+
+test('PIX lookup refreshes once after 401 and retries with the rotated access token', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; configureApiClient(); });
+  let accessToken = 'expired-pix-token';
+  let refreshCalls = 0;
+  let lookupCalls = 0;
+  globalThis.fetch = async (_url, options) => {
+    lookupCalls += 1;
+    if (options.headers.Authorization === 'Bearer expired-pix-token') return new Response(JSON.stringify({ error: { code: 'AUTH_ACCESS_TOKEN_EXPIRED', message: 'expired' } }), { status: 401 });
+    assert.equal(options.headers.Authorization, 'Bearer rotated-pix-token');
+    return new Response(JSON.stringify({ data: { key: 'recebedor@sandbox.invalid', keyType: 'EMAIL', beneficiary: { name: 'Cliente SANDBOX', documentMasked: '***', bankName: 'Banco SANDBOX', branch: '0001', accountMasked: '***', accountType: 'Conta corrente' }, status: 'ACTIVE', requestId: 'request-pix' } }), { status: 200 });
+  };
+  configureApiClient({ getBaseURL: () => 'http://sandbox.test', getAccessToken: () => accessToken, getDeviceId: () => 'sandbox-device', onUnauthorized: async () => { refreshCalls += 1; accessToken = 'rotated-pix-token'; } });
+  const service = createPixService({ sandboxMode: true, client: apiClient });
+  const result = await service.lookupKey({ key: 'recebedor@sandbox.invalid' });
+  assert.equal(result.beneficiary.bank, 'Banco SANDBOX');
+  assert.equal(refreshCalls, 1);
+  assert.equal(lookupCalls, 2);
 });
 
 test('refresh calls are deduplicated and rotate mapped session', async () => {

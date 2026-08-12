@@ -37,8 +37,8 @@ export default function PixAuthorizationScreen({ navigation, route }) {
     try {
       const authorizedTransfer = await submitTransfer(transfer);
       if (authorizedTransfer) navigation.replace('PixReceipt', { transfer: authorizedTransfer });
-    } catch {
-      Alert.alert('Serviço indisponível', 'Não foi possível autorizar o PIX agora.');
+    } catch (error) {
+      Alert.alert('Serviço indisponível', error?.code === 'SANDBOX_OPERATION_UNAVAILABLE' ? 'Operação PIX não disponível no ambiente sandbox.' : 'Não foi possível autorizar o PIX agora.');
     }
   };
 

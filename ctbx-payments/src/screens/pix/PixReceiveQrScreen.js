@@ -6,7 +6,7 @@ import { InfoRow, PixButton } from '../../components/pix/PixForm';
 export default function PixReceiveQrScreen({ navigation, route }) {
   const keyValue = route.params?.keyValue || '';
   const amount = route.params?.amount || '0,00';
-  const mockPayload = `000201PIX-MOCK|CHAVE=${keyValue}|VALOR=${amount || '0,00'}`;
+  const mockPayload = route.params?.copyPaste || route.params?.payload || `PIX-DEMO|CHAVE=${keyValue}|VALOR=${amount || '0,00'}`;
 
   return (
     <PixLayout navigation={navigation} title="QR Code para receber">
