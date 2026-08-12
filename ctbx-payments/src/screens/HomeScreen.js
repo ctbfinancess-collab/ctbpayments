@@ -505,7 +505,9 @@ export default function HomeScreen({ navigation }) {
                             ? () => navigation.navigate('Pix')
                             : item.key === 7
                               ? () => navigation.navigate('Transfers')
-                              : undefined}
+                              : item.key === 8
+                                ? () => navigation.navigate('Payments')
+                                : undefined}
                           style={[
                             styles.serviceItem,
                             isPrimary && styles.serviceItemPrimary,

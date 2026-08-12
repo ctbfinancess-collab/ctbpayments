@@ -23,6 +23,14 @@ import TransferFavoritesScreen from './src/screens/transfers/TransferFavoritesSc
 import TransferReceiptScreen from './src/screens/transfers/TransferReceiptScreen';
 import TransferReviewScreen from './src/screens/transfers/TransferReviewScreen';
 import TransferStartScreen from './src/screens/transfers/TransferStartScreen';
+import PaymentAuthorizationScreen from './src/screens/payments/PaymentAuthorizationScreen';
+import PaymentCodeScreen from './src/screens/payments/PaymentCodeScreen';
+import PaymentDetailsScreen from './src/screens/payments/PaymentDetailsScreen';
+import PaymentInstallmentsScreen from './src/screens/payments/PaymentInstallmentsScreen';
+import PaymentReceiptScreen from './src/screens/payments/PaymentReceiptScreen';
+import PaymentReviewScreen from './src/screens/payments/PaymentReviewScreen';
+import PaymentScannerScreen from './src/screens/payments/PaymentScannerScreen';
+import PaymentStartScreen from './src/screens/payments/PaymentStartScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -57,6 +65,14 @@ export default function App() {
         <Stack.Screen name="TransferReview" component={TransferReviewScreen} />
         <Stack.Screen name="TransferAuthorization" component={TransferAuthorizationScreen} />
         <Stack.Screen name="TransferReceipt" component={TransferReceiptScreen} />
+        <Stack.Screen name="Payments" component={PaymentStartScreen} />
+        <Stack.Screen name="PaymentCode" component={PaymentCodeScreen} />
+        <Stack.Screen name="PaymentScanner" component={PaymentScannerScreen} />
+        <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+        <Stack.Screen name="PaymentInstallments" component={PaymentInstallmentsScreen} />
+        <Stack.Screen name="PaymentReview" component={PaymentReviewScreen} />
+        <Stack.Screen name="PaymentAuthorization" component={PaymentAuthorizationScreen} />
+        <Stack.Screen name="PaymentReceipt" component={PaymentReceiptScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
