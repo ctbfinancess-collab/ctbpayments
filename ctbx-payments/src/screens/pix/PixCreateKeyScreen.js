@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
+import { ErrorState, LoadingState } from '../../components/ui';
 import useAsyncAction from '../../hooks/useAsyncAction';
 import useAsyncResource from '../../hooks/useAsyncResource';
 import { createKey as createPixKey, getAvailableKeyTypes } from '../../services/pixService';
@@ -13,10 +14,13 @@ export default function PixCreateKeyScreen({ navigation }) {
   const [tokenSent, setTokenSent] = useState(false);
   const [token, setToken] = useState('');
 
-  const { data: keyTypes } = useAsyncResource(getAvailableKeyTypes, []);
+  const { data: keyTypes, error, loading, retry } = useAsyncResource(getAvailableKeyTypes, []);
   const { execute: submitKey, loading: creating } = useAsyncAction(createPixKey);
   const selected = keyTypes.find((item) => item.id === type);
   const needsValue = type === 'PHONE' || type === 'EMAIL';
+
+  if (loading) return <PixLayout navigation={navigation} title="Cadastrar chave PIX"><LoadingState /></PixLayout>;
+  if (error) return <PixLayout navigation={navigation} title="Cadastrar chave PIX"><ErrorState message="Não foi possível carregar os tipos de chave." onRetry={retry} /></PixLayout>;
 
   const requestToken = () => {
     if (type === 'EMAIL' && !isValidEmail(value)) {

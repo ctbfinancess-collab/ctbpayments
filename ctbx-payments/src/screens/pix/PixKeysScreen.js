@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton } from '../../components/pix/PixForm';
+import { ErrorState, LoadingState } from '../../components/ui';
 import useAsyncResource from '../../hooks/useAsyncResource';
 import { deleteKey, getKeys } from '../../services/pixService';
 
 export default function PixKeysScreen({ navigation, route }) {
-  const { data: loadedKeys } = useAsyncResource(getKeys, []);
+  const { data: loadedKeys, error, loading, retry } = useAsyncResource(getKeys, []);
   const [keys, setKeys] = useState([]);
 
   useEffect(() => {
@@ -28,6 +29,9 @@ export default function PixKeysScreen({ navigation, route }) {
       { text: 'Sim', style: 'destructive', onPress: async () => { try { await deleteKey(key); setKeys((current) => current.filter((item) => item.id !== key.id)); } catch { Alert.alert('Serviço indisponível'); } } },
     ]);
   };
+
+  if (loading) return <PixLayout navigation={navigation} title="Minhas Chaves"><LoadingState /></PixLayout>;
+  if (error) return <PixLayout navigation={navigation} title="Minhas Chaves"><ErrorState message="Não foi possível carregar suas chaves." onRetry={retry} /></PixLayout>;
 
   return (
     <PixLayout navigation={navigation} title="Minhas Chaves">

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import PaymentLayout from '../../components/payments/PaymentLayout';
-import { Card, MissingDataState, PrimaryButton } from '../../components/ui';
+import { Card, ErrorState, LoadingState, MissingDataState, PrimaryButton } from '../../components/ui';
 import useAsyncResource from '../../hooks/useAsyncResource';
 import { getInstallments } from '../../services/paymentService';
 import { colors, radii, spacing, typography } from '../../theme';
@@ -11,7 +11,7 @@ export default function PaymentInstallmentsScreen({ navigation, route }) {
     () => getInstallments(payment?.bill?.total),
     [payment?.bill?.total],
   );
-  const { data: installments } = useAsyncResource(loadInstallments, []);
+  const { data: installments, error, loading, retry } = useAsyncResource(loadInstallments, []);
   const [selected, setSelected] = useState(null);
 
   useEffect(() => {
@@ -19,6 +19,8 @@ export default function PaymentInstallmentsScreen({ navigation, route }) {
   }, [installments, selected]);
 
   if (!payment) return <MissingDataState navigation={navigation} title="Pagamento parcelado" />;
+  if (loading) return <PaymentLayout navigation={navigation} title="Pagamento parcelado"><LoadingState /></PaymentLayout>;
+  if (error) return <PaymentLayout navigation={navigation} title="Pagamento parcelado"><ErrorState message="Não foi possível calcular as parcelas." onRetry={retry} /></PaymentLayout>;
 
   return (
     <PaymentLayout navigation={navigation} title="Pagamento parcelado">

@@ -2,17 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { PixButton, PixField } from '../../components/pix/PixForm';
+import { ErrorState, LoadingState } from '../../components/ui';
 import useAsyncResource from '../../hooks/useAsyncResource';
 import { generateReceiveQr, getKeys } from '../../services/pixService';
 
 export default function PixReceiveScreen({ navigation }) {
-  const { data: keys } = useAsyncResource(getKeys, []);
+  const { data: keys, error, loading, retry } = useAsyncResource(getKeys, []);
   const [selectedKey, setSelectedKey] = useState('');
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
     if (!selectedKey && keys.length > 0) setSelectedKey(keys[0].value);
   }, [keys, selectedKey]);
+
+  if (loading) return <PixLayout navigation={navigation} title="Receber Pix"><LoadingState /></PixLayout>;
+  if (error) return <PixLayout navigation={navigation} title="Receber Pix"><ErrorState message="Não foi possível carregar suas chaves." onRetry={retry} /></PixLayout>;
 
   const generateQr = async () => {
     if (!selectedKey) {
