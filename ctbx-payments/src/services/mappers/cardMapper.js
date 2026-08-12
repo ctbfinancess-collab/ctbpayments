@@ -1,6 +1,6 @@
 import { formatCents } from './accountMapper';
 
-const statusLabel = (status) => ({ ACTIVE: 'Desbloqueado', APPROVED: 'Aprovada', COMPLETED: 'Concluída' }[status] || status);
+const statusLabel = (status) => ({ PENDING_ACTIVATION: 'Pendente de ativação', ACTIVE: 'Desbloqueado', BLOCKED: 'Bloqueado', APPROVED: 'Aprovada', COMPLETED: 'Concluída', RECEIVED: 'Recebida' }[status] || status);
 const cardDate = (iso) => new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
 
 export function mapSandboxCard(card) {
@@ -29,3 +29,8 @@ export function mapSandboxCardReceipt(item) {
 }
 
 export const mapSandboxCardReceipts = (items = []) => items.map(mapSandboxCardReceipt);
+
+const assertMinor = (value, field) => { if (!Number.isInteger(value)) throw new TypeError(`${field} must use integer minor units`); };
+export const mapSandboxCardMutation = (value = {}) => ({ ...value, statusLabel: statusLabel(value.status), simulated: value.simulated === true, sandboxMode: value.environment === 'SANDBOX' });
+export function mapSandboxCardRecharge(value = {}) { assertMinor(value.amountMinor, 'amountMinor'); assertMinor(value.newBalanceMinor, 'newBalanceMinor'); return { ...mapSandboxCardMutation(value), amount: formatCents(value.amountMinor), newBalance: `R$ ${formatCents(value.newBalanceMinor)}` }; }
+export const mapSandboxCardRequest = (value = {}) => mapSandboxCardMutation(value);

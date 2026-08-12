@@ -298,6 +298,37 @@ test('production forbids the sandbox card provider', () => {
   assert.throws(() => new SandboxCardProvider('production'), /forbidden in production/);
 });
 
+test('card activation challenge and state transitions are simulated and controlled', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app); const card = (await app.inject({ method: 'GET', url: '/v1/cards', headers: authHeaders(session) })).json().data[0];
+  assert.equal(card.status, 'PENDING_ACTIVATION');
+  const challenge = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/activation/challenge`, headers: authHeaders(session), payload: {} }); assert.equal(challenge.statusCode, 201);
+  const wrong = await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.json().data.id}/verify`, headers: authHeaders(session), payload: { proof: '000000' } }); assert.equal(wrong.statusCode, 401);
+  await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.json().data.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } });
+  const activated = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/activate`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-activate-01' }, payload: { challengeId: challenge.json().data.id } }); assert.equal(activated.statusCode, 200); assert.equal(activated.json().data.status, 'ACTIVE'); assert.equal(activated.json().data.simulated, true);
+  const duplicate = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/activate`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-activate-02' }, payload: { challengeId: challenge.json().data.id } }); assert.equal(duplicate.statusCode, 409); assert.equal(duplicate.json().error.code, 'CARD_ALREADY_ACTIVE');
+  const blocked = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/block`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-block-01' }, payload: {} }); assert.equal(blocked.json().data.status, 'BLOCKED');
+  const invalid = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/block`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-block-02' }, payload: {} }); assert.equal(invalid.statusCode, 409); assert.equal(invalid.json().error.code, 'CARD_INVALID_STATE');
+  const unblocked = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/unblock`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-unblock-01' }, payload: {} }); assert.equal(unblocked.json().data.status, 'ACTIVE');
+});
+
+test('card password never appears in response and card recharge is idempotent', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app); const card = (await app.inject({ method: 'GET', url: '/v1/cards', headers: authHeaders(session) })).json().data[0];
+  const invalid = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/password`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-password-invalid' }, payload: { password: '12' } }); assert.equal(invalid.statusCode, 422);
+  const changed = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/password`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-password-01' }, payload: { password: '9876' } }); assert.equal(changed.statusCode, 200); assert.equal(changed.json().data.passwordChanged, true); assert.equal(JSON.stringify(changed.json()).includes('9876'), false);
+  const headers = { ...authHeaders(session), 'idempotency-key': 'idem-card-recharge-01' }; const payload = { amountMinor: 5000, currency: 'BRL' };
+  const [first, replay] = await Promise.all([app.inject({ method: 'POST', url: `/v1/cards/${card.id}/recharge`, headers, payload }), app.inject({ method: 'POST', url: `/v1/cards/${card.id}/recharge`, headers, payload })]); assert.equal(first.json().data.rechargeId, replay.json().data.rechargeId); assert.equal(first.json().data.newBalanceMinor, 250080);
+  const conflict = await app.inject({ method: 'POST', url: `/v1/cards/${card.id}/recharge`, headers, payload: { amountMinor: 6000, currency: 'BRL' } }); assert.equal(conflict.statusCode, 409);
+});
+
+test('card request and TOP recharge are fictitious, idempotent and update memory balance', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app);
+  const request = await app.inject({ method: 'POST', url: '/v1/cards/requests', headers: { ...authHeaders(session), 'idempotency-key': 'idem-card-request-01' }, payload: { selectedColor: 'Roxo', termsAccepted: true } }); assert.equal(request.statusCode, 200); assert.equal(request.json().data.status, 'RECEIVED');
+  const headers = { ...authHeaders(session), 'idempotency-key': 'idem-top-recharge-01' }; const payload = { amountMinor: 2000, currency: 'BRL' };
+  const first = await app.inject({ method: 'POST', url: '/v1/transport-card/recharge', headers, payload }); const replay = await app.inject({ method: 'POST', url: '/v1/transport-card/recharge', headers, payload }); assert.equal(first.json().data.rechargeId, replay.json().data.rechargeId); assert.equal(first.json().data.newBalanceMinor, 6820);
+  const top = await app.inject({ method: 'GET', url: '/v1/transport-card', headers: authHeaders(session) }); assert.equal(top.json().data.balanceMinor, 6820);
+  const serialized = JSON.stringify({ request: request.json().data, recharge: first.json().data }).toLowerCase(); for (const forbidden of ['pan', 'cvv', 'pin', 'password', 'processortoken']) assert.equal(serialized.includes(forbidden), false);
+});
+
 test('authenticated PIX key lookup supports every fictitious SANDBOX key type', async (t) => {
   const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
   const session = await login(app);

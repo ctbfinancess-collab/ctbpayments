@@ -758,7 +758,7 @@ paths:
       operationId: createCardActivationChallenge
       parameters:
         - $ref: '#/components/parameters/ResourceId'
-        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
         '201': { $ref: '#/components/responses/ChallengeResponse' }
   /v1/cards/{id}/activate:
@@ -768,9 +768,10 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ResourceId'
         - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/DeviceId'
       requestBody: { $ref: '#/components/requestBodies/ChallengeProof' }
       responses:
-        '202': { $ref: '#/components/responses/OperationResponse' }
+        '200': { description: Ativação simulada SANDBOX, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
   /v1/cards/{id}/block:
     post:
       tags: [Cards]
@@ -778,8 +779,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ResourceId'
         - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
-        '202': { $ref: '#/components/responses/OperationResponse' }
+        '200': { description: Bloqueio simulado SANDBOX, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
   /v1/cards/{id}/unblock:
     post:
       tags: [Cards]
@@ -787,9 +789,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ResourceId'
         - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody: { $ref: '#/components/requestBodies/ChallengeProof' }
+        - $ref: '#/components/parameters/DeviceId'
       responses:
-        '202': { $ref: '#/components/responses/OperationResponse' }
+        '200': { description: Desbloqueio simulado SANDBOX, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
   /v1/cards/{id}/password:
     post:
       tags: [Cards]
@@ -797,18 +799,18 @@ paths:
       parameters:
         - $ref: '#/components/parameters/ResourceId'
         - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/DeviceId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [encryptedPinBlock, challengeId]
+              required: [password]
               properties:
-                encryptedPinBlock: { type: string, writeOnly: true, description: Formato definido com o processador PCI }
-                challengeId: { type: string }
+                password: { type: string, pattern: '^\d{4}$', writeOnly: true, description: Valor demonstrativo nunca persistido ou retornado }
       responses:
-        '202': { $ref: '#/components/responses/OperationResponse' }
+        '200': { description: Alteração exclusivamente simulada, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
   /v1/cards/{cardId}/transactions:
     get:
       tags: [Cards]
@@ -899,26 +901,8 @@ paths:
     post:
       tags: [Cards]
       operationId: requestCard
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [productId, termsAcceptanceId]
-              properties:
-                productId: { type: string }
-                designId: { type: string }
-                termsAcceptanceId: { type: string }
-      responses:
-        '202': { $ref: '#/components/responses/OperationResponse' }
-  /v1/cards/{id}/recharge:
-    post:
-      tags: [Cards]
-      operationId: rechargeCard
       parameters:
-        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -926,10 +910,51 @@ paths:
           application/json:
             schema:
               type: object
-              required: [amount]
-              properties: { amount: { $ref: '#/components/schemas/Money' } }
+              required: [selectedColor, termsAccepted]
+              properties:
+                selectedColor: { type: string, enum: [Azul, Roxo, Preto] }
+                termsAccepted: { type: boolean, enum: [true] }
       responses:
-        '202': { $ref: '#/components/responses/OperationResponse' }
+        '200': { description: Solicitação exclusivamente simulada, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
+  /v1/cards/{id}/recharge:
+    post:
+      tags: [Cards]
+      operationId: rechargeCard
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountMinor, currency]
+              properties:
+                amountMinor: { type: integer, minimum: 1, maximum: 100000 }
+                currency: { type: string, enum: [BRL] }
+      responses:
+        '200': { description: Recarga financeira simulada, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
+  /v1/transport-card/recharge:
+    post:
+      tags: [Cards]
+      operationId: rechargeTransportCard
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountMinor, currency]
+              properties:
+                amountMinor: { type: integer, minimum: 1, maximum: 50000 }
+                currency: { type: string, enum: [BRL] }
+      responses:
+        '200': { description: Recarga TOP exclusivamente simulada, content: { application/json: { schema: { $ref: '#/components/schemas/SuccessEnvelope' } } } }
   /v1/security/challenges:
     post:
       tags: [Security]

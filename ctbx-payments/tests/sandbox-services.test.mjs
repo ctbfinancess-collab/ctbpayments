@@ -22,7 +22,7 @@ const { apiClient, buildAuthHeaders, configureApiClient } = apiClientModule;
 const ApiError = ApiErrorModule.default || ApiErrorModule;
 const { formatCents, mapSandboxAccount, mapSandboxBalances } = mapperModule;
 const { mapSandboxReceipt, mapSandboxStatement, mapSandboxTransaction } = statementMapperModule;
-const { mapSandboxCard, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSandboxCardTransactions } = cardMapperModule;
+const { mapSandboxCard, mapSandboxCardMutation, mapSandboxCardRecharge, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSandboxCardTransactions } = cardMapperModule;
 const { createCardService } = cardServiceModule;
 const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxPixReceipt, mapSandboxPixTransfer, mapSandboxPixValidation, mapSandboxQrLookup, mapSandboxReceiveQr } = pixMapperModule;
 const { createPixService } = pixServiceModule;
@@ -250,11 +250,16 @@ test('card service SANDBOX loads cards, detail, statement, transaction, receipts
   assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
 });
 
-test('card mutations remain unavailable in SANDBOX while DEMO behavior is preserved', async () => {
-  const sandbox = createCardService({ sandboxMode: true });
-  for (const action of [() => sandbox.activateCard({}), () => sandbox.changePassword(), () => sandbox.setBlocked(true), () => sandbox.rechargeCard('10,00'), () => sandbox.requestCard({})]) {
-    await assert.rejects(action(), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
-  }
+test('card service SANDBOX connects activation, status, password, recharge, request and TOP', async () => {
+  const card = { id: 'sbx_card_test', availableMinor: 245080 };
+  const calls = [];
+  const client = async (path, options) => { calls.push({ path, options, body: options.body ? JSON.parse(options.body) : undefined }); if (path === '/v1/cards') return { data: [card] }; if (path.endsWith('/activation/challenge')) return { data: { id: 'challenge-card' } }; if (path.endsWith('/verify')) return { data: { status: 'VERIFIED' } }; if (path.endsWith('/activate')) return { data: { cardId: card.id, status: 'ACTIVE', environment: 'SANDBOX', simulated: true } }; if (path.endsWith('/block')) return { data: { cardId: card.id, status: 'BLOCKED', environment: 'SANDBOX', simulated: true } }; if (path.endsWith('/unblock')) return { data: { cardId: card.id, status: 'ACTIVE', environment: 'SANDBOX', simulated: true } }; if (path.endsWith('/password')) return { data: { cardId: card.id, passwordChanged: true, environment: 'SANDBOX', simulated: true } }; if (path === '/v1/cards/requests') return { data: { requestIdPublic: 'request', status: 'RECEIVED', environment: 'SANDBOX', simulated: true } }; if (path.endsWith('/recharge')) return { data: { rechargeId: 'recharge', amountMinor: 5000, newBalanceMinor: 250080, status: 'COMPLETED', environment: 'SANDBOX', simulated: true } }; throw new Error(path); };
+  const sandbox = createCardService({ sandboxMode: true, client });
+  const [activated, replay] = await Promise.all([sandbox.activateCard(card, '123456'), sandbox.activateCard(card, '123456')]); assert.equal(activated.statusLabel, 'Desbloqueado'); assert.equal(replay.statusLabel, 'Desbloqueado'); assert.equal(calls.filter((call) => call.path.endsWith('/activate')).length, 1);
+  assert.equal((await sandbox.setBlocked(true, card)).statusLabel, 'Bloqueado'); assert.equal((await sandbox.setBlocked(false, card)).statusLabel, 'Desbloqueado');
+  assert.equal((await sandbox.changePassword('9876', card)).passwordChanged, true); assert.equal((await sandbox.rechargeCard('50,00', { card })).newBalance, 'R$ 2.500,80'); assert.equal((await sandbox.rechargeTransportCard('50,00')).amount, '50,00'); assert.equal((await sandbox.requestCard({ color: 'Roxo' })).statusLabel, 'Recebida');
+  assert.ok(calls.filter((call) => call.options.headers?.['Idempotency-Key']).length >= 6);
+  assert.equal(calls.find((call) => call.path.endsWith('/password')).body.password, '9876');
   const demo = createCardService({ demoMode: true });
   assert.equal((await demo.getCards()).length, 2);
   assert.equal((await demo.setBlocked(true)).blocked, true);
@@ -264,6 +269,12 @@ test('card receipt mapper exposes only structural masked presentation fields', (
   const receipt = mapSandboxCardReceipt({ id: 'sbx_cr_test', transactionId: 'sbx_ctx_test', occurredAt: new Date().toISOString(), merchantName: 'Loja Sandbox', amountMinor: 9900, authorizationCodeMasked: 'SBX-**99' });
   assert.equal(receipt.value, '- R$ 99,00');
   assert.equal(receipt.authorization, 'SBX-**99');
+});
+
+test('card mutation mappers preserve cents and SANDBOX markers', () => {
+  assert.equal(mapSandboxCardMutation({ status: 'BLOCKED', environment: 'SANDBOX', simulated: true }).statusLabel, 'Bloqueado');
+  const recharge = mapSandboxCardRecharge({ amountMinor: 5000, newBalanceMinor: 250080, environment: 'SANDBOX', simulated: true }); assert.equal(recharge.amount, '50,00'); assert.equal(recharge.newBalance, 'R$ 2.500,80');
+  assert.throws(() => mapSandboxCardRecharge({ amountMinor: 10.5, newBalanceMinor: 20 }), /integer minor units/);
 });
 
 test('PIX mappers preserve cents and normalize SANDBOX reads for existing screens', () => {

@@ -60,6 +60,13 @@ export interface CardProvider {
   listReceipts(context: AuthContext, cardId: string): Promise<unknown>;
   getTransactionReceipt(context: AuthContext, cardId: string, transactionId: string, requestId: string): Promise<unknown>;
   getTransportCard(context: AuthContext): Promise<unknown>;
+  createActivationChallenge(context: AuthContext, cardId: string): Promise<unknown>;
+  activate(context: AuthContext, cardId: string, input: unknown, key: string, requestId: string): Promise<unknown>;
+  setBlocked(context: AuthContext, cardId: string, blocked: boolean, key: string, requestId: string): Promise<unknown>;
+  changePassword(context: AuthContext, cardId: string, input: unknown, key: string, requestId: string): Promise<unknown>;
+  recharge(context: AuthContext, cardId: string, input: unknown, key: string, requestId: string): Promise<unknown>;
+  requestCard(context: AuthContext, input: unknown, key: string, requestId: string): Promise<unknown>;
+  rechargeTransport(context: AuthContext, input: unknown, key: string, requestId: string): Promise<unknown>;
 }
 export interface InvestmentProvider { listProducts(): Promise<unknown>; simulate(input: unknown): Promise<unknown>; createOrder(input: unknown): Promise<Operation>; }
 export interface BillingProvider { listPayers(): Promise<unknown>; createBill(input: unknown): Promise<Operation>; }

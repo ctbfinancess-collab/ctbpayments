@@ -212,18 +212,18 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     return envelope(request, await providers.card.list(request.auth!));
   });
   app.post('/cards/requests', {
-    preHandler: requireIdempotencyKey,
-    schema: { body: objectSchema(['productId', 'termsAcceptanceId'], { productId: idSchema, designId: idSchema, termsAcceptanceId: idSchema }) },
-  }, unavailable('de cartões'));
+    preHandler: [authenticated, requireIdempotencyKey],
+    schema: { body: objectSchema(['selectedColor', 'termsAccepted'], { selectedColor: { type: 'string', enum: ['Azul', 'Roxo', 'Preto'] }, termsAccepted: boolean }) },
+  }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.requestCard(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id)); });
   app.get('/cards/:cardId', { preHandler: authenticated, schema: { params: { ...idParams, required: ['cardId'], properties: { cardId: idSchema } } } }, async (request) => {
     if (!providers.card) throw providerNotConfigured('de cartões');
     return envelope(request, await providers.card.get(request.auth!, (request.params as { cardId: string }).cardId));
   });
-  app.post('/cards/:id/activation/challenge', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: emptyObjectSchema } }, unavailable('de cartões'));
-  app.post('/cards/:id/activate', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['challengeId'], { challengeId: idSchema }) } }, unavailable('de cartões'));
-  app.post('/cards/:id/block', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: emptyObjectSchema } }, unavailable('de cartões'));
-  app.post('/cards/:id/unblock', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['challengeId'], { challengeId: idSchema }) } }, unavailable('de cartões'));
-  app.post('/cards/:id/password', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['encryptedPinBlock', 'challengeId'], { encryptedPinBlock: string, challengeId: idSchema }) } }, unavailable('de cartões'));
+  app.post('/cards/:id/activation/challenge', { preHandler: authenticated, schema: { params: idParams, body: emptyObjectSchema } }, async (request, reply) => { if (!providers.card) throw providerNotConfigured('de cartões'); return reply.status(201).send(envelope(request, await providers.card.createActivationChallenge(request.auth!, (request.params as { id: string }).id))); });
+  app.post('/cards/:id/activate', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: idParams, body: objectSchema(['challengeId'], { challengeId: idSchema }) } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.activate(request.auth!, (request.params as { id: string }).id, request.body, request.headers['idempotency-key'] as string, request.id)); });
+  app.post('/cards/:id/block', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: idParams, body: emptyObjectSchema } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.setBlocked(request.auth!, (request.params as { id: string }).id, true, request.headers['idempotency-key'] as string, request.id)); });
+  app.post('/cards/:id/unblock', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: idParams, body: emptyObjectSchema } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.setBlocked(request.auth!, (request.params as { id: string }).id, false, request.headers['idempotency-key'] as string, request.id)); });
+  app.post('/cards/:id/password', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: idParams, body: objectSchema(['password'], { password: { type: 'string', pattern: '^\\d{4}$' } }) } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.changePassword(request.auth!, (request.params as { id: string }).id, request.body, request.headers['idempotency-key'] as string, request.id)); });
   const cardParams = { type: 'object', additionalProperties: false, required: ['cardId'], properties: { cardId: idSchema } } as const;
   const cardTransactionParams = { type: 'object', additionalProperties: false, required: ['cardId', 'transactionId'], properties: { cardId: idSchema, transactionId: idSchema } } as const;
   app.get('/cards/:cardId/transactions', { preHandler: authenticated, schema: { params: cardParams } }, async (request) => {
@@ -248,7 +248,8 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     if (!providers.card) throw providerNotConfigured('de cartões');
     return envelope(request, await providers.card.getTransportCard(request.auth!));
   });
-  app.post('/cards/:id/recharge', { preHandler: requireIdempotencyKey, schema: { params: idParams, body: objectSchema(['amount'], { amount: moneySchema }) } }, unavailable('de cartões'));
+  app.post('/cards/:id/recharge', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: idParams, body: objectSchema(['amountMinor', 'currency'], { amountMinor: { type: 'integer' }, currency: { type: 'string', enum: ['BRL'] } }) } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.recharge(request.auth!, (request.params as { id: string }).id, request.body, request.headers['idempotency-key'] as string, request.id)); });
+  app.post('/transport-card/recharge', { preHandler: [authenticated, requireIdempotencyKey], schema: { body: objectSchema(['amountMinor', 'currency'], { amountMinor: { type: 'integer' }, currency: { type: 'string', enum: ['BRL'] } }) } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.rechargeTransport(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id)); });
 
   app.post('/security/challenges', { preHandler: authenticated, schema: { body: objectSchema(['purpose', 'operationId'], { purpose: shortString, operationId: idSchema, type: { type: 'string', enum: ['OTP'] } }) } }, async (request, reply) => {
     if (!providers.challenge) throw providerNotConfigured('de segurança');

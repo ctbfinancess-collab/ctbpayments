@@ -30,7 +30,7 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
     deviceBinding,
     auth: new SandboxAuthProvider(sessions, deviceBinding, config.nodeEnv),
     account: new SandboxAccountProvider(config.nodeEnv),
-    card: new SandboxCardProvider(config.nodeEnv),
+    card: new SandboxCardProvider(config.nodeEnv, challenge),
     pix: new SandboxPixProvider(config.nodeEnv, challenge),
     transfer: new SandboxTransferProvider(config.nodeEnv, challenge),
     challenge,
