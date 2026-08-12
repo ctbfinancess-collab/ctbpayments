@@ -31,7 +31,7 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
     auth: new SandboxAuthProvider(sessions, deviceBinding, config.nodeEnv),
     account: new SandboxAccountProvider(config.nodeEnv),
     card: new SandboxCardProvider(config.nodeEnv),
-    pix: new SandboxPixProvider(config.nodeEnv),
+    pix: new SandboxPixProvider(config.nodeEnv, challenge),
     transfer: new SandboxTransferProvider(config.nodeEnv),
     challenge,
     payment: new SandboxPaymentProvider(config.nodeEnv, challenge),

@@ -5,6 +5,7 @@ import { InfoRow, PixButton, PixField } from '../../components/pix/PixForm';
 import { MissingDataState } from '../../components/ui';
 import useAsyncAction from '../../hooks/useAsyncAction';
 import { authorizeTransfer, scheduleTransfer } from '../../services/pixService';
+import { isSandboxMode } from '../../config';
 
 export default function PixAuthorizationScreen({ navigation, route }) {
   const transfer = route.params?.transfer;
@@ -17,7 +18,7 @@ export default function PixAuthorizationScreen({ navigation, route }) {
 
   const requestToken = () => {
     setTokenRequested(true);
-    Alert.alert('Token de demonstração', 'Use qualquer código de 6 dígitos para continuar.');
+    Alert.alert(isSandboxMode ? 'AMBIENTE SANDBOX' : 'Token de demonstração', isSandboxMode ? 'OTP SANDBOX para teste: 123456' : 'Use qualquer código de 6 dígitos para continuar.');
   };
 
   const authorize = async () => {
@@ -35,10 +36,10 @@ export default function PixAuthorizationScreen({ navigation, route }) {
     }
 
     try {
-      const authorizedTransfer = await submitTransfer(transfer);
+      const authorizedTransfer = await submitTransfer(transfer, token);
       if (authorizedTransfer) navigation.replace('PixReceipt', { transfer: authorizedTransfer });
     } catch (error) {
-      Alert.alert('Serviço indisponível', error?.code === 'SANDBOX_OPERATION_UNAVAILABLE' ? 'Operação PIX não disponível no ambiente sandbox.' : 'Não foi possível autorizar o PIX agora.');
+      Alert.alert('Serviço indisponível', error?.message || 'Não foi possível autorizar o PIX agora.');
     }
   };
 
@@ -74,7 +75,7 @@ export default function PixAuthorizationScreen({ navigation, route }) {
         <PixButton onPress={requestToken} secondary>ENVIAR TOKEN</PixButton>
       )}
       <PixButton confirmation disabled={loading} loading={loading} onPress={authorize}>CONFIRMAR PIX</PixButton>
-      <Text style={styles.mockNote}>Autorização simulada. Nenhuma transação bancária será enviada.</Text>
+      <Text style={styles.mockNote}>{isSandboxMode ? 'AMBIENTE SANDBOX · OTP: 123456 · operação PIX simulada.' : 'Autorização simulada. Nenhuma transação bancária será enviada.'}</Text>
     </PixLayout>
   );
 }

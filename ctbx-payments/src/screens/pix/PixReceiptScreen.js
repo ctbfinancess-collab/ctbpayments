@@ -9,7 +9,7 @@ export default function PixReceiptScreen({ navigation, route }) {
   if (!transfer) return <MissingDataState navigation={navigation} title="Comprovante Pix" />;
 
   const receiptText = [
-    'PIX realizado com sucesso!',
+    transfer.simulated ? 'COMPROVANTE PIX SANDBOX · OPERAÇÃO SIMULADA' : 'PIX realizado com sucesso!',
     `Valor: R$ ${transfer.amount}`,
     `Para: ${transfer.beneficiary.name}`,
     `Chave: ${transfer.key}`,
@@ -19,8 +19,8 @@ export default function PixReceiptScreen({ navigation, route }) {
     <PixLayout navigation={navigation} title="Comprovante PIX">
       <View style={styles.successArea}>
         <Text style={styles.successIcon}>✓</Text>
-        <Text style={styles.successTitle}>Pix realizado com sucesso!</Text>
-        <Text style={styles.demo}>Ambiente de demonstração</Text>
+        <Text style={styles.successTitle}>{transfer.status === 'SCHEDULED' ? 'Pix agendado!' : 'Pix realizado com sucesso!'}</Text>
+        <Text style={styles.demo}>{transfer.simulated ? `${transfer.status === 'SCHEDULED' ? 'AGENDAMENTO SANDBOX' : 'COMPROVANTE PIX SANDBOX'} · OPERAÇÃO SIMULADA` : 'Ambiente de demonstração'}</Text>
       </View>
       <View style={styles.receiptCard}>
         <InfoRow label="Valor" value={`R$ ${transfer.amount}`} />
@@ -28,10 +28,11 @@ export default function PixReceiptScreen({ navigation, route }) {
         <InfoRow label="CPF/CNPJ" value={transfer.beneficiary.document} />
         <InfoRow label="Instituição" value={transfer.beneficiary.bank} />
         <InfoRow label="Chave" value={transfer.key} />
-        <InfoRow label="Identificador" value={transfer.id} />
+        <InfoRow label="Identificador" value={transfer.pixTransferId || transfer.id} />
+        {transfer.sandboxReference ? <InfoRow label="Referência SANDBOX" value={transfer.sandboxReference} /> : null}
         {transfer.scheduled ? <InfoRow label="Agendado para" value={transfer.scheduleDate} /> : null}
       </View>
-      <PixButton onPress={() => Alert.alert('Comprovante mock', 'O PDF original depende da API de comprovantes.')} secondary>
+      <PixButton onPress={() => Alert.alert('Comprovante PIX SANDBOX', 'Não existe PDF bancário oficial para esta operação simulada.')} secondary>
         VISUALIZAR
       </PixButton>
       <PixButton confirmation onPress={() => Share.share({ message: receiptText })}>COMPARTILHAR</PixButton>

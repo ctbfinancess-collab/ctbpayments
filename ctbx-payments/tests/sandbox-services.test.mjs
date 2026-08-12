@@ -24,7 +24,7 @@ const { formatCents, mapSandboxAccount, mapSandboxBalances } = mapperModule;
 const { mapSandboxReceipt, mapSandboxStatement, mapSandboxTransaction } = statementMapperModule;
 const { mapSandboxCard, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSandboxCardTransactions } = cardMapperModule;
 const { createCardService } = cardServiceModule;
-const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxQrLookup, mapSandboxReceiveQr } = pixMapperModule;
+const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxPixReceipt, mapSandboxPixTransfer, mapSandboxPixValidation, mapSandboxQrLookup, mapSandboxReceiveQr } = pixMapperModule;
 const { createPixService } = pixServiceModule;
 const { mapSandboxBank, mapSandboxTransferBeneficiary, mapSandboxTransferFavorites, mapSandboxTransferValidation } = transferMapperModule;
 const { createTransferService } = transferServiceModule;
@@ -300,11 +300,69 @@ test('PIX service SANDBOX connects key, QR, own keys and receive QR reads', asyn
   assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
 });
 
-test('PIX SANDBOX propagates lookup errors and blocks every mutation', async () => {
+test('PIX transfer mappers preserve integer cents and explicit SANDBOX presentation', () => {
+  const beneficiary = { beneficiaryId: 'sbx_pix_beneficiary_001', name: 'Cliente Recebedor SANDBOX', documentMasked: '***.***.***-**', bankName: 'Banco SANDBOX', branch: '0001', accountMasked: '******-0', accountType: 'Conta corrente' };
+  const validation = mapSandboxPixValidation({ validationId: 'sbx_pix_val_1', beneficiary, amountMinor: 125000, currency: 'BRL', feeMinor: 0, totalDebitMinor: 125000, status: 'VALIDATED', scheduledFor: null });
+  assert.equal(validation.amount, '1.250,00');
+  assert.equal(validation.beneficiary.beneficiaryId, beneficiary.beneficiaryId);
+  const transfer = mapSandboxPixTransfer({ pixTransferId: 'sbx_pix_tx_1', beneficiary, amountMinor: 12500, currency: 'BRL', status: 'COMPLETED', environment: 'SANDBOX', simulated: true, sandboxReference: 'SBX-PIX-**01' });
+  assert.equal(transfer.amount, '125,00');
+  assert.equal(transfer.sandboxMode, true);
+  const receipt = mapSandboxPixReceipt({ receiptId: 'sbx_pix_receipt_1', pixTransferId: transfer.pixTransferId, beneficiary, amountMinor: 12500, currency: 'BRL', status: 'COMPLETED', simulated: true });
+  assert.equal(receipt.amount, '125,00');
+  assert.equal(receipt.simulated, true);
+  assert.throws(() => mapSandboxPixValidation({ amountMinor: 12.5, feeMinor: 0, totalDebitMinor: 12.5 }), /integer minor units/);
+});
+
+test('PIX service SANDBOX validates, verifies OTP, submits once and loads receipt', async () => {
+  const beneficiary = { beneficiaryId: 'sbx_pix_beneficiary_001', name: 'Cliente Recebedor SANDBOX', documentMasked: '***.***.***-**', bankName: 'Banco SANDBOX', branch: '0001', accountMasked: '******-0', accountType: 'Conta corrente' };
+  const validation = { validationId: 'sbx_pix_val_1', beneficiary, amountMinor: 12500, currency: 'BRL', feeMinor: 0, totalDebitMinor: 12500, status: 'VALIDATED', requiresChallenge: true, warnings: [] };
+  const transfer = { pixTransferId: 'sbx_pix_tx_1', validationId: validation.validationId, beneficiary, amountMinor: 12500, currency: 'BRL', status: 'COMPLETED', environment: 'SANDBOX', simulated: true, sandboxReference: 'SBX-PIX-**01' };
+  const receipt = { receiptId: 'sbx_pix_receipt_1', pixTransferId: transfer.pixTransferId, beneficiary, amountMinor: 12500, currency: 'BRL', status: 'COMPLETED', environment: 'SANDBOX', simulated: true, sandboxReference: transfer.sandboxReference };
+  const calls = [];
+  const client = async (path, options) => {
+    calls.push({ path, options, body: options.body ? JSON.parse(options.body) : undefined });
+    if (path === '/v1/pix/transfers/validate') return { data: validation };
+    if (path === '/v1/security/challenges') return { data: { id: 'sbx_challenge_1', status: 'PENDING' } };
+    if (path === '/v1/security/challenges/sbx_challenge_1/verify') { assert.equal(JSON.parse(options.body).proof, '123456'); return { data: { id: 'sbx_challenge_1', status: 'VERIFIED' } }; }
+    if (path === '/v1/pix/transfers') return { data: transfer };
+    if (path === `/v1/pix/transfers/${transfer.pixTransferId}/receipt`) return { data: receipt };
+    throw new Error(`Unexpected path ${path}`);
+  };
+  const service = createPixService({ sandboxMode: true, client });
+  const validated = await service.validateTransfer({ beneficiary: { beneficiaryId: beneficiary.beneficiaryId }, amount: '125,00', message: 'Teste SANDBOX' });
+  assert.equal(validated.amountMinor, 12500);
+  const [first, replay] = await Promise.all([service.authorizeTransfer(validated, '123456'), service.authorizeTransfer(validated, '123456')]);
+  assert.equal(first.pixTransferId, transfer.pixTransferId);
+  assert.equal(replay.pixTransferId, transfer.pixTransferId);
+  assert.equal(calls.filter((call) => call.path === '/v1/security/challenges').length, 1);
+  assert.equal(calls.filter((call) => call.path === '/v1/pix/transfers').length, 1);
+  assert.equal(calls.find((call) => call.path === '/v1/pix/transfers').options.headers['Idempotency-Key'], `ctbx-pix-${validation.validationId}`);
+  assert.equal((await service.getReceipt(first)).simulated, true);
+});
+
+test('PIX service SANDBOX schedules a validated transfer through the dedicated route', async () => {
+  const tomorrow = new Date(Date.now() + 86400000).toISOString();
+  const beneficiary = { beneficiaryId: 'sbx_pix_beneficiary_001', name: 'Cliente SANDBOX', documentMasked: '***', bankName: 'Banco SANDBOX', branch: '0001', accountMasked: '***', accountType: 'Conta corrente' };
+  const calls = [];
+  const client = async (path, options) => {
+    calls.push(path);
+    if (path === '/v1/security/challenges') return { data: { id: 'challenge-schedule' } };
+    if (path.endsWith('/verify')) return { data: { status: 'VERIFIED' } };
+    if (path === '/v1/pix/transfers/schedule') return { data: { pixTransferId: 'scheduled-pix', validationId: 'scheduled-validation', beneficiary, amountMinor: 5000, currency: 'BRL', status: 'SCHEDULED', scheduledFor: tomorrow, environment: 'SANDBOX', simulated: true, sandboxReference: 'SBX-PIX-**02' } };
+    if (path.endsWith('/receipt')) return { data: { receiptId: 'scheduled-receipt', pixTransferId: 'scheduled-pix', beneficiary, amountMinor: 5000, currency: 'BRL', status: 'SCHEDULED', scheduledFor: tomorrow, environment: 'SANDBOX', simulated: true } };
+    throw new Error(`Unexpected path ${path}`);
+  };
+  const result = await createPixService({ sandboxMode: true, client }).scheduleTransfer({ validationId: 'scheduled-validation', beneficiary: {}, amount: '50,00', scheduled: true, scheduledFor: tomorrow, idempotencyKey: 'ctbx-pix-scheduled-validation' }, '123456');
+  assert.equal(result.status, 'SCHEDULED');
+  assert.ok(calls.includes('/v1/pix/transfers/schedule'));
+});
+
+test('PIX SANDBOX propagates lookup errors and blocks only unsupported mutations', async () => {
   const service = createPixService({ sandboxMode: true, client: async () => { throw new ApiError('Chave PIX não encontrada.', { code: 'PIX_KEY_NOT_FOUND', status: 404 }); } });
   await assert.rejects(service.lookupKey({ key: 'missing' }), (error) => error.code === 'PIX_KEY_NOT_FOUND' && error.status === 404);
-  for (const action of [() => service.createTransfer({}), () => service.validateTransfer({}), () => service.authorizeTransfer({}), () => service.scheduleTransfer({}), () => service.createKey({}), () => service.deleteKey({}), () => service.getReceipt({})]) {
-    await assert.rejects(action(), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
+  for (const action of [() => service.createTransfer({}), () => service.createKey({}), () => service.deleteKey({})]) {
+    await assert.rejects(Promise.resolve().then(action), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
   }
   const production = createPixService();
   await assert.rejects(production.getKeys(), (error) => error.code === 'BACKEND_NOT_CONFIGURED');

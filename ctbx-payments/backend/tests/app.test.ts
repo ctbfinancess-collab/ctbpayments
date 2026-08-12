@@ -355,6 +355,47 @@ test('production forbids the sandbox PIX provider', () => {
   assert.throws(() => new SandboxPixProvider('production'), /forbidden in production/);
 });
 
+test('PIX validation enforces beneficiary, integer amount, balance and schedule rules', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app);
+  assert.equal((await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', payload: { beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 100, currency: 'BRL' } })).statusCode, 401);
+  const valid = await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 12500, currency: 'BRL' } });
+  assert.equal(valid.statusCode, 200); assert.equal(valid.json().data.status, 'VALIDATED'); assert.equal(valid.json().data.feeMinor, 0);
+  const cases = [
+    [{ beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 0, currency: 'BRL' }, 'PIX_VALIDATION_FAILED', 422],
+    [{ beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 125001, currency: 'BRL' }, 'INSUFFICIENT_FUNDS', 422],
+    [{ beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 100, currency: 'BRL', scheduledFor: new Date(Date.now() - 86400000).toISOString() }, 'PIX_VALIDATION_FAILED', 422],
+    [{ beneficiaryId: 'sbx_pix_beneficiary_other', amountMinor: 100, currency: 'BRL' }, 'PIX_BENEFICIARY_NOT_FOUND', 404],
+  ] as const;
+  for (const [payload, code, status] of cases) { const response = await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', headers: authHeaders(session), payload }); assert.equal(response.statusCode, status); assert.equal(response.json().error.code, code); }
+});
+
+test('verified OTP creates a simulated PIX, detail and structural receipt without sensitive identifiers', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app);
+  const validation = (await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 12500, currency: 'BRL', description: 'PIX SANDBOX' } })).json().data;
+  const challenge = (await app.inject({ method: 'POST', url: '/v1/security/challenges', headers: authHeaders(session), payload: { purpose: 'PIX', operationId: validation.validationId, type: 'OTP' } })).json().data;
+  const wrong = await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.id}/verify`, headers: authHeaders(session), payload: { proof: '000000' } }); assert.equal(wrong.statusCode, 401);
+  await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } });
+  const otherValidation = (await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 100, currency: 'BRL' } })).json().data;
+  const wrongIntent = await app.inject({ method: 'POST', url: '/v1/pix/transfers', headers: { ...authHeaders(session), 'idempotency-key': 'idem-pix-wrong-intent-01' }, payload: { validationId: otherValidation.validationId, challengeId: challenge.id } }); assert.equal(wrongIntent.statusCode, 401);
+  const payload = { validationId: validation.validationId, challengeId: challenge.id, description: 'PIX SANDBOX' }; const headers = { ...authHeaders(session), 'idempotency-key': 'idem-pix-submit-test-01' };
+  const transfer = await app.inject({ method: 'POST', url: '/v1/pix/transfers', headers, payload }); assert.equal(transfer.statusCode, 200); assert.equal(transfer.json().data.status, 'COMPLETED'); assert.equal(transfer.json().data.simulated, true);
+  const detail = await app.inject({ method: 'GET', url: `/v1/pix/transfers/${transfer.json().data.pixTransferId}`, headers: authHeaders(session) });
+  const receipt = await app.inject({ method: 'GET', url: `/v1/pix/transfers/${transfer.json().data.pixTransferId}/receipt`, headers: { ...authHeaders(session), 'x-request-id': 'pix-receipt-test' } });
+  assert.equal(detail.statusCode, 200); assert.equal(receipt.statusCode, 200); assert.equal(receipt.json().data.requestId, 'pix-receipt-test');
+  const serialized = JSON.stringify({ transfer: transfer.json().data, receipt: receipt.json().data }).toLowerCase();
+  for (const forbidden of ['endtoendid', 'e2eid', 'accountid', 'password', 'accesstoken', 'refreshtoken', '123456']) assert.equal(serialized.includes(forbidden), false);
+  const missing = await app.inject({ method: 'GET', url: '/v1/pix/transfers/sbx_pix_transfer_other_account', headers: authHeaders(session) }); assert.equal(missing.statusCode, 404); assert.equal(missing.json().error.code, 'PIX_TRANSFER_NOT_FOUND');
+});
+
+test('PIX submit and schedule are idempotent simulated operations in memory', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app);
+  const prepare = async (scheduledFor?: string) => { const validation = (await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 5000, currency: 'BRL', ...(scheduledFor ? { scheduledFor } : {}) } })).json().data; const challenge = (await app.inject({ method: 'POST', url: '/v1/security/challenges', headers: authHeaders(session), payload: { purpose: 'PIX', operationId: validation.validationId } })).json().data; await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } }); return { validation, challenge }; };
+  const current = await prepare(); const headers = { ...authHeaders(session), 'idempotency-key': 'idem-pix-replay-test-01' }; const payload = { validationId: current.validation.validationId, challengeId: current.challenge.id };
+  const first = await app.inject({ method: 'POST', url: '/v1/pix/transfers', headers, payload }); const replay = await app.inject({ method: 'POST', url: '/v1/pix/transfers', headers, payload }); assert.equal(first.json().data.pixTransferId, replay.json().data.pixTransferId);
+  const conflict = await app.inject({ method: 'POST', url: '/v1/pix/transfers', headers, payload: { ...payload, description: 'diferente' } }); assert.equal(conflict.statusCode, 409); assert.equal(conflict.json().error.code, 'IDEMPOTENCY_KEY_CONFLICT');
+  const scheduledFor = new Date(Date.now() + 86400000).toISOString(); const future = await prepare(scheduledFor); const scheduled = await app.inject({ method: 'POST', url: '/v1/pix/transfers/schedule', headers: { ...authHeaders(session), 'idempotency-key': 'idem-pix-schedule-test-01' }, payload: { validationId: future.validation.validationId, challengeId: future.challenge.id, scheduledFor } }); assert.equal(scheduled.statusCode, 200); assert.equal(scheduled.json().data.status, 'SCHEDULED'); assert.equal(scheduled.json().data.simulated, true);
+});
+
 test('transfer banks and favorites require authentication and contain only fictitious masked data', async (t) => {
   const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
   assert.equal((await app.inject({ method: 'GET', url: '/v1/transfers/banks' })).statusCode, 401);
@@ -557,7 +598,6 @@ test('password and tokens are removed by structured redaction', () => {
 test('remaining transactional domains remain unavailable', async (t) => {
   const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
   const requests = [
-    { method: 'POST', url: '/v1/pix/transfers', headers: { 'idempotency-key': 'idem-test-pix-0001' }, payload: { beneficiaryToken: 'sbx_beneficiary', amount: { amount: 100, currency: 'BRL' } } },
     { method: 'POST', url: '/v1/transfers', headers: { 'idempotency-key': 'idem-test-transfer-0001' }, payload: { type: 'INTERNAL', beneficiaryId: 'sbx_beneficiary', amount: { amount: 100, currency: 'BRL' } } },
   ] as const;
   for (const request of requests) {

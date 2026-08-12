@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { InfoRow, PixButton, PixField } from '../../components/pix/PixForm';
-import { getPixTransferData } from '../../services/pixService'; import useAsyncResource from '../../hooks/useAsyncResource';
+import { getPixTransferData, validateTransfer } from '../../services/pixService'; import useAsyncResource from '../../hooks/useAsyncResource';
 import { parseCurrency } from '../../utils/pixValidation';
 import { isTodayOrFutureDate } from '../../utils/dateValidation';
 import { MissingDataState } from '../../components/ui';
@@ -17,7 +17,7 @@ export default function PixTransferScreen({ navigation, route }) {
   const [scheduled, setScheduled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
 
-  const continueFlow = () => {
+  const continueFlow = async () => {
     if (parseCurrency(amount) <= 0) {
       Alert.alert('Preencha o valor');
       return;
@@ -26,9 +26,8 @@ export default function PixTransferScreen({ navigation, route }) {
       Alert.alert('Informe a data no formato DD/MM/AAAA');
       return;
     }
-    navigation.navigate('PixAuthorization', {
-      transfer: { ...transfer, amount, message, favorite, scheduled, scheduleDate },
-    });
+    try { const validated = await validateTransfer({ ...transfer, amount, message, favorite, scheduled, scheduleDate }); navigation.navigate('PixAuthorization', { transfer: validated }); }
+    catch (error) { Alert.alert('Não foi possível validar', error?.message || 'Confira os dados do PIX.'); }
   };
 
   if (!transfer) return <MissingDataState navigation={navigation} title="Pix" />;

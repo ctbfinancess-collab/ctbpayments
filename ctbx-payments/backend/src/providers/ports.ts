@@ -26,6 +26,11 @@ export interface PixProvider {
   lookupQr(context: AuthContext, input: unknown): Promise<unknown>;
   listKeys(context: AuthContext): Promise<unknown>;
   createReceiveQr(context: AuthContext, input: unknown): Promise<unknown>;
+  validateTransfer(context: AuthContext, input: unknown): Promise<unknown>;
+  createTransfer(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string): Promise<unknown>;
+  scheduleTransfer(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string): Promise<unknown>;
+  getTransfer(context: AuthContext, pixTransferId: string): Promise<unknown>;
+  getTransferReceipt(context: AuthContext, pixTransferId: string, requestId: string): Promise<unknown>;
 }
 export interface TransferProvider {
   listBanks(context: AuthContext): Promise<unknown>;

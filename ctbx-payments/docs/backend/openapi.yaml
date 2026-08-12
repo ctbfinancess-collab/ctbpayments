@@ -292,7 +292,12 @@ paths:
     post:
       tags: [Pix]
       operationId: validatePixTransfer
-      requestBody: { $ref: '#/components/requestBodies/PixTransferIntent' }
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PixValidationIntent' }
       responses:
         '200':
           description: Intenção validada, sem efetivação
@@ -302,49 +307,81 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
-                    properties: { data: { $ref: '#/components/schemas/ValidationResult' } }
+                    properties: { data: { $ref: '#/components/schemas/PixValidation' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
         '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/transfers:
     post:
       tags: [Pix]
       operationId: createPixTransfer
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
-      requestBody: { $ref: '#/components/requestBodies/PixTransferIntent' }
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PixSubmitIntent' }
       responses:
-        '202': { $ref: '#/components/responses/PixTransferResponse' }
+        '200': { $ref: '#/components/responses/PixTransferResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
         '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/transfers/schedule:
     post:
       tags: [Pix]
       operationId: schedulePixTransfer
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/PixTransferIntent'
+                - $ref: '#/components/schemas/PixSubmitIntent'
                 - type: object
                   required: [scheduledFor]
                   properties: { scheduledFor: { type: string, format: date-time } }
       responses:
-        '202': { $ref: '#/components/responses/PixTransferResponse' }
+        '200': { $ref: '#/components/responses/PixTransferResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/transfers/{id}:
     get:
       tags: [Pix]
       operationId: getPixTransfer
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
         '200': { $ref: '#/components/responses/PixTransferResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/pix/transfers/{id}/receipt:
     get:
       tags: [Pix]
       operationId: getPixReceipt
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
-        '200': { $ref: '#/components/responses/ReceiptResponse' }
+        '200':
+          description: Comprovante estrutural PIX SANDBOX
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/PixSandboxReceipt' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers/banks:
     get:
       tags: [Transfers]
@@ -1229,8 +1266,9 @@ components:
         createdAt: { type: string, format: date-time }
     PixBeneficiary:
       type: object
-      required: [name, documentMasked, bankName, branch, accountMasked, accountType]
+      required: [beneficiaryId, name, documentMasked, bankName, branch, accountMasked, accountType]
       properties:
+        beneficiaryId: { type: string }
         name: { type: string }
         documentMasked: { type: string }
         bankName: { type: string }
@@ -1280,6 +1318,54 @@ components:
         description: { type: string, maxLength: 140 }
         saveFavorite: { type: boolean, default: false }
         challengeId: { type: string }
+    PixValidationIntent:
+      type: object
+      required: [beneficiaryId, amountMinor, currency]
+      properties:
+        beneficiaryId: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        description: { type: string }
+        scheduledFor: { type: string, format: date-time }
+    PixValidation:
+      type: object
+      required: [validationId, beneficiary, amountMinor, feeMinor, totalDebitMinor, currency, status, requiresChallenge, warnings]
+      properties:
+        validationId: { type: string }
+        beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
+        amountMinor: { type: integer, minimum: 1 }
+        feeMinor: { type: integer, minimum: 0 }
+        totalDebitMinor: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [BRL] }
+        scheduledFor: { type: string, format: date-time }
+        status: { type: string, enum: [VALIDATED] }
+        requiresChallenge: { type: boolean }
+        warnings: { type: array, items: { type: string } }
+    PixSubmitIntent:
+      type: object
+      required: [validationId, challengeId]
+      properties:
+        validationId: { type: string }
+        challengeId: { type: string }
+        description: { type: string }
+        scheduledFor: { type: string, format: date-time }
+    PixSandboxReceipt:
+      type: object
+      required: [operationId, pixTransferId, createdAt, amountMinor, currency, payer, beneficiary, status, sandboxReference, simulated, environment, requestId]
+      properties:
+        operationId: { type: string }
+        pixTransferId: { type: string }
+        createdAt: { type: string, format: date-time }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        payer: { type: string }
+        beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
+        description: { type: string }
+        status: { type: string, enum: [COMPLETED, SCHEDULED] }
+        sandboxReference: { type: string }
+        simulated: { type: boolean, enum: [true] }
+        environment: { type: string, enum: [SANDBOX] }
+        requestId: { type: string }
     SandboxPaymentSubmit:
       type: object
       required: [validationId, challengeId]
@@ -1288,14 +1374,22 @@ components:
         challengeId: { type: string }
         description: { type: string }
     PixTransfer:
-      allOf:
-        - $ref: '#/components/schemas/Operation'
-        - type: object
-          required: [amount, beneficiary]
-          properties:
-            amount: { $ref: '#/components/schemas/Money' }
-            beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
-            scheduledFor: { type: string, format: date-time }
+      type: object
+      required: [pixTransferId, operationId, createdAt, amountMinor, currency, beneficiary, status, environment, simulated, sandboxReference, requestId]
+      properties:
+        pixTransferId: { type: string }
+        operationId: { type: string }
+        createdAt: { type: string, format: date-time }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
+        description: { type: string }
+        status: { type: string, enum: [COMPLETED, SCHEDULED] }
+        scheduledFor: { type: string, format: date-time }
+        environment: { type: string, enum: [SANDBOX] }
+        simulated: { type: boolean, enum: [true] }
+        sandboxReference: { type: string }
+        requestId: { type: string }
     Bank:
       type: object
       required: [id, name]

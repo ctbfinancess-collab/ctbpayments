@@ -99,13 +99,31 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     if (!providers.pix) throw providerNotConfigured('PIX');
     return envelope(request, await providers.pix.createReceiveQr(request.auth!, request.body));
   });
-  const pixIntent = objectSchema(['beneficiaryToken', 'amount'], { beneficiaryToken: idSchema, amount: moneySchema, description: string, saveFavorite: boolean, challengeId: idSchema });
-  app.post('/pix/transfers/validate', { schema: { body: pixIntent } }, unavailable('PIX'));
-  app.post('/pix/transfers', { preHandler: requireIdempotencyKey, schema: { body: pixIntent } }, unavailable('PIX'));
+  const pixValidation = objectSchema(['beneficiaryId', 'amountMinor', 'currency'], { beneficiaryId: idSchema, amountMinor: { type: 'integer' }, currency: { type: 'string', enum: ['BRL'] }, description: string, scheduledFor: { type: 'string', format: 'date-time' } });
+  app.post('/pix/transfers/validate', { preHandler: authenticated, schema: { body: pixValidation } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.validateTransfer(request.auth!, request.body));
+  });
+  const pixSubmit = objectSchema(['validationId', 'challengeId'], { validationId: idSchema, challengeId: idSchema, description: string });
+  app.post('/pix/transfers', { preHandler: [authenticated, requireIdempotencyKey], schema: { body: pixSubmit } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.createTransfer(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
   app.post('/pix/transfers/schedule', {
-    preHandler: requireIdempotencyKey,
-    schema: { body: objectSchema(['beneficiaryToken', 'amount', 'scheduledFor'], { beneficiaryToken: idSchema, amount: moneySchema, scheduledFor: { type: 'string', format: 'date-time' }, description: string, saveFavorite: boolean, challengeId: idSchema }) },
-  }, unavailable('PIX'));
+    preHandler: [authenticated, requireIdempotencyKey],
+    schema: { body: objectSchema(['validationId', 'challengeId', 'scheduledFor'], { validationId: idSchema, challengeId: idSchema, scheduledFor: { type: 'string', format: 'date-time' }, description: string }) },
+  }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.scheduleTransfer(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.get('/pix/transfers/:id', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.getTransfer(request.auth!, (request.params as { id: string }).id));
+  });
+  app.get('/pix/transfers/:id/receipt', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.getTransferReceipt(request.auth!, (request.params as { id: string }).id, request.id));
+  });
 
   app.get('/transfers/banks', { preHandler: authenticated }, async (request) => {
     if (!providers.transfer) throw providerNotConfigured('de transferências');
