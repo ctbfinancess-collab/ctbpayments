@@ -16,6 +16,13 @@ import PixReceiptScreen from './src/screens/pix/PixReceiptScreen';
 import PixReceiveQrScreen from './src/screens/pix/PixReceiveQrScreen';
 import PixReceiveScreen from './src/screens/pix/PixReceiveScreen';
 import PixTransferScreen from './src/screens/pix/PixTransferScreen';
+import TransferAuthorizationScreen from './src/screens/transfers/TransferAuthorizationScreen';
+import TransferBeneficiaryScreen from './src/screens/transfers/TransferBeneficiaryScreen';
+import TransferDetailsScreen from './src/screens/transfers/TransferDetailsScreen';
+import TransferFavoritesScreen from './src/screens/transfers/TransferFavoritesScreen';
+import TransferReceiptScreen from './src/screens/transfers/TransferReceiptScreen';
+import TransferReviewScreen from './src/screens/transfers/TransferReviewScreen';
+import TransferStartScreen from './src/screens/transfers/TransferStartScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -43,6 +50,13 @@ export default function App() {
         <Stack.Screen name="PixReceiveQr" component={PixReceiveQrScreen} />
         <Stack.Screen name="PixKeys" component={PixKeysScreen} />
         <Stack.Screen name="PixCreateKey" component={PixCreateKeyScreen} />
+        <Stack.Screen name="Transfers" component={TransferStartScreen} />
+        <Stack.Screen name="TransferBeneficiary" component={TransferBeneficiaryScreen} />
+        <Stack.Screen name="TransferFavorites" component={TransferFavoritesScreen} />
+        <Stack.Screen name="TransferDetails" component={TransferDetailsScreen} />
+        <Stack.Screen name="TransferReview" component={TransferReviewScreen} />
+        <Stack.Screen name="TransferAuthorization" component={TransferAuthorizationScreen} />
+        <Stack.Screen name="TransferReceipt" component={TransferReceiptScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -501,7 +501,11 @@ export default function HomeScreen({ navigation }) {
                         <ServiceCard
                           icon={<Text style={styles.serviceIcon}>{item.symbol}</Text>}
                           label={item.label}
-                          onPress={item.key === 1 ? () => navigation.navigate('Pix') : undefined}
+                          onPress={item.key === 1
+                            ? () => navigation.navigate('Pix')
+                            : item.key === 7
+                              ? () => navigation.navigate('Transfers')
+                              : undefined}
                           style={[
                             styles.serviceItem,
                             isPrimary && styles.serviceItemPrimary,
