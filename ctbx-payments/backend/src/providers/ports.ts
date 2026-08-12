@@ -37,6 +37,10 @@ export interface TransferProvider {
   listFavorites(context: AuthContext): Promise<unknown>;
   lookupBeneficiary(context: AuthContext, input: unknown): Promise<unknown>;
   validate(context: AuthContext, input: unknown): Promise<unknown>;
+  createTransfer(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string): Promise<unknown>;
+  scheduleTransfer(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string): Promise<unknown>;
+  getTransfer(context: AuthContext, transferId: string): Promise<unknown>;
+  getReceipt(context: AuthContext, transferId: string, requestId: string): Promise<unknown>;
 }
 export interface PaymentProvider {
   lookupBill(context: AuthContext, input: unknown): Promise<unknown>;

@@ -466,43 +466,97 @@ paths:
     post:
       tags: [Transfers]
       operationId: createBankTransfer
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
-      requestBody: { $ref: '#/components/requestBodies/BankTransferIntent' }
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BankTransferSubmit' }
       responses:
-        '202': { $ref: '#/components/responses/BankTransferResponse' }
+        '200':
+          description: Transferência exclusivamente simulada no SANDBOX
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/BankTransferSandbox' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
         '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers/schedule:
     post:
       tags: [Transfers]
       operationId: scheduleBankTransfer
-      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      parameters:
+        - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               allOf:
-                - $ref: '#/components/schemas/BankTransferIntent'
+                - $ref: '#/components/schemas/BankTransferSubmit'
                 - type: object
                   required: [scheduledFor]
                   properties: { scheduledFor: { type: string, format: date-time } }
       responses:
-        '202': { $ref: '#/components/responses/BankTransferResponse' }
+        '200':
+          description: Agendamento estrutural SANDBOX, sem executor posterior
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/BankTransferSandbox' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers/{id}:
     get:
       tags: [Transfers]
       operationId: getBankTransfer
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
-        '200': { $ref: '#/components/responses/BankTransferResponse' }
+        '200':
+          description: Detalhe da transferência SANDBOX
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/BankTransferSandbox' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers/{id}/receipt:
     get:
       tags: [Transfers]
       operationId: getBankTransferReceipt
-      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/DeviceId'
       responses:
-        '200': { $ref: '#/components/responses/ReceiptResponse' }
+        '200':
+          description: Comprovante estrutural SANDBOX, sem validade bancária
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/BankTransferSandboxReceipt' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/payments/bills/lookup:
     post:
       tags: [Payments]
@@ -1447,6 +1501,57 @@ components:
         status: { type: string, enum: [VALIDATED] }
         requiresChallenge: { type: boolean }
         warnings: { type: array, items: { type: string } }
+    BankTransferSubmit:
+      type: object
+      required: [validationId, challengeId]
+      properties:
+        validationId: { type: string }
+        challengeId: { type: string }
+        purpose: { type: string }
+        description: { type: string }
+        scheduledFor: { type: string, format: date-time }
+    BankTransferSandbox:
+      type: object
+      required: [transferId, operationId, createdAt, amountMinor, feeMinor, totalDebitMinor, currency, beneficiary, transferType, status, sandboxReference, simulated, environment, requestId]
+      properties:
+        transferId: { type: string }
+        operationId: { type: string }
+        createdAt: { type: string, format: date-time }
+        amountMinor: { type: integer }
+        feeMinor: { type: integer }
+        totalDebitMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        beneficiary: { $ref: '#/components/schemas/Beneficiary' }
+        transferType: { type: string, enum: [INTERNAL, EXTERNAL] }
+        description: { type: string }
+        purpose: { type: string }
+        status: { type: string, enum: [COMPLETED, SCHEDULED] }
+        scheduledFor: { type: string, format: date-time }
+        sandboxReference: { type: string, description: Referência opaca e exclusivamente fictícia }
+        simulated: { type: boolean, enum: [true] }
+        environment: { type: string, enum: [SANDBOX] }
+        requestId: { type: string }
+    BankTransferSandboxReceipt:
+      type: object
+      required: [operationId, transferId, createdAt, amountMinor, feeMinor, currency, payer, beneficiary, transferType, status, sandboxReference, simulated, environment, requestId]
+      properties:
+        operationId: { type: string }
+        transferId: { type: string }
+        createdAt: { type: string, format: date-time }
+        amountMinor: { type: integer }
+        feeMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        payer: { type: string }
+        beneficiary: { $ref: '#/components/schemas/Beneficiary' }
+        transferType: { type: string, enum: [INTERNAL, EXTERNAL] }
+        description: { type: string }
+        purpose: { type: string }
+        status: { type: string, enum: [COMPLETED, SCHEDULED] }
+        scheduledFor: { type: string, format: date-time }
+        sandboxReference: { type: string }
+        simulated: { type: boolean, enum: [true] }
+        environment: { type: string, enum: [SANDBOX] }
+        requestId: { type: string }
     BankTransferIntent:
       type: object
       required: [type, beneficiaryId, amount]

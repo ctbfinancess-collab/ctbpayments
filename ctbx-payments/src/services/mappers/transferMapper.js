@@ -42,3 +42,35 @@ export function mapSandboxTransferValidation(value = {}) {
     scheduleNotice: value.scheduledFor ? 'Agendamento validado no ambiente sandbox' : '',
   };
 }
+
+export function mapSandboxTransfer(value = {}) {
+  assertMinor(value.amountMinor, 'amountMinor');
+  assertMinor(value.feeMinor, 'feeMinor');
+  assertMinor(value.totalDebitMinor, 'totalDebitMinor');
+  return {
+    ...value,
+    id: value.transferId,
+    beneficiary: mapSandboxTransferBeneficiary(value.beneficiary),
+    amount: formatCents(value.amountMinor),
+    fee: formatCents(value.feeMinor),
+    totalDebit: formatCents(value.totalDebitMinor),
+    scheduled: value.status === 'SCHEDULED',
+    sandboxMode: value.environment === 'SANDBOX',
+    simulated: value.simulated === true,
+  };
+}
+
+export function mapSandboxTransferReceipt(value = {}) {
+  assertMinor(value.amountMinor, 'amountMinor');
+  assertMinor(value.feeMinor, 'feeMinor');
+  return {
+    ...value,
+    id: value.transferId,
+    beneficiary: mapSandboxTransferBeneficiary(value.beneficiary),
+    amount: formatCents(value.amountMinor),
+    fee: formatCents(value.feeMinor),
+    scheduled: value.status === 'SCHEDULED',
+    sandboxMode: value.environment === 'SANDBOX',
+    simulated: value.simulated === true,
+  };
+}

@@ -26,7 +26,7 @@ const { mapSandboxCard, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSan
 const { createCardService } = cardServiceModule;
 const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxPixReceipt, mapSandboxPixTransfer, mapSandboxPixValidation, mapSandboxQrLookup, mapSandboxReceiveQr } = pixMapperModule;
 const { createPixService } = pixServiceModule;
-const { mapSandboxBank, mapSandboxTransferBeneficiary, mapSandboxTransferFavorites, mapSandboxTransferValidation } = transferMapperModule;
+const { mapSandboxBank, mapSandboxTransfer, mapSandboxTransferBeneficiary, mapSandboxTransferFavorites, mapSandboxTransferReceipt, mapSandboxTransferValidation } = transferMapperModule;
 const { createTransferService } = transferServiceModule;
 const { mapSandboxBill, mapSandboxInstallments, mapSandboxPayment, mapSandboxPaymentReceipt, mapSandboxPaymentValidation } = paymentMapperModule;
 const { createPaymentService } = paymentServiceModule;
@@ -401,6 +401,10 @@ test('transfer mapper preserves masked beneficiary data and integer cents', () =
   const validation = mapSandboxTransferValidation({ validationId: 'validation', beneficiary: raw, amountMinor: 12500, currency: 'BRL', feeMinor: 0, totalDebitMinor: 12500, status: 'VALIDATED', requiresChallenge: true, warnings: [] });
   assert.equal(validation.amount, '125,00');
   assert.equal(validation.totalDebit, '125,00');
+  const transfer = mapSandboxTransfer({ transferId: 'sbx_transfer_1', operationId: 'sbx_operation_1', beneficiary: raw, amountMinor: 12500, feeMinor: 0, totalDebitMinor: 12500, currency: 'BRL', transferType: 'INTERNAL', status: 'COMPLETED', environment: 'SANDBOX', simulated: true, sandboxReference: 'SBX-TRANSFER-1' });
+  assert.equal(transfer.amount, '125,00'); assert.equal(transfer.mode, undefined); assert.equal(transfer.simulated, true);
+  const receipt = mapSandboxTransferReceipt({ transferId: transfer.transferId, beneficiary: raw, amountMinor: 12500, feeMinor: 0, currency: 'BRL', status: 'COMPLETED', environment: 'SANDBOX', simulated: true });
+  assert.equal(receipt.fee, '0,00'); assert.equal(receipt.beneficiary.mode, 'internal');
   assert.throws(() => mapSandboxTransferValidation({ amountMinor: 12.5, feeMinor: 0, totalDebitMinor: 12.5 }), /integer minor units/);
 });
 
@@ -428,16 +432,46 @@ test('transfer service SANDBOX loads banks, favorites, lookup and structural val
   assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
 });
 
-test('transfer service preserves DEMO, propagates 404 and blocks SANDBOX mutations', async () => {
+test('transfer service SANDBOX validates, verifies OTP, submits once and loads receipt', async () => {
+  const bank = { id: 'sbx_bank_a', name: 'Banco Sandbox A' };
+  const beneficiary = { beneficiaryId: 'sbx_beneficiary_internal', name: 'Cliente SANDBOX', documentMasked: '***', bank, branch: '0001', accountMasked: '*****-1', accountType: 'Conta digital', transferType: 'INTERNAL', status: 'ACTIVE' };
+  const validation = { validationId: 'sbx_transfer_validation_1', beneficiary, amountMinor: 12500, feeMinor: 0, totalDebitMinor: 12500, currency: 'BRL', status: 'VALIDATED', requiresChallenge: true, warnings: [] };
+  const transfer = { transferId: 'sbx_transfer_1', operationId: 'sbx_operation_1', beneficiary, amountMinor: 12500, feeMinor: 0, totalDebitMinor: 12500, currency: 'BRL', transferType: 'INTERNAL', status: 'COMPLETED', environment: 'SANDBOX', simulated: true, sandboxReference: 'SBX-TRANSFER-1' };
+  const receipt = { operationId: transfer.operationId, transferId: transfer.transferId, beneficiary, amountMinor: 12500, feeMinor: 0, currency: 'BRL', transferType: 'INTERNAL', status: 'COMPLETED', environment: 'SANDBOX', simulated: true, sandboxReference: transfer.sandboxReference };
+  const calls = [];
+  const client = async (path, options) => {
+    calls.push({ path, options });
+    if (path === '/v1/transfers/validate') return { data: validation };
+    if (path === '/v1/security/challenges') return { data: { id: 'challenge-transfer' } };
+    if (path.endsWith('/verify')) { assert.equal(JSON.parse(options.body).proof, '123456'); return { data: { status: 'VERIFIED' } }; }
+    if (path === '/v1/transfers') return { data: transfer };
+    if (path.endsWith('/receipt')) return { data: receipt };
+    throw new Error(`Unexpected path ${path}`);
+  };
+  const service = createTransferService({ sandboxMode: true, client });
+  const validated = await service.validateTransfer({ beneficiary: mapSandboxTransferBeneficiary(beneficiary), amount: '125,00', purpose: 'Outros' });
+  const [first, replay] = await Promise.all([service.authorizeTransfer(validated, '123456'), service.authorizeTransfer(validated, '123456')]);
+  assert.equal(first.transferId, transfer.transferId); assert.equal(replay.transferId, transfer.transferId);
+  assert.equal(calls.filter((call) => call.path === '/v1/security/challenges').length, 1);
+  assert.equal(calls.filter((call) => call.path === '/v1/transfers').length, 1);
+  assert.equal(calls.find((call) => call.path === '/v1/transfers').options.headers['Idempotency-Key'], `ctbx-transfer-${validation.validationId}`);
+  assert.equal((await service.getReceipt(first)).simulated, true);
+});
+
+test('transfer service SANDBOX schedules through the dedicated route', async () => {
+  const beneficiary = { beneficiaryId: 'sbx_beneficiary_external', name: 'Cliente SANDBOX', documentMasked: '***', bank: { id: 'bank', name: 'Banco Sandbox B' }, branch: '0002', accountMasked: '*****-2', accountType: 'Conta corrente', transferType: 'EXTERNAL', status: 'ACTIVE' };
+  const future = new Date(Date.now() + 86400000).toISOString(); const calls = [];
+  const client = async (path) => { calls.push(path); if (path === '/v1/security/challenges') return { data: { id: 'challenge' } }; if (path.endsWith('/verify')) return { data: {} }; if (path === '/v1/transfers/schedule') return { data: { transferId: 'scheduled', beneficiary, amountMinor: 5000, feeMinor: 0, totalDebitMinor: 5000, currency: 'BRL', transferType: 'EXTERNAL', status: 'SCHEDULED', scheduledFor: future, environment: 'SANDBOX', simulated: true, sandboxReference: 'SBX-SCHEDULED' } }; if (path.endsWith('/receipt')) return { data: { transferId: 'scheduled', beneficiary, amountMinor: 5000, feeMinor: 0, currency: 'BRL', transferType: 'EXTERNAL', status: 'SCHEDULED', scheduledFor: future, environment: 'SANDBOX', simulated: true } }; throw new Error(path); };
+  const result = await createTransferService({ sandboxMode: true, client }).scheduleTransfer({ validationId: 'validation', beneficiary: {}, amount: '50,00', scheduled: true, scheduledFor: future, idempotencyKey: 'ctbx-transfer-validation' }, '123456');
+  assert.equal(result.status, 'SCHEDULED'); assert.ok(calls.includes('/v1/transfers/schedule'));
+});
+
+test('transfer service preserves DEMO, propagates 404 and rejects unconfigured production', async () => {
   const demo = createTransferService({ demoMode: true });
   assert.ok((await demo.getBanks()).length > 0);
   assert.ok((await demo.getFavorites()).length > 0);
   const missing = createTransferService({ sandboxMode: true, client: async () => { throw new ApiError('Favorecido não encontrado.', { code: 'TRANSFER_BENEFICIARY_NOT_FOUND', status: 404 }); } });
   await assert.rejects(missing.lookupBeneficiary('internal', { phone: '+5511977771111' }), (error) => error.code === 'TRANSFER_BENEFICIARY_NOT_FOUND' && error.status === 404);
-  const sandbox = createTransferService({ sandboxMode: true });
-  for (const action of [() => sandbox.authorizeTransfer({}), () => sandbox.scheduleTransfer({}), () => sandbox.submitTransfer({}), () => sandbox.getReceipt({})]) {
-    await assert.rejects(action(), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
-  }
   await assert.rejects(createTransferService().getBanks(), (error) => error.code === 'BACKEND_NOT_CONFIGURED');
 });
 

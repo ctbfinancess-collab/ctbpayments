@@ -32,7 +32,7 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
     account: new SandboxAccountProvider(config.nodeEnv),
     card: new SandboxCardProvider(config.nodeEnv),
     pix: new SandboxPixProvider(config.nodeEnv, challenge),
-    transfer: new SandboxTransferProvider(config.nodeEnv),
+    transfer: new SandboxTransferProvider(config.nodeEnv, challenge),
     challenge,
     payment: new SandboxPaymentProvider(config.nodeEnv, challenge),
   };

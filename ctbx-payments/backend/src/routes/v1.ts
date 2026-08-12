@@ -145,12 +145,26 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     if (!providers.transfer) throw providerNotConfigured('de transferências');
     return envelope(request, await providers.transfer.validate(request.auth!, request.body));
   });
-  const transferIntent = objectSchema(['type', 'beneficiaryId', 'amount'], { type: { type: 'string', enum: ['INTERNAL', 'EXTERNAL'] }, beneficiaryId: idSchema, amount: moneySchema, purpose: string, description: string, saveFavorite: boolean, challengeId: idSchema });
-  app.post('/transfers', { preHandler: requireIdempotencyKey, schema: { body: transferIntent } }, unavailable('de transferências'));
+  const transferSubmit = objectSchema(['validationId', 'challengeId'], { validationId: idSchema, challengeId: idSchema, purpose: string, description: string });
+  app.post('/transfers', { preHandler: [authenticated, requireIdempotencyKey], schema: { body: transferSubmit } }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.createTransfer(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
   app.post('/transfers/schedule', {
-    preHandler: requireIdempotencyKey,
-    schema: { body: objectSchema(['type', 'beneficiaryId', 'amount', 'scheduledFor'], { type: { type: 'string', enum: ['INTERNAL', 'EXTERNAL'] }, beneficiaryId: idSchema, amount: moneySchema, scheduledFor: { type: 'string', format: 'date-time' }, purpose: string, description: string, saveFavorite: boolean, challengeId: idSchema }) },
-  }, unavailable('de transferências'));
+    preHandler: [authenticated, requireIdempotencyKey],
+    schema: { body: objectSchema(['validationId', 'challengeId', 'scheduledFor'], { validationId: idSchema, challengeId: idSchema, scheduledFor: { type: 'string', format: 'date-time' }, purpose: string, description: string }) },
+  }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.scheduleTransfer(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.get('/transfers/:id', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.getTransfer(request.auth!, (request.params as { id: string }).id));
+  });
+  app.get('/transfers/:id/receipt', { preHandler: authenticated, schema: { params: idParams } }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.getReceipt(request.auth!, (request.params as { id: string }).id, request.id));
+  });
 
   app.post('/payments/bills/lookup', { preHandler: authenticated, schema: { body: objectSchema(['code'], { code: { type: 'string', minLength: 1, maxLength: 64 } }) } }, async (request) => {
     if (!providers.payment) throw providerNotConfigured('de pagamentos');
