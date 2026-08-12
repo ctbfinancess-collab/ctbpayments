@@ -1,0 +1,1220 @@
+openapi: 3.1.0
+info:
+  title: CTBX Payments BFF API
+  version: 0.1.0-draft
+  description: >-
+    Contrato inicial do novo BFF. Não representa nem expõe o backend legado.
+    Provedores, hosts e mecanismos criptográficos permanecem decisões internas.
+servers:
+  - url: https://api.example.invalid
+    description: Placeholder documental; não é um endpoint utilizável
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Accounts
+  - name: Pix
+  - name: Transfers
+  - name: Payments
+  - name: Cards
+  - name: Security
+paths:
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200': { $ref: '#/components/responses/AuthResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/auth/refresh:
+    post:
+      tags: [Auth]
+      security: []
+      operationId: refreshSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string, writeOnly: true }
+      responses:
+        '200': { $ref: '#/components/responses/AuthResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      responses:
+        '204': { description: Sessão revogada ou já encerrada }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/auth/session:
+    get:
+      tags: [Auth]
+      operationId: getSession
+      responses:
+        '200':
+          description: Sessão atual
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionEnvelope' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/accounts/current:
+    get:
+      tags: [Accounts]
+      operationId: getCurrentAccount
+      responses:
+        '200':
+          description: Conta atual
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/Account' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/accounts/current/balances:
+    get:
+      tags: [Accounts]
+      operationId: getCurrentBalances
+      responses:
+        '200':
+          description: Saldos normalizados
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/Balance' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/accounts/current/statement:
+    get:
+      tags: [Accounts]
+      operationId: listStatement
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: direction, in: query, schema: { type: string, enum: [CREDIT, DEBIT] } }
+      responses:
+        '200': { $ref: '#/components/responses/TransactionListResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/accounts/current/statement/future:
+    get:
+      tags: [Accounts]
+      operationId: listFutureTransactions
+      responses:
+        '200': { $ref: '#/components/responses/TransactionListResponse' }
+  /v1/accounts/current/statement/blocked:
+    get:
+      tags: [Accounts]
+      operationId: listBlockedTransactions
+      responses:
+        '200': { $ref: '#/components/responses/TransactionListResponse' }
+  /v1/accounts/current/transactions/{id}:
+    get:
+      tags: [Accounts]
+      operationId: getTransaction
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: Transação
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/Transaction' } }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/accounts/current/transactions/{id}/receipt:
+    get:
+      tags: [Accounts]
+      operationId: getTransactionReceipt
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/ReceiptResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/keys/lookup:
+    post:
+      tags: [Pix]
+      operationId: lookupPixKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key: { type: string }
+      responses:
+        '200':
+          description: Beneficiário normalizado
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/PixBeneficiary' } }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/qr/lookup:
+    post:
+      tags: [Pix]
+      operationId: lookupPixQr
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payload]
+              properties: { payload: { type: string } }
+      responses:
+        '200':
+          description: QR normalizado
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [beneficiary]
+                        properties:
+                          beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
+                          amount: { $ref: '#/components/schemas/Money' }
+                          description: { type: string }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/keys:
+    get:
+      tags: [Pix]
+      operationId: listPixKeys
+      responses:
+        '200':
+          description: Chaves da conta
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/PixKey' }
+    post:
+      tags: [Pix]
+      operationId: createPixKey
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, value]
+              properties:
+                type: { type: string, enum: [CPF, CNPJ, EMAIL, PHONE, RANDOM] }
+                value: { type: string }
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+        '409': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/keys/{id}:
+    delete:
+      tags: [Pix]
+      operationId: deletePixKey
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/receive/qr:
+    post:
+      tags: [Pix]
+      operationId: createReceivePixQr
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keyId]
+              properties:
+                keyId: { type: string }
+                amount: { $ref: '#/components/schemas/Money' }
+                description: { type: string, maxLength: 140 }
+      responses:
+        '200':
+          description: QR de recebimento
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [copyPastePayload]
+                        properties:
+                          copyPastePayload: { type: string }
+                          qrImage: { type: string, description: Conteúdo ou referência segura; formato final pendente }
+  /v1/pix/transfers/validate:
+    post:
+      tags: [Pix]
+      operationId: validatePixTransfer
+      requestBody: { $ref: '#/components/requestBodies/PixTransferIntent' }
+      responses:
+        '200':
+          description: Intenção validada, sem efetivação
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/ValidationResult' } }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/transfers:
+    post:
+      tags: [Pix]
+      operationId: createPixTransfer
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/PixTransferIntent' }
+      responses:
+        '202': { $ref: '#/components/responses/PixTransferResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/transfers/schedule:
+    post:
+      tags: [Pix]
+      operationId: schedulePixTransfer
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/PixTransferIntent'
+                - type: object
+                  required: [scheduledFor]
+                  properties: { scheduledFor: { type: string, format: date-time } }
+      responses:
+        '202': { $ref: '#/components/responses/PixTransferResponse' }
+  /v1/pix/transfers/{id}:
+    get:
+      tags: [Pix]
+      operationId: getPixTransfer
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/PixTransferResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/pix/transfers/{id}/receipt:
+    get:
+      tags: [Pix]
+      operationId: getPixReceipt
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/ReceiptResponse' }
+  /v1/transfers/banks:
+    get:
+      tags: [Transfers]
+      operationId: listBanks
+      responses:
+        '200':
+          description: Instituições disponíveis
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Bank' } }
+  /v1/transfers/favorites:
+    get:
+      tags: [Transfers]
+      operationId: listTransferFavorites
+      responses:
+        '200':
+          description: Favorecidos
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/Beneficiary' } }
+  /v1/transfers/beneficiaries/lookup:
+    post:
+      tags: [Transfers]
+      operationId: lookupTransferBeneficiary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BeneficiaryLookup' }
+      responses:
+        '200':
+          description: Beneficiário
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/Beneficiary' } }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/transfers/validate:
+    post:
+      tags: [Transfers]
+      operationId: validateBankTransfer
+      requestBody: { $ref: '#/components/requestBodies/BankTransferIntent' }
+      responses:
+        '200':
+          description: Validação sem efetivação
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/ValidationResult' } }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/transfers:
+    post:
+      tags: [Transfers]
+      operationId: createBankTransfer
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/BankTransferIntent' }
+      responses:
+        '202': { $ref: '#/components/responses/BankTransferResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/transfers/schedule:
+    post:
+      tags: [Transfers]
+      operationId: scheduleBankTransfer
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BankTransferIntent'
+                - type: object
+                  required: [scheduledFor]
+                  properties: { scheduledFor: { type: string, format: date-time } }
+      responses:
+        '202': { $ref: '#/components/responses/BankTransferResponse' }
+  /v1/transfers/{id}:
+    get:
+      tags: [Transfers]
+      operationId: getBankTransfer
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/BankTransferResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/transfers/{id}/receipt:
+    get:
+      tags: [Transfers]
+      operationId: getBankTransferReceipt
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/ReceiptResponse' }
+  /v1/payments/bills/lookup:
+    post:
+      tags: [Payments]
+      operationId: lookupBill
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties: { code: { type: string } }
+      responses:
+        '200':
+          description: Boleto normalizado
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/Bill' } }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/payments/bills/validate:
+    post:
+      tags: [Payments]
+      operationId: validateBillPayment
+      requestBody: { $ref: '#/components/requestBodies/BillPaymentIntent' }
+      responses:
+        '200':
+          description: Validação sem pagamento
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { $ref: '#/components/schemas/ValidationResult' } }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/payments/bills:
+    post:
+      tags: [Payments]
+      operationId: payBill
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { $ref: '#/components/requestBodies/BillPaymentIntent' }
+      responses:
+        '202': { $ref: '#/components/responses/PaymentResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/payments/bills/schedule:
+    post:
+      tags: [Payments]
+      operationId: scheduleBillPayment
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/BillPaymentIntent'
+                - type: object
+                  required: [scheduledFor]
+                  properties: { scheduledFor: { type: string, format: date-time } }
+      responses:
+        '202': { $ref: '#/components/responses/PaymentResponse' }
+  /v1/payments/{id}:
+    get:
+      tags: [Payments]
+      operationId: getPayment
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/PaymentResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/payments/{id}/receipt:
+    get:
+      tags: [Payments]
+      operationId: getPaymentReceipt
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/ReceiptResponse' }
+  /v1/payments/installments/simulate:
+    post:
+      tags: [Payments]
+      operationId: simulatePaymentInstallments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [billId, amount]
+              properties:
+                billId: { type: string }
+                amount: { $ref: '#/components/schemas/Money' }
+      responses:
+        '200':
+          description: Opções calculadas pelo provider
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/InstallmentOption' }
+  /v1/payments/installments:
+    post:
+      tags: [Payments]
+      operationId: createInstallmentPayment
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [simulationId, optionId, paymentMethodToken]
+              properties:
+                simulationId: { type: string }
+                optionId: { type: string }
+                paymentMethodToken: { type: string, writeOnly: true }
+      responses:
+        '202': { $ref: '#/components/responses/PaymentResponse' }
+  /v1/cards:
+    get:
+      tags: [Cards]
+      operationId: listCards
+      responses:
+        '200':
+          description: Cartões autorizados para a conta
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/Card' } } }
+  /v1/cards/{id}:
+    get:
+      tags: [Cards]
+      operationId: getCard
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200': { $ref: '#/components/responses/CardResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
+  /v1/cards/{id}/activation/challenge:
+    post:
+      tags: [Cards]
+      operationId: createCardActivationChallenge
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201': { $ref: '#/components/responses/ChallengeResponse' }
+  /v1/cards/{id}/activate:
+    post:
+      tags: [Cards]
+      operationId: activateCard
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody: { $ref: '#/components/requestBodies/ChallengeProof' }
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+  /v1/cards/{id}/block:
+    post:
+      tags: [Cards]
+      operationId: blockCard
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+  /v1/cards/{id}/unblock:
+    post:
+      tags: [Cards]
+      operationId: unblockCard
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody: { $ref: '#/components/requestBodies/ChallengeProof' }
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+  /v1/cards/{id}/password:
+    post:
+      tags: [Cards]
+      operationId: changeCardPassword
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [encryptedPinBlock, challengeId]
+              properties:
+                encryptedPinBlock: { type: string, writeOnly: true, description: Formato definido com o processador PCI }
+                challengeId: { type: string }
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+  /v1/cards/{id}/transactions:
+    get:
+      tags: [Cards]
+      operationId: listCardTransactions
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Transações do cartão
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data: { type: array, items: { $ref: '#/components/schemas/CardTransaction' } }
+  /v1/cards/{id}/receipts:
+    get:
+      tags: [Cards]
+      operationId: listCardReceipts
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      responses:
+        '200':
+          description: Comprovantes disponíveis
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties: { data: { type: array, items: { $ref: '#/components/schemas/Receipt' } } }
+  /v1/cards/requests:
+    post:
+      tags: [Cards]
+      operationId: requestCard
+      parameters: [{ $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId, termsAcceptanceId]
+              properties:
+                productId: { type: string }
+                designId: { type: string }
+                termsAcceptanceId: { type: string }
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+  /v1/cards/{id}/recharge:
+    post:
+      tags: [Cards]
+      operationId: rechargeCard
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties: { amount: { $ref: '#/components/schemas/Money' } }
+      responses:
+        '202': { $ref: '#/components/responses/OperationResponse' }
+  /v1/security/challenges:
+    post:
+      tags: [Security]
+      operationId: createChallenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [purpose, operationId]
+              properties:
+                purpose: { type: string }
+                operationId: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/ChallengeResponse' }
+  /v1/security/challenges/{id}/verify:
+    post:
+      tags: [Security]
+      operationId: verifyChallenge
+      parameters: [{ $ref: '#/components/parameters/ResourceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [proof]
+              properties: { proof: { type: string, writeOnly: true } }
+      responses:
+        '200': { $ref: '#/components/responses/ChallengeResponse' }
+        '422': { $ref: '#/components/responses/ErrorResponse' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-or-jwt
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+  requestBodies:
+    PixTransferIntent:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/PixTransferIntent' }
+    BankTransferIntent:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/BankTransferIntent' }
+    BillPaymentIntent:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/BillPaymentIntent' }
+    ChallengeProof:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [challengeId]
+            properties: { challengeId: { type: string } }
+  responses:
+    ErrorResponse:
+      description: Erro normalizado
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    AuthResponse:
+      description: Resultado de autenticação, inclusive estados intermediários
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AuthEnvelope' }
+    TransactionListResponse:
+      description: Lista paginada de transações
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Transaction' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+    ReceiptResponse:
+      description: Comprovante autorizado
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Receipt' } }
+    OperationResponse:
+      description: Operação aceita ou consultada
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Operation' } }
+    PixTransferResponse:
+      description: Transferência PIX
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/PixTransfer' } }
+    BankTransferResponse:
+      description: Transferência bancária
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/BankTransfer' } }
+    PaymentResponse:
+      description: Pagamento
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Payment' } }
+    CardResponse:
+      description: Cartão
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Card' } }
+    ChallengeResponse:
+      description: Challenge sem segredo
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties: { data: { $ref: '#/components/schemas/Challenge' } }
+  schemas:
+    SuccessEnvelope:
+      type: object
+      required: [data, requestId]
+      properties:
+        data: {}
+        meta: { type: object, additionalProperties: true }
+        requestId: { type: string }
+    ErrorEnvelope:
+      type: object
+      required: [error, requestId]
+      properties:
+        error: { $ref: '#/components/schemas/ApiError' }
+        requestId: { type: string }
+    ApiError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        retryable: { type: boolean }
+        fieldErrors:
+          type: array
+          items:
+            type: object
+            required: [field, code]
+            properties:
+              field: { type: string }
+              code: { type: string }
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount: { type: integer, description: Menor unidade da moeda }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+    OperationStatus:
+      type: string
+      enum: [PENDING, PROCESSING, REQUIRES_ACTION, SCHEDULED, COMPLETED, FAILED, UNDER_REVIEW, CANCELLED]
+    Operation:
+      type: object
+      required: [id, operationId, status, createdAt]
+      properties:
+        id: { type: string }
+        operationId: { type: string }
+        status: { $ref: '#/components/schemas/OperationStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        nextAction: { $ref: '#/components/schemas/NextAction' }
+    NextAction:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [SELECT_ACCOUNT, COMPLETE_REGISTRATION, CHANGE_PASSWORD, VERIFY_CHALLENGE, WAIT, CONTACT_SUPPORT] }
+        resourceId: { type: string }
+    LoginRequest:
+      type: object
+      required: [username, password, device]
+      properties:
+        username: { type: string }
+        password: { type: string, writeOnly: true }
+        device: { $ref: '#/components/schemas/DeviceRegistration' }
+    DeviceRegistration:
+      type: object
+      required: [installationId, platform]
+      properties:
+        installationId: { type: string }
+        name: { type: string }
+        platform: { type: string, enum: [ANDROID, IOS] }
+        appVersion: { type: string }
+    AuthState:
+      type: string
+      enum: [AUTHENTICATED, ACCOUNT_SELECTION_REQUIRED, ACCOUNT_UNDER_REVIEW, FIRST_ACCESS_REQUIRED, REGISTRATION_INCOMPLETE, PASSWORD_CHANGE_REQUIRED, CHALLENGE_REQUIRED, ACCOUNT_BLOCKED]
+    AuthEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [state]
+              properties:
+                state: { $ref: '#/components/schemas/AuthState' }
+                accessToken: { type: string, writeOnly: true }
+                refreshToken: { type: string, writeOnly: true }
+                expiresIn: { type: integer }
+                user: { $ref: '#/components/schemas/User' }
+                account: { $ref: '#/components/schemas/Account' }
+                availableAccounts: { type: array, items: { $ref: '#/components/schemas/Account' } }
+                nextAction: { $ref: '#/components/schemas/NextAction' }
+    SessionEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/SuccessEnvelope'
+        - type: object
+          properties:
+            data:
+              type: object
+              required: [user, account, device]
+              properties:
+                user: { $ref: '#/components/schemas/User' }
+                account: { $ref: '#/components/schemas/Account' }
+                device: { $ref: '#/components/schemas/Device' }
+    User:
+      type: object
+      required: [id, type, displayName]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [PF, PJ_REPRESENTATIVE] }
+        displayName: { type: string }
+        maskedDocument: { type: string }
+        maskedEmail: { type: string }
+        maskedPhone: { type: string }
+    Account:
+      type: object
+      required: [id, type, status]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [PERSONAL, BUSINESS] }
+        status: { type: string, enum: [ACTIVE, UNDER_REVIEW, INCOMPLETE, BLOCKED, CLOSED] }
+        bankCode: { type: string }
+        maskedAgency: { type: string }
+        maskedNumber: { type: string }
+    Balance:
+      type: object
+      required: [available, ledger, components, asOf]
+      properties:
+        available: { $ref: '#/components/schemas/Money' }
+        ledger: { $ref: '#/components/schemas/Money' }
+        components:
+          type: object
+          properties:
+            digitalAccount: { $ref: '#/components/schemas/Money' }
+            cardAccount: { $ref: '#/components/schemas/Money' }
+            credit: { $ref: '#/components/schemas/Money' }
+            investments: { $ref: '#/components/schemas/Money' }
+            foreignCurrency: { $ref: '#/components/schemas/Money' }
+            blocked: { $ref: '#/components/schemas/Money' }
+        asOf: { type: string, format: date-time }
+    Transaction:
+      type: object
+      required: [id, type, direction, amount, status, occurredAt]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        direction: { type: string, enum: [CREDIT, DEBIT] }
+        amount: { $ref: '#/components/schemas/Money' }
+        status: { $ref: '#/components/schemas/OperationStatus' }
+        description: { type: string }
+        occurredAt: { type: string, format: date-time }
+        counterparty: { $ref: '#/components/schemas/Beneficiary' }
+        receiptAvailable: { type: boolean }
+    Receipt:
+      type: object
+      required: [id, operationId, status, issuedAt]
+      properties:
+        id: { type: string }
+        operationId: { type: string }
+        status: { $ref: '#/components/schemas/OperationStatus' }
+        issuedAt: { type: string, format: date-time }
+        contentType: { type: string }
+        downloadUrl: { type: string, format: uri, description: URL curta, autorizada e temporária }
+    PixKey:
+      type: object
+      required: [id, type, maskedValue, status]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [CPF, CNPJ, EMAIL, PHONE, RANDOM] }
+        maskedValue: { type: string }
+        status: { type: string, enum: [PENDING, ACTIVE, DELETION_PENDING, DELETED, ERROR] }
+    PixBeneficiary:
+      type: object
+      required: [name, maskedDocument, institution]
+      properties:
+        name: { type: string }
+        maskedDocument: { type: string }
+        institution: { $ref: '#/components/schemas/Bank' }
+        maskedAgency: { type: string }
+        maskedAccount: { type: string }
+        accountType: { type: string }
+    PixTransferIntent:
+      type: object
+      required: [beneficiaryToken, amount]
+      properties:
+        beneficiaryToken: { type: string, description: Referência opaca devolvida pelo lookup }
+        amount: { $ref: '#/components/schemas/Money' }
+        description: { type: string, maxLength: 140 }
+        saveFavorite: { type: boolean, default: false }
+        challengeId: { type: string }
+    PixTransfer:
+      allOf:
+        - $ref: '#/components/schemas/Operation'
+        - type: object
+          required: [amount, beneficiary]
+          properties:
+            amount: { $ref: '#/components/schemas/Money' }
+            beneficiary: { $ref: '#/components/schemas/PixBeneficiary' }
+            scheduledFor: { type: string, format: date-time }
+    Bank:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        code: { type: string }
+        name: { type: string }
+        isInternal: { type: boolean }
+    Beneficiary:
+      type: object
+      required: [name, maskedDocument]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        maskedDocument: { type: string }
+        bank: { $ref: '#/components/schemas/Bank' }
+        maskedAgency: { type: string }
+        maskedAccount: { type: string }
+        accountType: { type: string }
+    BeneficiaryLookup:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string, enum: [INTERNAL_PHONE, INTERNAL_DOCUMENT, INTERNAL_ACCOUNT, EXTERNAL_ACCOUNT] }
+        phone: { type: string }
+        document: { type: string }
+        bankId: { type: string }
+        agency: { type: string }
+        account: { type: string }
+        accountDigit: { type: string }
+    BankTransferIntent:
+      type: object
+      required: [type, beneficiaryId, amount]
+      properties:
+        type: { type: string, enum: [INTERNAL, EXTERNAL] }
+        beneficiaryId: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        purpose: { type: string }
+        description: { type: string }
+        saveFavorite: { type: boolean }
+        challengeId: { type: string }
+    BankTransfer:
+      allOf:
+        - $ref: '#/components/schemas/Operation'
+        - type: object
+          required: [type, beneficiary, amount]
+          properties:
+            type: { type: string, enum: [INTERNAL, EXTERNAL] }
+            beneficiary: { $ref: '#/components/schemas/Beneficiary' }
+            amount: { $ref: '#/components/schemas/Money' }
+            fee: { $ref: '#/components/schemas/Money' }
+            scheduledFor: { type: string, format: date-time }
+    Bill:
+      type: object
+      required: [id, maskedCode, beneficiaryName, dueDate, originalAmount, payableAmount]
+      properties:
+        id: { type: string }
+        maskedCode: { type: string }
+        beneficiaryName: { type: string }
+        maskedBeneficiaryDocument: { type: string }
+        payerName: { type: string }
+        maskedPayerDocument: { type: string }
+        dueDate: { type: string, format: date }
+        originalAmount: { $ref: '#/components/schemas/Money' }
+        discount: { $ref: '#/components/schemas/Money' }
+        interest: { $ref: '#/components/schemas/Money' }
+        fine: { $ref: '#/components/schemas/Money' }
+        payableAmount: { $ref: '#/components/schemas/Money' }
+        validUntil: { type: string, format: date-time }
+    BillPaymentIntent:
+      type: object
+      required: [billId, amount]
+      properties:
+        billId: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        description: { type: string }
+        challengeId: { type: string }
+    Payment:
+      allOf:
+        - $ref: '#/components/schemas/Operation'
+        - type: object
+          required: [bill, amount]
+          properties:
+            bill: { $ref: '#/components/schemas/Bill' }
+            amount: { $ref: '#/components/schemas/Money' }
+            scheduledFor: { type: string, format: date-time }
+    ValidationResult:
+      type: object
+      required: [valid]
+      properties:
+        valid: { type: boolean }
+        fee: { $ref: '#/components/schemas/Money' }
+        expiresAt: { type: string, format: date-time }
+        nextAction: { $ref: '#/components/schemas/NextAction' }
+    InstallmentOption:
+      type: object
+      required: [id, installments, installmentAmount, totalAmount]
+      properties:
+        id: { type: string }
+        installments: { type: integer, minimum: 1 }
+        installmentAmount: { $ref: '#/components/schemas/Money' }
+        totalAmount: { $ref: '#/components/schemas/Money' }
+        validUntil: { type: string, format: date-time }
+    Card:
+      type: object
+      required: [id, type, lastFour, status]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [PHYSICAL, VIRTUAL, TRANSPORT, PREPAID] }
+        brand: { type: string }
+        lastFour: { type: string, pattern: '^[0-9]{4}$' }
+        holderName: { type: string }
+        status: { type: string, enum: [PENDING_ACTIVATION, ACTIVE, TEMPORARILY_BLOCKED, BLOCKED, EXPIRED, CANCELLED] }
+        balance: { $ref: '#/components/schemas/Money' }
+    CardTransaction:
+      type: object
+      required: [id, amount, status, occurredAt]
+      properties:
+        id: { type: string }
+        merchantName: { type: string }
+        amount: { $ref: '#/components/schemas/Money' }
+        status: { type: string }
+        occurredAt: { type: string, format: date-time }
+        authorizationCodeMasked: { type: string }
+    Challenge:
+      type: object
+      required: [id, type, purpose, status, expiresAt]
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [OTP, PUSH, DEVICE_CONFIRMATION, BIOMETRIC_DEVICE_PROOF] }
+        purpose: { type: string }
+        status: { type: string, enum: [PENDING, VERIFIED, EXPIRED, FAILED, CANCELLED] }
+        expiresAt: { type: string, format: date-time }
+        attemptsRemaining: { type: integer, minimum: 0 }
+        deliveryHint: { type: string }
+    Device:
+      type: object
+      required: [id, platform, trusted]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        platform: { type: string, enum: [ANDROID, IOS] }
+        trusted: { type: boolean }
+        current: { type: boolean }
+        lastSeenAt: { type: string, format: date-time }
+    PageMeta:
+      type: object
+      properties:
+        nextCursor: { type: string }
+        hasMore: { type: boolean }
