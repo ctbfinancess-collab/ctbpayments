@@ -10,6 +10,7 @@ import { SandboxCardProvider } from '../src/providers/sandbox/SandboxCardProvide
 import { SandboxDeviceBindingProvider } from '../src/providers/sandbox/SandboxDeviceBindingProvider.js';
 import { SandboxPixProvider } from '../src/providers/sandbox/SandboxPixProvider.js';
 import { SandboxSessionStore } from '../src/providers/sandbox/SandboxSessionStore.js';
+import { SandboxTransferProvider } from '../src/providers/sandbox/SandboxTransferProvider.js';
 
 const testConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent' };
 const loginPayload = { username: SANDBOX_EMAIL, password: SANDBOX_PASSWORD, device: { installationId: 'sbx-installation-test', platform: 'ANDROID' } };
@@ -350,6 +351,75 @@ test('PIX own keys and receive QR are authenticated, masked and structural only'
 
 test('production forbids the sandbox PIX provider', () => {
   assert.throws(() => new SandboxPixProvider('production'), /forbidden in production/);
+});
+
+test('transfer banks and favorites require authentication and contain only fictitious masked data', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  assert.equal((await app.inject({ method: 'GET', url: '/v1/transfers/banks' })).statusCode, 401);
+  const session = await login(app);
+  const banks = await app.inject({ method: 'GET', url: '/v1/transfers/banks', headers: authHeaders(session) });
+  const favorites = await app.inject({ method: 'GET', url: '/v1/transfers/favorites', headers: authHeaders(session) });
+  assert.equal(banks.statusCode, 200);
+  assert.equal(favorites.statusCode, 200);
+  assert.deepEqual(banks.json().data.map((item: { name: string }) => item.name), ['Banco Sandbox A', 'Banco Sandbox B']);
+  assert.ok(favorites.json().data.every((item: { documentMasked: string; accountMasked: string }) => item.documentMasked.includes('*') && item.accountMasked.includes('*')));
+  const serialized = JSON.stringify(favorites.json().data).toLowerCase();
+  for (const forbidden of ['password', 'accesstoken', 'refreshtoken', 'providertoken']) assert.equal(serialized.includes(forbidden), false);
+});
+
+test('transfer beneficiary lookup supports phone, document and account fixtures', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const cases = [
+    { type: 'INTERNAL_PHONE', phone: '+5511988880000' },
+    { type: 'INTERNAL_DOCUMENT', document: '11144477735' },
+    { type: 'INTERNAL_ACCOUNT', agency: '0001', account: '123456' },
+    { type: 'EXTERNAL_ACCOUNT', bankId: 'sbx_bank_b', agency: '0002', account: '654321', accountDigit: '2' },
+    { type: 'FAVORITE', favoriteId: 'sbx_favorite_external' },
+  ];
+  for (const payload of cases) {
+    const response = await app.inject({ method: 'POST', url: '/v1/transfers/beneficiaries/lookup', headers: authHeaders(session), payload });
+    assert.equal(response.statusCode, 200);
+    assert.match(response.json().data.beneficiaryId, /^sbx_beneficiary_/);
+  }
+  const invalid = await app.inject({ method: 'POST', url: '/v1/transfers/beneficiaries/lookup', headers: authHeaders(session), payload: { type: 'INTERNAL_PHONE', phone: 'abc' } });
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(invalid.json().error.code, 'TRANSFER_BENEFICIARY_INVALID');
+  const missing = await app.inject({ method: 'POST', url: '/v1/transfers/beneficiaries/lookup', headers: authHeaders(session), payload: { type: 'INTERNAL_PHONE', phone: '+5511977771111' } });
+  assert.equal(missing.statusCode, 404);
+  assert.equal(missing.json().error.code, 'TRANSFER_BENEFICIARY_NOT_FOUND');
+});
+
+test('transfer validation is structural, uses integer cents and enforces explicit SANDBOX rules', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const valid = await app.inject({ method: 'POST', url: '/v1/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_beneficiary_external', amountMinor: 12500, currency: 'BRL', scheduledFor: new Date(Date.now() + 86_400_000).toISOString() } });
+  assert.equal(valid.statusCode, 200);
+  assert.equal(valid.json().data.status, 'VALIDATED');
+  assert.equal(valid.json().data.amountMinor, 12500);
+  assert.equal(valid.json().data.feeMinor, 0);
+  assert.equal(valid.json().data.totalDebitMinor, 12500);
+  assert.equal('operationId' in valid.json().data, false);
+  const cases = [
+    [{ beneficiaryId: 'sbx_beneficiary_external', amountMinor: 0, currency: 'BRL' }, 'TRANSFER_AMOUNT_INVALID'],
+    [{ beneficiaryId: 'sbx_beneficiary_external', amountMinor: 125001, currency: 'BRL' }, 'TRANSFER_INSUFFICIENT_BALANCE'],
+    [{ beneficiaryId: 'sbx_beneficiary_external', amountMinor: 100, currency: 'BRL', scheduledFor: new Date(Date.now() - 86_400_000).toISOString() }, 'TRANSFER_SCHEDULE_INVALID'],
+    [{ beneficiaryId: 'sbx_beneficiary_other_account', amountMinor: 100, currency: 'BRL' }, 'TRANSFER_BENEFICIARY_NOT_FOUND'],
+  ] as const;
+  for (const [payload, code] of cases) {
+    const response = await app.inject({ method: 'POST', url: '/v1/transfers/validate', headers: authHeaders(session), payload });
+    assert.equal(response.statusCode, code === 'TRANSFER_BENEFICIARY_NOT_FOUND' ? 404 : 422);
+    assert.equal(response.json().error.code, code);
+  }
+});
+
+test('transfer reads reject device mismatch and sandbox provider is forbidden in production', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const response = await app.inject({ method: 'GET', url: '/v1/transfers/banks', headers: { authorization: `Bearer ${session.accessToken}`, 'x-device-id': 'sbx_dev_wrong' } });
+  assert.equal(response.statusCode, 401);
+  assert.equal(response.json().error.code, 'AUTH_DEVICE_MISMATCH');
+  assert.throws(() => new SandboxTransferProvider('production'), /forbidden in production/);
 });
 
 test('production refuses sandbox auth and account providers', () => {

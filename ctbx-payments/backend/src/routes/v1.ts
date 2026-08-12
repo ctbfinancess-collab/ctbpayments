@@ -107,13 +107,27 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     schema: { body: objectSchema(['beneficiaryToken', 'amount', 'scheduledFor'], { beneficiaryToken: idSchema, amount: moneySchema, scheduledFor: { type: 'string', format: 'date-time' }, description: string, saveFavorite: boolean, challengeId: idSchema }) },
   }, unavailable('PIX'));
 
-  app.get('/transfers/banks', unavailable('de transferências'));
-  app.get('/transfers/favorites', unavailable('de transferências'));
+  app.get('/transfers/banks', { preHandler: authenticated }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.listBanks(request.auth!));
+  });
+  app.get('/transfers/favorites', { preHandler: authenticated }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.listFavorites(request.auth!));
+  });
   app.post('/transfers/beneficiaries/lookup', {
-    schema: { body: objectSchema(['type'], { type: { type: 'string', enum: ['INTERNAL_PHONE', 'INTERNAL_DOCUMENT', 'INTERNAL_ACCOUNT', 'EXTERNAL_ACCOUNT'] }, phone: shortString, document: shortString, bankId: idSchema, agency: shortString, account: shortString, accountDigit: shortString }) },
-  }, unavailable('de transferências'));
+    preHandler: authenticated,
+    schema: { body: objectSchema(['type'], { type: { type: 'string', enum: ['INTERNAL_PHONE', 'INTERNAL_DOCUMENT', 'INTERNAL_ACCOUNT', 'EXTERNAL_ACCOUNT', 'FAVORITE'] }, phone: shortString, document: shortString, bankId: idSchema, agency: shortString, account: shortString, accountDigit: shortString, favoriteId: idSchema }) },
+  }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.lookupBeneficiary(request.auth!, request.body));
+  });
+  const transferValidation = objectSchema(['beneficiaryId', 'amountMinor', 'currency'], { beneficiaryId: idSchema, amountMinor: { type: 'integer' }, currency: { type: 'string', enum: ['BRL'] }, purpose: string, description: string, scheduledFor: { type: 'string', format: 'date-time' } });
+  app.post('/transfers/validate', { preHandler: authenticated, schema: { body: transferValidation } }, async (request) => {
+    if (!providers.transfer) throw providerNotConfigured('de transferências');
+    return envelope(request, await providers.transfer.validate(request.auth!, request.body));
+  });
   const transferIntent = objectSchema(['type', 'beneficiaryId', 'amount'], { type: { type: 'string', enum: ['INTERNAL', 'EXTERNAL'] }, beneficiaryId: idSchema, amount: moneySchema, purpose: string, description: string, saveFavorite: boolean, challengeId: idSchema });
-  app.post('/transfers/validate', { schema: { body: transferIntent } }, unavailable('de transferências'));
   app.post('/transfers', { preHandler: requireIdempotencyKey, schema: { body: transferIntent } }, unavailable('de transferências'));
   app.post('/transfers/schedule', {
     preHandler: requireIdempotencyKey,

@@ -9,6 +9,8 @@ import cardMapperModule from '../src/services/mappers/cardMapper.js';
 import cardServiceModule from '../src/services/cardService.js';
 import pixMapperModule from '../src/services/mappers/pixMapper.js';
 import pixServiceModule from '../src/services/pixService.js';
+import transferMapperModule from '../src/services/mappers/transferMapper.js';
+import transferServiceModule from '../src/services/transferService.js';
 import statementServiceModule from '../src/services/statementService.js';
 import sandboxAuthModule from '../src/services/sandboxAuthClient.js';
 import reducerModule from '../src/session/sessionReducer.js';
@@ -22,6 +24,8 @@ const { mapSandboxCard, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSan
 const { createCardService } = cardServiceModule;
 const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxQrLookup, mapSandboxReceiveQr } = pixMapperModule;
 const { createPixService } = pixServiceModule;
+const { mapSandboxBank, mapSandboxTransferBeneficiary, mapSandboxTransferFavorites, mapSandboxTransferValidation } = transferMapperModule;
+const { createTransferService } = transferServiceModule;
 const { createStatementService } = statementServiceModule;
 const { mapSandboxSession, refreshSandboxSession, sandboxLogin, logoutSandboxSession } = sandboxAuthModule;
 const { initialSessionState, sessionReducer } = reducerModule;
@@ -320,6 +324,75 @@ test('PIX lookup refreshes once after 401 and retries with the rotated access to
   const service = createPixService({ sandboxMode: true, client: apiClient });
   const result = await service.lookupKey({ key: 'recebedor@sandbox.invalid' });
   assert.equal(result.beneficiary.bank, 'Banco SANDBOX');
+  assert.equal(refreshCalls, 1);
+  assert.equal(lookupCalls, 2);
+});
+
+test('transfer mapper preserves masked beneficiary data and integer cents', () => {
+  const bank = { id: 'sbx_bank_a', code: 'SBX001', name: 'Banco Sandbox A', status: 'ACTIVE' };
+  assert.equal(mapSandboxBank(bank).active, true);
+  const raw = { beneficiaryId: 'sbx_beneficiary_internal', name: 'Cliente SANDBOX', documentMasked: '***.***.***-**', bank, branch: '0001', accountMasked: '*****-1', accountType: 'Conta digital', transferType: 'INTERNAL', status: 'ACTIVE' };
+  const beneficiary = mapSandboxTransferBeneficiary(raw);
+  assert.equal(beneficiary.document, '***.***.***-**');
+  assert.equal(beneficiary.mode, 'internal');
+  assert.equal(mapSandboxTransferFavorites([{ id: 'favorite', ...raw }])[0].bank, 'Banco Sandbox A');
+  const validation = mapSandboxTransferValidation({ validationId: 'validation', beneficiary: raw, amountMinor: 12500, currency: 'BRL', feeMinor: 0, totalDebitMinor: 12500, status: 'VALIDATED', requiresChallenge: true, warnings: [] });
+  assert.equal(validation.amount, '125,00');
+  assert.equal(validation.totalDebit, '125,00');
+  assert.throws(() => mapSandboxTransferValidation({ amountMinor: 12.5, feeMinor: 0, totalDebitMinor: 12.5 }), /integer minor units/);
+});
+
+test('transfer service SANDBOX loads banks, favorites, lookup and structural validation', async () => {
+  const bank = { id: 'sbx_bank_a', code: 'SBX001', name: 'Banco Sandbox A', status: 'ACTIVE' };
+  const beneficiary = { beneficiaryId: 'sbx_beneficiary_internal', name: 'Cliente SANDBOX', documentMasked: '***.***.***-**', bank, branch: '0001', accountMasked: '*****-1', accountType: 'Conta digital', transferType: 'INTERNAL', status: 'ACTIVE' };
+  const responses = new Map([
+    ['/v1/transfers/banks', [bank]],
+    ['/v1/transfers/favorites', [{ id: 'sbx_favorite', ...beneficiary }]],
+    ['/v1/transfers/beneficiaries/lookup', beneficiary],
+    ['/v1/transfers/validate', { validationId: 'sbx_validation', beneficiary, amountMinor: 12500, currency: 'BRL', feeMinor: 0, totalDebitMinor: 12500, scheduledFor: new Date(Date.now() + 86_400_000).toISOString(), status: 'VALIDATED', requiresChallenge: true, warnings: ['Agendamento validado no ambiente sandbox'] }],
+  ]);
+  const calls = [];
+  const client = async (path, options) => { calls.push({ path, options, body: options.body ? JSON.parse(options.body) : undefined }); return { data: responses.get(path) }; };
+  const service = createTransferService({ sandboxMode: true, client, balanceLoader: async () => [{ value: '1.250,00' }] });
+  assert.equal((await service.getBanks())[0].name, 'Banco Sandbox A');
+  assert.equal((await service.getFavorites())[0].mode, 'internal');
+  assert.equal((await service.lookupBeneficiary('internal', { phone: '+55 (11) 98888-0000' })).beneficiaryId, 'sbx_beneficiary_internal');
+  const validated = await service.validateTransfer({ beneficiary: mapSandboxTransferBeneficiary(beneficiary), amount: '125,00', scheduled: true, date: '31/12/2099', purpose: 'Outros' });
+  assert.equal(validated.status, 'VALIDATED');
+  assert.equal(validated.amountMinor, 12500);
+  assert.equal(validated.scheduleNotice, 'Agendamento validado no ambiente sandbox');
+  assert.equal((await service.getTransferDetailsData()).balance, '1.250,00');
+  assert.equal(calls.find((call) => call.path === '/v1/transfers/validate').body.amountMinor, 12500);
+  assert.ok(calls.every((call) => call.options.retryOnUnauthorized === true));
+});
+
+test('transfer service preserves DEMO, propagates 404 and blocks SANDBOX mutations', async () => {
+  const demo = createTransferService({ demoMode: true });
+  assert.ok((await demo.getBanks()).length > 0);
+  assert.ok((await demo.getFavorites()).length > 0);
+  const missing = createTransferService({ sandboxMode: true, client: async () => { throw new ApiError('Favorecido não encontrado.', { code: 'TRANSFER_BENEFICIARY_NOT_FOUND', status: 404 }); } });
+  await assert.rejects(missing.lookupBeneficiary('internal', { phone: '+5511977771111' }), (error) => error.code === 'TRANSFER_BENEFICIARY_NOT_FOUND' && error.status === 404);
+  const sandbox = createTransferService({ sandboxMode: true });
+  for (const action of [() => sandbox.authorizeTransfer({}), () => sandbox.scheduleTransfer({}), () => sandbox.submitTransfer({}), () => sandbox.getReceipt({})]) {
+    await assert.rejects(action(), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
+  }
+  await assert.rejects(createTransferService().getBanks(), (error) => error.code === 'BACKEND_NOT_CONFIGURED');
+});
+
+test('transfer lookup refreshes once after 401 and retries with rotated access token', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; configureApiClient(); });
+  let accessToken = 'expired-transfer-token';
+  let refreshCalls = 0;
+  let lookupCalls = 0;
+  globalThis.fetch = async (_url, options) => {
+    lookupCalls += 1;
+    if (options.headers.Authorization === 'Bearer expired-transfer-token') return new Response(JSON.stringify({ error: { code: 'AUTH_ACCESS_TOKEN_EXPIRED', message: 'expired' } }), { status: 401 });
+    return new Response(JSON.stringify({ data: { beneficiaryId: 'sbx_beneficiary_internal', name: 'Cliente SANDBOX', documentMasked: '***', bank: { id: 'sbx_bank', name: 'Banco Sandbox A' }, branch: '0001', accountMasked: '***-1', accountType: 'Conta digital', transferType: 'INTERNAL', status: 'ACTIVE' } }), { status: 200 });
+  };
+  configureApiClient({ getBaseURL: () => 'http://sandbox.test', getAccessToken: () => accessToken, getDeviceId: () => 'sandbox-device', onUnauthorized: async () => { refreshCalls += 1; accessToken = 'rotated-transfer-token'; } });
+  const result = await createTransferService({ sandboxMode: true, client: apiClient }).lookupBeneficiary('internal', { document: '11144477735' });
+  assert.equal(result.mode, 'internal');
   assert.equal(refreshCalls, 1);
   assert.equal(lookupCalls, 2);
 });

@@ -349,6 +349,7 @@ paths:
     get:
       tags: [Transfers]
       operationId: listBanks
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200':
           description: Instituições disponíveis
@@ -360,10 +361,12 @@ paths:
                   - type: object
                     properties:
                       data: { type: array, items: { $ref: '#/components/schemas/Bank' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers/favorites:
     get:
       tags: [Transfers]
       operationId: listTransferFavorites
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       responses:
         '200':
           description: Favorecidos
@@ -375,10 +378,12 @@ paths:
                   - type: object
                     properties:
                       data: { type: array, items: { $ref: '#/components/schemas/Beneficiary' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers/beneficiaries/lookup:
     post:
       tags: [Transfers]
       operationId: lookupTransferBeneficiary
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
       requestBody:
         required: true
         content:
@@ -394,12 +399,19 @@ paths:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
                     properties: { data: { $ref: '#/components/schemas/Beneficiary' } }
+        '400': { $ref: '#/components/responses/ErrorResponse' }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
         '404': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers/validate:
     post:
       tags: [Transfers]
       operationId: validateBankTransfer
-      requestBody: { $ref: '#/components/requestBodies/BankTransferIntent' }
+      parameters: [{ $ref: '#/components/parameters/DeviceId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BankTransferValidationIntent' }
       responses:
         '200':
           description: Validação sem efetivação
@@ -409,7 +421,9 @@ paths:
                 allOf:
                   - $ref: '#/components/schemas/SuccessEnvelope'
                   - type: object
-                    properties: { data: { $ref: '#/components/schemas/ValidationResult' } }
+                    properties: { data: { $ref: '#/components/schemas/BankTransferValidation' } }
+        '401': { $ref: '#/components/responses/ErrorResponse' }
+        '404': { $ref: '#/components/responses/ErrorResponse' }
         '422': { $ref: '#/components/responses/ErrorResponse' }
   /v1/transfers:
     post:
@@ -1232,26 +1246,53 @@ components:
         isInternal: { type: boolean }
     Beneficiary:
       type: object
-      required: [name, maskedDocument]
+      required: [beneficiaryId, name, documentMasked, bank, branch, accountMasked, accountType, transferType, status]
       properties:
-        id: { type: string }
+        beneficiaryId: { type: string }
         name: { type: string }
-        maskedDocument: { type: string }
+        documentMasked: { type: string }
         bank: { $ref: '#/components/schemas/Bank' }
-        maskedAgency: { type: string }
-        maskedAccount: { type: string }
+        branch: { type: string }
+        accountMasked: { type: string }
         accountType: { type: string }
+        transferType: { type: string, enum: [INTERNAL, EXTERNAL] }
+        status: { type: string, enum: [ACTIVE] }
     BeneficiaryLookup:
       type: object
       required: [type]
       properties:
-        type: { type: string, enum: [INTERNAL_PHONE, INTERNAL_DOCUMENT, INTERNAL_ACCOUNT, EXTERNAL_ACCOUNT] }
+        type: { type: string, enum: [INTERNAL_PHONE, INTERNAL_DOCUMENT, INTERNAL_ACCOUNT, EXTERNAL_ACCOUNT, FAVORITE] }
         phone: { type: string }
         document: { type: string }
         bankId: { type: string }
         agency: { type: string }
         account: { type: string }
         accountDigit: { type: string }
+        favoriteId: { type: string }
+    BankTransferValidationIntent:
+      type: object
+      required: [beneficiaryId, amountMinor, currency]
+      properties:
+        beneficiaryId: { type: string }
+        amountMinor: { type: integer }
+        currency: { type: string, enum: [BRL] }
+        description: { type: string }
+        purpose: { type: string }
+        scheduledFor: { type: string, format: date-time }
+    BankTransferValidation:
+      type: object
+      required: [validationId, beneficiary, amountMinor, currency, feeMinor, totalDebitMinor, status, requiresChallenge, warnings]
+      properties:
+        validationId: { type: string }
+        beneficiary: { $ref: '#/components/schemas/Beneficiary' }
+        amountMinor: { type: integer, minimum: 1 }
+        currency: { type: string, enum: [BRL] }
+        feeMinor: { type: integer, minimum: 0 }
+        totalDebitMinor: { type: integer, minimum: 1 }
+        scheduledFor: { type: string, format: date-time }
+        status: { type: string, enum: [VALIDATED] }
+        requiresChallenge: { type: boolean }
+        warnings: { type: array, items: { type: string } }
     BankTransferIntent:
       type: object
       required: [type, beneficiaryId, amount]

@@ -27,7 +27,12 @@ export interface PixProvider {
   listKeys(context: AuthContext): Promise<unknown>;
   createReceiveQr(context: AuthContext, input: unknown): Promise<unknown>;
 }
-export interface TransferProvider { listBanks(): Promise<unknown>; listFavorites(context: unknown): Promise<unknown>; lookupBeneficiary(input: unknown): Promise<unknown>; validate(input: unknown): Promise<unknown>; create(input: unknown): Promise<Operation>; schedule(input: unknown): Promise<Operation>; }
+export interface TransferProvider {
+  listBanks(context: AuthContext): Promise<unknown>;
+  listFavorites(context: AuthContext): Promise<unknown>;
+  lookupBeneficiary(context: AuthContext, input: unknown): Promise<unknown>;
+  validate(context: AuthContext, input: unknown): Promise<unknown>;
+}
 export interface PaymentProvider { lookupBill(input: unknown): Promise<unknown>; validateBill(input: unknown): Promise<unknown>; payBill(input: unknown): Promise<Operation>; scheduleBill(input: unknown): Promise<Operation>; simulateInstallments(input: unknown): Promise<unknown>; payInstallments(input: unknown): Promise<Operation>; }
 export interface CardProvider {
   list(context: AuthContext): Promise<unknown>;

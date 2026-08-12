@@ -12,6 +12,7 @@ import { SandboxCardProvider } from './providers/sandbox/SandboxCardProvider.js'
 import { SandboxDeviceBindingProvider } from './providers/sandbox/SandboxDeviceBindingProvider.js';
 import { SandboxPixProvider } from './providers/sandbox/SandboxPixProvider.js';
 import { SandboxSessionStore } from './providers/sandbox/SandboxSessionStore.js';
+import { SandboxTransferProvider } from './providers/sandbox/SandboxTransferProvider.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 
@@ -28,6 +29,7 @@ function sandboxProviders(config: AppConfig): ProviderRegistry {
     account: new SandboxAccountProvider(config.nodeEnv),
     card: new SandboxCardProvider(config.nodeEnv),
     pix: new SandboxPixProvider(config.nodeEnv),
+    transfer: new SandboxTransferProvider(config.nodeEnv),
   };
 }
 

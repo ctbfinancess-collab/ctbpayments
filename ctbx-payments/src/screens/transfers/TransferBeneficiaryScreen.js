@@ -11,7 +11,7 @@ const INTERNAL_METHODS = [{ id: 'phone', label: 'Telefone' }, { id: 'document', 
 export default function TransferBeneficiaryScreen({ navigation, route }) {
   const mode = route.params?.mode === 'external' ? 'external' : 'internal';
   const {data: formData} = useAsyncResource(getTransferFormData, {banks: [], accountTypes: []}); const [method, setMethod] = useState('phone'); const [form, setForm] = useState({});
-  useEffect(() => { if (formData.banks[0]) setForm((current) => ({ bank: formData.banks[0].name, accountType: formData.accountTypes[0], ...current })); }, [formData]);
+  useEffect(() => { if (formData.banks[0]) setForm((current) => ({ bank: formData.banks[0].name, bankId: formData.banks[0].id, accountType: formData.accountTypes[0], ...current })); }, [formData]);
   const set = (key) => (value) => setForm((current) => ({ ...current, [key]: value }));
   const continueFlow = async () => {
     if (mode === 'internal') {
@@ -33,7 +33,7 @@ export default function TransferBeneficiaryScreen({ navigation, route }) {
     </Card>}
     <PrimaryButton onPress={() => navigation.navigate('TransferFavorites', { mode })} style={styles.button}>Escolher favorito</PrimaryButton>
     <PrimaryButton onPress={continueFlow} style={styles.button}>Pesquisar e continuar</PrimaryButton>
-    <Text style={styles.mock}>Busca do favorecido simulada localmente.</Text>
+    <Text style={styles.mock}>Consulta estrutural com dados fictícios no ambiente SANDBOX.</Text>
   </TransferLayout>;
 }
 const styles = StyleSheet.create({ methods: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl, marginTop: spacing.lg }, chip: { backgroundColor: colors.surface, borderColor: colors.borderSubtle, borderRadius: radii.pill, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }, chipActive: { backgroundColor: colors.purpleAlpha20, borderColor: colors.purple500 }, chipText: { ...typography.caption, color: colors.textSecondary }, chipTextActive: { color: colors.purple300 }, formCard: { marginTop: spacing.lg, padding: spacing.lg }, button: { marginTop: spacing.md }, mock: { ...typography.caption, color: colors.textMuted, marginTop: spacing.lg, textAlign: 'center' } });
