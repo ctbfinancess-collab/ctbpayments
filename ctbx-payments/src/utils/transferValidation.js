@@ -1,3 +1,5 @@
+import { isTodayOrFutureDate } from './dateValidation';
+
 export const onlyTransferDigits = (value = '') => value.replace(/\D/g, '');
 
 export function transferCurrencyToNumber(value = '') {
@@ -10,10 +12,4 @@ export function validateTransferDocument(value = '') {
   return length === 11 || length === 14;
 }
 
-export function validateScheduleDate(value = '') {
-  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return false;
-  const [day, month, year] = value.split('/').map(Number);
-  const date = new Date(year, month - 1, day);
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day && date >= today;
-}
+export const validateScheduleDate = isTodayOrFutureDate;

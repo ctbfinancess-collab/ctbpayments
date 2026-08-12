@@ -4,6 +4,8 @@ import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { InfoRow, PixButton, PixField } from '../../components/pix/PixForm';
 import { MOCK_PIX_BALANCE } from '../../data/pixMockData';
 import { parseCurrency } from '../../utils/pixValidation';
+import { isTodayOrFutureDate } from '../../utils/dateValidation';
+import { MissingDataState } from '../../components/ui';
 
 export default function PixTransferScreen({ navigation, route }) {
   const transfer = route.params?.transfer;
@@ -20,7 +22,7 @@ export default function PixTransferScreen({ navigation, route }) {
       Alert.alert('Preencha o valor');
       return;
     }
-    if (scheduled && !/^\d{2}\/\d{2}\/\d{4}$/.test(scheduleDate)) {
+    if (scheduled && !isTodayOrFutureDate(scheduleDate)) {
       Alert.alert('Informe a data no formato DD/MM/AAAA');
       return;
     }
@@ -29,7 +31,7 @@ export default function PixTransferScreen({ navigation, route }) {
     });
   };
 
-  if (!transfer) return null;
+  if (!transfer) return <MissingDataState navigation={navigation} title="Pix" />;
   const beneficiary = transfer.beneficiary;
 
   return (

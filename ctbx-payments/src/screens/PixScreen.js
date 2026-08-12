@@ -31,6 +31,7 @@ const PAY_OPTIONS = [
     symbol: '▤',
     originalAction: 'abrirModal(7)',
   },
+  { id: 'agency_account', label: 'Agência e Conta', symbol: '▥', originalAction: 'abrirModal(8)' },
   { id: 'favorites', label: 'Favoritos', symbol: '☷', originalAction: 'abrirModal(10)' },
 ];
 
@@ -70,6 +71,8 @@ export default function PixScreen({ navigation }) {
       navigation.navigate('PixQrScanner');
     } else if (item.id === 'favorites') {
       navigation.navigate('PixFavorites');
+    } else if (item.id === 'agency_account') {
+      navigation.navigate('PixAgencyAccount');
     } else {
       navigation.navigate('PixKeyEntry', { type: item.id });
     }

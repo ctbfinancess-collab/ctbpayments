@@ -11,8 +11,8 @@ export const MOCK_BANKS = [
 ];
 
 export const MOCK_TRANSFER_FAVORITES = [
-  { id: 'fav-1', name: 'Marina Costa', document: '***.456.789-**', bank: 'Banco do Brasil', agency: '1234', account: '45678', digit: '9', accountType: 'Conta corrente', mode: 'external' },
-  { id: 'fav-2', name: 'Carlos Almeida', document: '***.987.654-**', bank: 'CTBX Payments', agency: '0001', account: '0001234', digit: '5', accountType: 'Conta digital', mode: 'internal' },
+  { id: 'DEMO-FAV-1', name: 'Favorecido Demonstração A', document: '***.***.***-**', bank: 'Banco Demonstração', agency: '0000', account: '00000', digit: '0', accountType: 'Conta corrente', mode: 'external' },
+  { id: 'DEMO-FAV-2', name: 'Favorecido Demonstração B', document: '***.***.***-**', bank: 'CTBX Payments', agency: '0000', account: '0000000', digit: '0', accountType: 'Conta digital', mode: 'internal' },
 ];
 
 export const TRANSFER_PURPOSES = [
@@ -29,11 +29,11 @@ export const ACCOUNT_TYPES = ['Conta corrente', 'Conta poupança'];
 export function buildMockBeneficiary(mode, values = {}) {
   return {
     mode,
-    name: values.name || (mode === 'internal' ? 'Cliente CTBX' : 'Favorecido demonstração'),
-    document: values.document || '000.000.000-00',
+    name: values.name || (mode === 'internal' ? 'Cliente Demonstração' : 'Favorecido Demonstração'),
+    document: values.document || '***.***.***-**',
     bank: values.bank || (mode === 'internal' ? 'CTBX Payments' : MOCK_BANKS[0].name),
     agency: values.agency || '0001',
-    account: values.account || '0001234',
+    account: values.account || '0000000',
     digit: values.digit || '5',
     accountType: values.accountType || (mode === 'internal' ? 'Conta digital' : ACCOUNT_TYPES[0]),
     phone: values.phone || '',

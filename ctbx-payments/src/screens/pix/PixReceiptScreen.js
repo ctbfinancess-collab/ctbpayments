@@ -2,10 +2,11 @@ import React from 'react';
 import { Alert, Share, StyleSheet, Text, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { InfoRow, PixButton } from '../../components/pix/PixForm';
+import { MissingDataState } from '../../components/ui';
 
 export default function PixReceiptScreen({ navigation, route }) {
   const transfer = route.params?.transfer;
-  if (!transfer) return null;
+  if (!transfer) return <MissingDataState navigation={navigation} title="Comprovante Pix" />;
 
   const receiptText = [
     'PIX realizado com sucesso!',
@@ -19,6 +20,7 @@ export default function PixReceiptScreen({ navigation, route }) {
       <View style={styles.successArea}>
         <Text style={styles.successIcon}>✓</Text>
         <Text style={styles.successTitle}>Pix realizado com sucesso!</Text>
+        <Text style={styles.demo}>Ambiente de demonstração</Text>
       </View>
       <View style={styles.receiptCard}>
         <InfoRow label="Valor" value={`R$ ${transfer.amount}`} />
@@ -42,5 +44,6 @@ const styles = StyleSheet.create({
   successArea: { alignItems: 'center', marginBottom: 22, marginTop: 10 },
   successIcon: { color: PIX_COLORS.success, fontSize: 58, fontWeight: '700' },
   successTitle: { color: PIX_COLORS.text, fontSize: 17, fontWeight: '700', marginTop: 8 },
+  demo: { color: PIX_COLORS.muted, fontSize: 12, marginTop: 6 },
   receiptCard: { backgroundColor: PIX_COLORS.card, borderColor: PIX_COLORS.borderStrong, borderRadius: 18, borderWidth: 1, marginBottom: 12, padding: 15 },
 });

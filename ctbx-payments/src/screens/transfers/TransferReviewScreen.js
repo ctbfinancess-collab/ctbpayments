@@ -2,11 +2,11 @@ import React from 'react';
 import { StyleSheet, Text } from 'react-native';
 import TransferLayout from '../../components/transfers/TransferLayout';
 import { TransferInfoRow } from '../../components/transfers/TransferForm';
-import { Card, ConfirmationButton, OutlineButton } from '../../components/ui';
+import { Card, ConfirmationButton, MissingDataState, OutlineButton } from '../../components/ui';
 import { colors, spacing, typography } from '../../theme';
 
 export default function TransferReviewScreen({ navigation, route }) {
-  const transfer = route.params?.transfer; if (!transfer) return null; const b = transfer.beneficiary;
+  const transfer = route.params?.transfer; if (!transfer) return <MissingDataState navigation={navigation} title="Revisar transferência" />; const b = transfer.beneficiary;
   return <TransferLayout navigation={navigation} title="Revisar transferência"><Text style={styles.intro}>Confira os dados antes de confirmar</Text><Card style={styles.card}><TransferInfoRow label="Valor" value={`R$ ${transfer.amount}`} /><TransferInfoRow label="Favorecido" value={b.name} /><TransferInfoRow label="CPF/CNPJ" value={b.document} /><TransferInfoRow label="Banco" value={b.bank} /><TransferInfoRow label="Agência e conta" value={`${b.agency} · ${b.account}-${b.digit}`} /><TransferInfoRow label="Finalidade" value={transfer.purpose} />{transfer.description ? <TransferInfoRow label="Descrição" value={transfer.description} /> : null}<TransferInfoRow label="Data" value={transfer.scheduled ? transfer.date : 'Hoje'} /><TransferInfoRow label="Tarifa" value={`R$ ${transfer.fee}`} last /></Card><ConfirmationButton onPress={() => navigation.navigate('TransferAuthorization', { transfer })}>Confirmar dados</ConfirmationButton><OutlineButton onPress={() => navigation.goBack()} style={styles.cancel}>Voltar e editar</OutlineButton></TransferLayout>;
 }
 const styles = StyleSheet.create({ intro: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.lg, textAlign: 'center' }, card: { marginBottom: spacing.xl, padding: spacing.lg }, cancel: { marginTop: spacing.md } });

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import PixLayout, { PIX_COLORS } from '../../components/pix/PixLayout';
 import { InfoRow, PixButton, PixField } from '../../components/pix/PixForm';
+import { MissingDataState } from '../../components/ui';
 
 export default function PixAuthorizationScreen({ navigation, route }) {
   const transfer = route.params?.transfer;
@@ -32,7 +33,7 @@ export default function PixAuthorizationScreen({ navigation, route }) {
     navigation.replace('PixReceipt', { transfer });
   };
 
-  if (!transfer) return null;
+  if (!transfer) return <MissingDataState navigation={navigation} title="Autorizar Pix" />;
 
   return (
     <PixLayout navigation={navigation} title="Confirmar PIX">

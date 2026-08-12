@@ -3,9 +3,9 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors, radii, shadows, spacing, typography } from '../../theme';
 import Badge from './Badge';
 
-export default function ServiceCard({ badge, icon, label, onPress, style }) {
+export default function ServiceCard({ badge, disabled = false, icon, label, onPress, style }) {
   return (
-    <TouchableOpacity activeOpacity={0.78} onPress={onPress} style={[styles.card, shadows.soft, style]}>
+    <TouchableOpacity accessibilityState={{ disabled }} activeOpacity={0.78} disabled={disabled} onPress={onPress} style={[styles.card, shadows.soft, disabled && styles.disabled, style]}>
       {badge ? <Badge style={styles.badge}>{badge}</Badge> : null}
       <View style={styles.iconContainer}>{icon}</View>
       <Text numberOfLines={2} style={styles.label}>{label}</Text>
@@ -27,4 +27,5 @@ const styles = StyleSheet.create({
   iconContainer: { alignItems: 'center', backgroundColor: 'rgba(94, 107, 255, 0.14)', borderRadius: radii.md, height: 42, justifyContent: 'center', marginBottom: spacing.sm, width: 42 },
   label: { ...typography.label, color: colors.textPrimary, textAlign: 'center' },
   badge: { position: 'absolute', right: spacing.sm, top: spacing.sm },
+  disabled: { opacity: 0.5 },
 });

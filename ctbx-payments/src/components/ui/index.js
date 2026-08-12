@@ -7,6 +7,7 @@ export { default as ConfirmationButton } from './ConfirmationButton';
 export { default as Divider } from './Divider';
 export { default as IconButton } from './IconButton';
 export { default as ModalSheet } from './ModalSheet';
+export { default as MissingDataState } from './MissingDataState';
 export { default as OutlineButton } from './OutlineButton';
 export { default as PrimaryButton } from './PrimaryButton';
 export { default as Screen } from './Screen';

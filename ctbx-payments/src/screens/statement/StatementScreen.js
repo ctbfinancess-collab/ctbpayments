@@ -15,7 +15,7 @@ export default function StatementScreen({ navigation, route }) {
     const applied = route.params?.appliedFilters;
     if (applied) { setCategory(applied.category); setDirection(applied.direction); setEndDate(applied.endDate); setPeriod(applied.period); setStartDate(applied.startDate); }
   }, [route.params?.filterVersion]);
-  const filtered = useMemo(() => filterTransactions(source, { category, direction, endDate, period, query, startDate }), [source, category, direction, endDate, period, query, startDate]); const visible = filtered.slice(0, limit); const groups = groupTransactionsByDate(visible); const total = filtered.reduce((sum, item) => sum + (item.direction === 'entrada' ? item.amount : -item.amount), 0);
+  const filtered = useMemo(() => filterTransactions(source, { applyPastPeriod: area === 'statement', category, direction, endDate, period, query, startDate }), [source, area, category, direction, endDate, period, query, startDate]); const visible = filtered.slice(0, limit); const groups = groupTransactionsByDate(visible); const total = filtered.reduce((sum, item) => sum + (item.direction === 'entrada' ? item.amount : -item.amount), 0);
   const exportStatement = (format) => Alert.alert(`Exportar ${format}`, `A geração real de ${format} depende da API do extrato.`);
   return <StatementLayout navigation={navigation} title="Extrato">
     <BalanceCard label="Saldo da conta digital" onToggleVisibility={() => setVisibleBalance((v) => !v)} value={MOCK_STATEMENT_BALANCE} variant="blue" visible={visibleBalance} />

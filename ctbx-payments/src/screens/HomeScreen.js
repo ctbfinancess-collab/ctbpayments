@@ -61,8 +61,8 @@ const MOCK_CARDS = [
     id: 'financial',
     type: 'FINANCEIRO',
     label: 'Mastercard - Crédito',
-    lastFourDigits: '4321',
-    holderName: 'CLIENTE CTBX',
+    lastFourDigits: '0000',
+    holderName: 'CLIENTE DEMONSTRAÇÃO',
     expiration: '12/29',
     logo: require('../../assets/legacy/assets_images_master.png'),
   },
@@ -70,7 +70,7 @@ const MOCK_CARDS = [
     id: 'transport',
     type: 'TRANSPORTE',
     label: 'Cartão TOP',
-    lastFourDigits: '9876',
+    lastFourDigits: '0000',
     balance: 'R$ 38,50',
     logo: require('../../assets/legacy/assets_images_top.png'),
   },
@@ -167,6 +167,12 @@ const HOME_PROMOTION_CARDS = [
 ];
 
 const HOME_MODAL_ITEMS = HOME_SECTIONS.flatMap((section) => section.items);
+const HOME_ROUTE_BY_KEY = {
+  1: ['Pix'], 3: ['Investments'], 7: ['Transfers'], 8: ['Payments'], 10: ['Statement'],
+  11: ['BillingStart'], 13: ['ServiceReceipts'], 26: ['Profile'],
+  27: ['ServiceInfo', { type: 'fees' }], 31: ['ServiceInfo', { type: 'help' }],
+  39: ['ConsignedCredit'], 43: ['CardRecharge', { transport: true }],
+};
 
 // MOCK TEMPORARIO: no APK esta lista e recuperada do AsyncStorage por conta e
 // posteriormente sincronizada com a API `favorito/novo`.
@@ -207,7 +213,7 @@ function FavoriteListRow({ item, selected, onPress }) {
   );
 }
 
-function ServiceGrid({ items, editable = false, selectedKeys = [], onToggle }) {
+function ServiceGrid({ items, editable = false, selectedKeys = [], onItemPress, onToggle }) {
   return (
     <View style={styles.modalGrid}>
       {items.map((item) => {
@@ -216,9 +222,8 @@ function ServiceGrid({ items, editable = false, selectedKeys = [], onToggle }) {
           <TouchableOpacity
             key={item.key}
             activeOpacity={0.8}
-            // MOCK TEMPORARIO: as rotas NavScreen recuperadas ainda nao existem
-            // no navigator Expo; no modo editavel o toque altera o favorito.
-            onPress={editable ? () => onToggle(item.key) : undefined}
+            disabled={!editable && !HOME_ROUTE_BY_KEY[item.key]}
+            onPress={editable ? () => onToggle(item.key) : HOME_ROUTE_BY_KEY[item.key] ? () => onItemPress(item) : null}
             style={styles.modalGridItemWrapper}
           >
             <View style={styles.modalGridItem}>
@@ -284,7 +289,7 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.safeArea}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Olá, Elma</Text>
+            <Text style={styles.greeting}>Olá, Cliente</Text>
             <Text style={styles.greetingSubtitle}>Bem-vinda de volta!</Text>
           </View>
           <TouchableOpacity accessibilityLabel="Notificações" activeOpacity={0.7} style={styles.headerAction}>
@@ -319,6 +324,7 @@ export default function HomeScreen({ navigation }) {
                     <BalanceCard
                       actionLabel="Ver extrato"
                       label={balance.description}
+                      onActionPress={() => navigation.navigate(balance.id === 'card' ? 'CardStatement' : balance.id === 'investment' ? 'Investments' : 'Statement')}
                       onToggleVisibility={() => toggleBalance(balance.id)}
                       style={styles.balanceCard}
                       value={balance.value}
@@ -501,15 +507,8 @@ export default function HomeScreen({ navigation }) {
                         <ServiceCard
                           icon={<Text style={styles.serviceIcon}>{item.symbol}</Text>}
                           label={item.label}
-                          onPress={item.key === 1
-                            ? () => navigation.navigate('Pix')
-                            : item.key === 7
-                              ? () => navigation.navigate('Transfers')
-                              : item.key === 8
-                                ? () => navigation.navigate('Payments')
-                                : item.key === 10
-                                  ? () => navigation.navigate('Statement')
-                                  : undefined}
+                          disabled={!HOME_ROUTE_BY_KEY[item.key]}
+                          onPress={HOME_ROUTE_BY_KEY[item.key] ? () => { const [routeName, params] = HOME_ROUTE_BY_KEY[item.key]; navigation.navigate(routeName, params); } : null}
                           style={[
                             styles.serviceItem,
                             isPrimary && styles.serviceItemPrimary,
@@ -681,7 +680,7 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.darkModalSubtitle}>Acesse a função que deseja</Text>
             <View style={styles.darkModalDivider} />
             <View style={styles.moreServicesModalSection}>
-              <ServiceGrid items={HOME_MODAL_ITEMS} />
+              <ServiceGrid items={HOME_MODAL_ITEMS} onItemPress={(item) => { const [routeName, params] = HOME_ROUTE_BY_KEY[item.key]; setMoreServicesVisible(false); navigation.navigate(routeName, params); }} />
             </View>
           </ScrollView>
       </ModalSheet>

@@ -87,6 +87,7 @@ export default function LoginScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.loginButton}
+            // DEMO ONLY / BACKEND REQUIRED: preservado sem autenticação real nesta fase.
             onPress={() => navigation.navigate('Home')}
           >
             <Text style={styles.loginButtonText}>ENTRAR</Text>

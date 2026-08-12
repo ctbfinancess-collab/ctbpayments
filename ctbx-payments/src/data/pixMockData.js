@@ -7,7 +7,7 @@ export const MOCK_PIX_BENEFICIARY = {
   bank: 'BANCO DE DEMONSTRAÇÃO',
   agency: '0001',
   account: '000000-0',
-  document: '00000000000',
+  document: '***.***.***-**',
   accountType: 'Conta corrente',
 };
 
@@ -15,22 +15,22 @@ export const MOCK_PIX_FAVORITES = [
   {
     id: 'favorite-1',
     name: 'Contato de demonstração',
-    key: 'contato@example.com',
+    key: 'favorecido.demo@ctbx.app',
     bank: 'BANCO DE DEMONSTRAÇÃO',
     type: 'email',
   },
   {
     id: 'favorite-2',
     name: 'Empresa de demonstração',
-    key: '00.000.000/0001-00',
+    key: '**.***.***/****-**',
     bank: 'INSTITUIÇÃO PIX MOCK',
     type: 'cnpj',
   },
 ];
 
 export const MOCK_PIX_KEYS = [
-  { id: 'key-1', type: 'E-mail', value: 'usuario@example.com', status: 'Ativo' },
-  { id: 'key-2', type: 'Celular', value: '+55 (11) 90000-0000', status: 'Ativo' },
+  { id: 'key-1', type: 'E-mail', value: 'cliente.demo@ctbx.app', status: 'Ativo' },
+  { id: 'key-2', type: 'Celular', value: '+55 (**) *****-****', status: 'Ativo' },
 ];
 
 export const PIX_KEY_TYPES = [
