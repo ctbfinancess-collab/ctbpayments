@@ -12,6 +12,8 @@ const spacing = {
   screenHorizontal: 20,
   screenVertical: 16,
   section: 24,
+  control: 14,
+  screenBottom: 32,
 };
 
 export default spacing;

@@ -1,238 +1,60 @@
-import React, { useState } from 'react';
-import {
-  Alert,
-  Image,
-  ImageBackground,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import React, { useRef, useState } from 'react';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import AuthLayout from '../components/auth/AuthLayout';
+import { FormField, Icon, PrimaryButton } from '../components/ui';
 import { isDemoMode, isProductionMode, isSandboxMode } from '../config';
 import { useSession } from '../session';
+import { colors, radii, spacing, typography } from '../theme';
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [attempted, setAttempted] = useState(false);
+  const passwordInputRef = useRef(null);
   const { login } = useSession();
+  const emailError = attempted && !email.trim() ? 'Informe seu e-mail.' : '';
+  const passwordError = attempted && !senha ? 'Informe sua senha.' : '';
 
   const handleLogin = async () => {
-    if ((isProductionMode || isSandboxMode) && (!email.trim() || !senha)) return Alert.alert('Preencha e-mail e senha');
+    setAttempted(true);
+    if ((isProductionMode || isSandboxMode) && (!email.trim() || !senha)) return;
     setSubmitting(true);
     try { await login({ email: email.trim(), password: senha }); }
     catch (error) {
       const message = error.code === 'AUTH_INVALID_CREDENTIALS'
-        ? 'E-mail ou senha sandbox inválidos.'
+        ? 'E-mail ou senha inválidos.'
         : error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT'
-          ? 'O BFF sandbox não está acessível. Verifique a configuração local.'
-          : error.status === 503 ? 'O ambiente sandbox está temporariamente indisponível.' : 'Não foi possível iniciar a sessão.';
+          ? 'Não foi possível acessar o serviço. Verifique sua conexão.'
+          : error.status === 503 ? 'O serviço está temporariamente indisponível.' : 'Não foi possível iniciar a sessão.';
       Alert.alert('Não foi possível entrar', message);
-    }
-    finally { setSubmitting(false); }
+    } finally { setSubmitting(false); }
   };
 
   return (
-    <ImageBackground
-      source={require('../../assets/legacy/assets_images_fundo3.png')}
-      style={styles.background}
-      resizeMode="cover"
-    >
-      <StatusBar style="light" />
-
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          <Image
-            source={require('../../assets/ctbx-payments-logo.jpeg')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-
-          <Text style={styles.welcome}>Acesse sua conta</Text>
-          {isDemoMode ? <Text style={styles.demoNotice}>Ambiente de demonstração · nenhuma operação bancária real</Text> : null}
-          {isSandboxMode ? <Text style={styles.sandboxNotice}>AMBIENTE SANDBOX · DADOS FICTÍCIOS</Text> : null}
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>E-MAIL</Text>
-
-            <View style={styles.inputBox}>
-              <Text style={styles.icon}>✉</Text>
-
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="digite seu e-mail"
-                placeholderTextColor="#687278"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                style={styles.input}
-              />
-            </View>
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.label}>SENHA</Text>
-
-            <View style={styles.inputBox}>
-              <Text style={styles.icon}>◉</Text>
-
-              <TextInput
-                value={senha}
-                onChangeText={setSenha}
-                placeholder="digite sua senha"
-                placeholderTextColor="#687278"
-                keyboardType={isDemoMode ? 'numeric' : 'default'}
-                secureTextEntry={!mostrarSenha}
-                maxLength={isDemoMode ? 6 : undefined}
-                style={styles.input}
-              />
-
-              <TouchableOpacity
-                onPress={() => setMostrarSenha(!mostrarSenha)}
-                style={styles.eyeButton}
-              >
-                <Text style={styles.eye}>
-                  {mostrarSenha ? '◉' : '◎'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.forgot}>
-            <Text style={styles.forgotText}>Esqueceu sua senha?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            disabled={submitting}
-            style={styles.loginButton}
-            // DEMO ONLY / BACKEND REQUIRED: produção não possui bypass.
-            onPress={handleLogin}
-          >
-            <Text style={styles.loginButtonText}>{submitting ? 'ENTRANDO…' : isDemoMode ? 'ENTRAR NO MODO DEMONSTRAÇÃO' : 'ENTRAR'}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </ImageBackground>
+    <AuthLayout backgroundSource={require('../../assets/ctbx-login-background.png')} eyebrow="CTBX PAYMENTS" footer={false} premium subtitle="Seu mundo financeiro em um só lugar." title="Bem-vinda de volta.">
+      <View style={styles.formCard}>
+        <FormField autoCapitalize="none" autoCorrect={false} error={emailError} icon="mail-outline" keyboardType="email-address" label="E-mail" onChangeText={setEmail} onSubmitEditing={() => passwordInputRef.current?.focus()} placeholder="seu@email.com" premium returnKeyType="next" value={email} />
+        <FormField error={passwordError} icon="lock-closed-outline" inputRef={passwordInputRef} keyboardType={isDemoMode ? 'numeric' : 'default'} label="Senha" maxLength={isDemoMode ? 6 : undefined} onChangeText={setSenha} onRightAction={() => { setMostrarSenha((current) => !current); requestAnimationFrame(() => passwordInputRef.current?.focus()); }} placeholder="Digite sua senha" premium rightActionLabel={mostrarSenha ? 'Ocultar' : 'Mostrar'} secureTextEntry={!mostrarSenha} value={senha} />
+        <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgot}><Text style={styles.forgotText}>Esqueci minha senha</Text></TouchableOpacity>
+        <PrimaryButton disabled={submitting} loading={submitting} onPress={handleLogin} style={styles.enter}>ENTRAR</PrimaryButton>
+        {isSandboxMode ? <View style={styles.environmentRow}><Icon color={colors.textMuted} name="shield-checkmark-outline" size={16} /><Text style={styles.environment}>Ambiente de testes · dados exclusivamente fictícios</Text></View> : null}
+      </View>
+      <Text style={styles.client}>Ainda não é cliente?</Text>
+      <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('Onboarding')} style={styles.openAccount}><Text style={styles.openAccountText}>Abra sua conta →</Text></TouchableOpacity>
+    </AuthLayout>
   );
 }
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-    backgroundColor: '#0A0E12',
-  },
-
-  safeArea: {
-    flex: 1,
-  },
-
-  container: {
-    flex: 1,
-    width: '90%',
-    alignSelf: 'center',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  logo: {
-    width: '96%',
-    maxWidth: 420,
-    height: 180,
-    marginBottom: 20,
-  },
-
-  welcome: {
-    color: '#DDE5E8',
-    fontSize: 18,
-    fontWeight: '300',
-    marginBottom: 28,
-    textAlign: 'center',
-  },
-  demoNotice: { color: '#FFB45B', fontSize: 11, marginBottom: 18, textAlign: 'center' },
-  sandboxNotice: { color: '#AAB2FF', fontSize: 11, fontWeight: '700', letterSpacing: 0.5, marginBottom: 18, textAlign: 'center' },
-
-  fieldGroup: {
-    width: '100%',
-    marginBottom: 15,
-  },
-
-  label: {
-    color: '#A7B0B5',
-    fontSize: 11,
-    fontWeight: 'bold',
-    letterSpacing: 0.6,
-    marginBottom: 7,
-    marginLeft: 4,
-  },
-
-  inputBox: {
-    width: '100%',
-    minHeight: 56,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.055)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-  },
-
-  icon: {
-    color: '#7E8A90',
-    fontSize: 20,
-    width: 30,
-  },
-
-  input: {
-    flex: 1,
-    color: '#E6ECEF',
-    fontSize: 15,
-  },
-
-  eyeButton: {
-    width: 42,
-    height: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  eye: {
-    color: '#7E8A90',
-    fontSize: 20,
-  },
-
-  forgot: {
-    width: '100%',
-    alignItems: 'flex-end',
-    marginTop: 2,
-  },
-
-  forgotText: {
-    color: '#A7B0B5',
-    fontSize: 13,
-    fontWeight: '500',
-    paddingVertical: 8,
-  },
-
-  loginButton: {
-    width: '100%',
-    height: 54,
-    borderRadius: 12,
-    backgroundColor: '#2F5B62',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-
-  loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
+  formCard: { backgroundColor: 'rgba(11, 28, 51, 0.82)', borderColor: 'rgba(91, 135, 187, 0.28)', borderRadius: 20, borderWidth: 1, padding: spacing.lg },
+  forgot: { alignSelf: 'flex-end', marginTop: -spacing.xs, paddingVertical: spacing.sm },
+  forgotText: { ...typography.bodyMedium, color: colors.purple400 },
+  enter: { borderRadius: 15, marginTop: spacing.sm, minHeight: 52 },
+  environmentRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'center', marginTop: spacing.md },
+  environment: { ...typography.caption, color: colors.textMuted, marginLeft: spacing.sm, textAlign: 'center' },
+  client: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xl, textAlign: 'center' },
+  openAccount: { alignSelf: 'center', borderBottomColor: colors.orange500, borderBottomWidth: 1, marginTop: spacing.xs, padding: spacing.sm },
+  openAccountText: { ...typography.heading3, color: colors.orange500 },
 });

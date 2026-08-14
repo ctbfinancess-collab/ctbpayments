@@ -11,7 +11,23 @@ import {
 } from 'react-native';
 
 import { colors, radii, shadows, spacing, typography } from '../../theme';
+import Icon from './Icon';
 import IconButton from './IconButton';
+
+// No Web, o `Modal` do React Native "porta" pra fora da árvore normal (perto
+// de `document.body`) e ignora a moldura de celular (`WebFrame`, ver
+// App.js) — o sheet acaba ocupando a largura inteira do navegador em vez de
+// ficar contido no card. Como native-modal só existe de verdade em
+// iOS/Android, no Web trocamos por uma `View` absoluta comum: sem portal,
+// ela fica dentro da árvore normal e é contida pelo `position: relative` +
+// `overflow: hidden` da própria moldura.
+const ModalContainer = Platform.OS === 'web'
+  ? ({ children, visible }) => (visible ? <View style={styles.webModalRoot}>{children}</View> : null)
+  : ({ children, onRequestClose, visible }) => (
+    <Modal animationType="slide" onRequestClose={onRequestClose} statusBarTranslucent transparent visible={visible}>
+      {children}
+    </Modal>
+  );
 
 export default function ModalSheet({
   visible,
@@ -19,22 +35,15 @@ export default function ModalSheet({
   title,
   children,
   footer,
-  closeContent = '×',
+  closeContent,
   dismissOnBackdrop = true,
-  animationType = 'slide',
   contentStyle,
   testID,
 }) {
   const handleBackdropPress = dismissOnBackdrop ? onClose : undefined;
 
   return (
-    <Modal
-      animationType={animationType}
-      onRequestClose={onClose}
-      statusBarTranslucent
-      transparent
-      visible={visible}
-    >
+    <ModalContainer onRequestClose={onClose} visible={visible}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={styles.overlay}
@@ -54,7 +63,7 @@ export default function ModalSheet({
                     size={36}
                     variant="ghost"
                   >
-                    <Text style={styles.closeText}>{closeContent}</Text>
+                    {closeContent || <Icon color={colors.textPrimary} name="close" size={22} />}
                   </IconButton>
                 ) : (
                   <View style={styles.headerSpacer} />
@@ -66,11 +75,12 @@ export default function ModalSheet({
           </View>
         </SafeAreaView>
       </KeyboardAvoidingView>
-    </Modal>
+    </ModalContainer>
   );
 }
 
 const styles = StyleSheet.create({
+  webModalRoot: { ...StyleSheet.absoluteFillObject, zIndex: 1000 },
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
@@ -113,16 +123,10 @@ const styles = StyleSheet.create({
   title: {
     color: colors.textPrimary,
     flex: 1,
-    fontFamily: typography.fontFamily.semiBold,
+    fontFamily: typography.fontFamily.semibold,
     fontSize: typography.fontSize.lg,
     lineHeight: typography.lineHeight.lg,
     textAlign: 'center',
-  },
-  closeText: {
-    color: colors.textPrimary,
-    fontFamily: typography.fontFamily.regular,
-    fontSize: 26,
-    lineHeight: 28,
   },
   content: {
     paddingHorizontal: spacing.xl,

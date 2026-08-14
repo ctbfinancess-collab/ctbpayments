@@ -1,3 +1,4 @@
+export { default as AppBackground } from './AppBackground';
 export { default as AppHeader } from './AppHeader';
 export { default as Badge } from './Badge';
 export { default as BalanceCard } from './BalanceCard';
@@ -8,6 +9,8 @@ export { default as Divider } from './Divider';
 export { default as DemoEnvironmentBadge } from './DemoEnvironmentBadge';
 export { default as EmptyState } from './EmptyState';
 export { default as ErrorState } from './ErrorState';
+export { default as FormField } from './FormField';
+export { default as Icon } from './Icon';
 export { default as IconButton } from './IconButton';
 export { default as ModalSheet } from './ModalSheet';
 export { default as MissingDataState } from './MissingDataState';

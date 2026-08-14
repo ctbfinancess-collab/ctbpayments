@@ -20,10 +20,20 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.ctbx.payments"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "2231d823-7819-4760-9da2-41bee0d6cf3c"
+      }
+    },
+    "owner": "ctbxpaymentss-team",
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
