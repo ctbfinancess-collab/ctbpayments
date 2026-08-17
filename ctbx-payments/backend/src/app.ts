@@ -53,8 +53,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   });
 
   await app.register(helmet, { contentSecurityPolicy: false });
+  // Em staging e production, só as origens listadas em CORS_ORIGINS
+  // (comma-separated) são aceitas — nunca origin:true/'*'. Sem a variável
+  // definida, nenhuma origem é aceita (comportamento seguro por padrão).
+  // Em development/test, mantém a regex de desenvolvimento local inalterada.
+  const requiresExplicitCorsOrigins = config.nodeEnv === 'staging' || config.nodeEnv === 'production';
   await app.register(cors, {
-    origin: config.nodeEnv === 'production' ? false : /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
+    origin: requiresExplicitCorsOrigins ? config.corsOrigins : /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
     credentials: false,
   });
   app.addHook('onRequest', async (request, reply) => { reply.header('x-request-id', request.id); });

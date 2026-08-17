@@ -15,3 +15,14 @@ test('production defaults to loopback and allows an explicit deployment host', (
 test('invalid hosts are rejected', () => {
   assert.throws(() => loadConfig({ NODE_ENV: 'development', HOST: 'host with spaces' }), /HOST/);
 });
+
+test('staging is an accepted NODE_ENV and binds like development by default', () => {
+  const config = loadConfig({ NODE_ENV: 'staging' });
+  assert.equal(config.nodeEnv, 'staging');
+  assert.equal(config.host, '0.0.0.0');
+});
+
+test('CORS_ORIGINS is parsed into a trimmed, comma-separated list', () => {
+  assert.deepEqual(loadConfig({ NODE_ENV: 'staging', CORS_ORIGINS: ' https://app.ctbxpayments.com , http://localhost:19006 ' }).corsOrigins, ['https://app.ctbxpayments.com', 'http://localhost:19006']);
+  assert.deepEqual(loadConfig({ NODE_ENV: 'staging' }).corsOrigins, []);
+});
