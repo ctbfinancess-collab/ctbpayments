@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Icon } from '../../components/ui';
 import { radii, spacing, typography } from '../../theme';
 import adminColors from '../theme/adminColors';
@@ -23,6 +23,7 @@ export const ADMIN_NAV_SECTIONS = [
   { id: 'admin_users', label: 'Usuários administrativos', icon: 'person-circle-outline' },
   { id: 'settings', label: 'Configurações', icon: 'settings-outline' },
   { id: 'audit', label: 'Logs / Auditoria', icon: 'reader-outline' },
+  { id: 'cms', label: 'Conteúdo / CMS', icon: 'create-outline' },
 ];
 
 export default function AdminSidebar({ activeSection, onSelect }) {
@@ -32,7 +33,7 @@ export default function AdminSidebar({ activeSection, onSelect }) {
         <Text style={styles.logoText}>CTBX</Text>
         <Text style={styles.logoSubtext}>PAYMENTS</Text>
       </View>
-      <View style={styles.nav}>
+      <ScrollView contentContainerStyle={styles.nav} showsVerticalScrollIndicator={false} style={styles.navScroll}>
         {ADMIN_NAV_SECTIONS.map((section) => {
           const active = section.id === activeSection;
           return (
@@ -48,7 +49,7 @@ export default function AdminSidebar({ activeSection, onSelect }) {
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
       <View style={styles.footer}>
         <Text style={styles.footerText}>CTBX PAYMENTS</Text>
         <Text style={styles.footerVersion}>Admin v0.1.0 · estrutural</Text>
@@ -62,7 +63,10 @@ const styles = StyleSheet.create({
   logoArea: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, paddingHorizontal: spacing.lg, marginBottom: spacing.xl },
   logoText: { ...typography.heading2, color: adminColors.textPrimary, letterSpacing: 0.5 },
   logoSubtext: { ...typography.caption, color: adminColors.textMuted, letterSpacing: 1.5 },
-  nav: { flex: 1, gap: spacing.xs, paddingHorizontal: spacing.md },
+  // ScrollView própria pra lista de navegação — cresce com os itens e rola
+  // internamente, sem nunca espremer ou sobrepor o rodapé fixo abaixo dela.
+  navScroll: { flex: 1 },
+  nav: { gap: spacing.xs, paddingBottom: spacing.md, paddingHorizontal: spacing.md },
   navItem: { alignItems: 'center', borderRadius: radii.md, flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   navItemActive: { backgroundColor: adminColors.infoSoft, borderColor: 'rgba(119, 105, 232, 0.35)', borderWidth: 1 },
   navIcon: { marginRight: spacing.sm, width: 18 },

@@ -11,13 +11,19 @@ import AdminTransfersScreen from './screens/AdminTransfersScreen';
 import AdminPaymentsScreen from './screens/AdminPaymentsScreen';
 import AdminInvestmentsScreen from './screens/AdminInvestmentsScreen';
 import AdminCardsScreen from './screens/AdminCardsScreen';
+import AdminLimitsScreen from './screens/AdminLimitsScreen';
+import AdminFeesScreen from './screens/AdminFeesScreen';
+import AdminReportsScreen from './screens/AdminReportsScreen';
+import AdminUsersScreen from './screens/AdminUsersScreen';
+import AdminSettingsScreen from './screens/AdminSettingsScreen';
+import AdminAuditScreen from './screens/AdminAuditScreen';
+import AdminCmsScreen from './screens/AdminCmsScreen';
 import adminColors from './theme/adminColors';
 import { radii, spacing, typography } from '../theme';
 
-// Seções com tela própria nesta etapa. As demais (Transferências, Pagamentos,
-// Investimentos, Cartões, Limites, Tarifas, Relatórios, Usuários
-// administrativos, Configurações, Logs/Auditoria) seguem no placeholder
-// "Em breve" até serem implementadas numa próxima etapa aprovada.
+// Todas as seções da estrutura administrativa têm tela própria a partir
+// desta etapa — o placeholder "Em breve" abaixo fica só como salvaguarda
+// para uma futura seção nova ainda não mapeada aqui.
 const SECTION_SCREENS = {
   dashboard: AdminDashboardScreen,
   clients: AdminClientsScreen,
@@ -28,6 +34,13 @@ const SECTION_SCREENS = {
   payments: AdminPaymentsScreen,
   investments: AdminInvestmentsScreen,
   cards: AdminCardsScreen,
+  limits: AdminLimitsScreen,
+  fees: AdminFeesScreen,
+  reports: AdminReportsScreen,
+  admin_users: AdminUsersScreen,
+  settings: AdminSettingsScreen,
+  audit: AdminAuditScreen,
+  cms: AdminCmsScreen,
 };
 
 // Raiz isolada do Painel Administrativo — não usa WebFrame, SessionProvider
