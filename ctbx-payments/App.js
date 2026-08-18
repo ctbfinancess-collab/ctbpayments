@@ -8,6 +8,8 @@ import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, P
 // qualquer tela renderizar.
 import './src/utils/webAlertPolyfill';
 
+import AdminApp from './src/admin/AdminApp';
+
 import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
 import OnboardingScreen from './src/screens/auth/OnboardingScreen';
@@ -74,6 +76,9 @@ import ConsignedRequestScreen from './src/screens/services/credit/ConsignedReque
 import ConsignedStatusScreen from './src/screens/services/credit/ConsignedStatusScreen';
 import ServiceReceiptsScreen from './src/screens/services/ServiceReceiptsScreen';
 import ServiceInfoScreen from './src/screens/services/ServiceInfoScreen';
+import ServiceProductScreen from './src/screens/services/products/ServiceProductScreen';
+import ServiceProductRequestScreen from './src/screens/services/products/ServiceProductRequestScreen';
+import ServiceProductStatusScreen from './src/screens/services/products/ServiceProductStatusScreen';
 import ProfileScreen from './src/screens/profile/ProfileScreen';
 import ProfilePersonalDataScreen from './src/screens/profile/ProfilePersonalDataScreen';
 import ProfileAccountDataScreen from './src/screens/profile/ProfileAccountDataScreen';
@@ -157,6 +162,9 @@ function AuthenticatedStack() {
         <Stack.Screen name="ConsignedStatus" component={ConsignedStatusScreen} />
         <Stack.Screen name="ServiceReceipts" component={ServiceReceiptsScreen} />
         <Stack.Screen name="ServiceInfo" component={ServiceInfoScreen} />
+        <Stack.Screen name="ServiceProduct" component={ServiceProductScreen} />
+        <Stack.Screen name="ServiceProductRequest" component={ServiceProductRequestScreen} />
+        <Stack.Screen name="ServiceProductStatus" component={ServiceProductStatusScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="ProfilePersonalData" component={ProfilePersonalDataScreen} />
         <Stack.Screen name="ProfileAccountData" component={ProfileAccountDataScreen} />
@@ -204,6 +212,12 @@ export default function App() {
   // Se a fonte falhar ao carregar (ex.: offline na primeira instalação), seguimos
   // com o fallback do sistema em vez de travar o app numa tela de carregamento.
   if (!fontsLoaded && !fontError) return <LoadingState label="Preparando identidade visual…" />;
+  // Painel Administrativo: árvore totalmente separada da área do cliente,
+  // sem WebFrame (precisa da largura cheia do desktop, não da moldura de
+  // celular) e sem a sessão/navegação do app cliente. Só existe no Web.
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    return <AdminApp />;
+  }
   return (
     <WebFrame>
       <SessionProvider>

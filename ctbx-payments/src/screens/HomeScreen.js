@@ -84,9 +84,9 @@ const BALANCE_TILE_ROUTE = { digital: 'Statement', investment: 'Investments', us
 const BALANCE_TILE_WIDTH = 132;
 
 const HOME_PROMOTION_CARDS = [
-  { id: 'salary_advance', audience: 'PF', title: 'Antecipação Salarial', text: 'Seu salário não precisa esperar o dia 5. Antecipe até R$ 1.200 do seu saldo hoje.', buttonText: 'Antecipar Agora', route: 'NavScreen176', image: require('../../assets/legacy/assets_images_credit_antecipacaosalarial.webp') },
+  { id: 'salary_advance', audience: 'PF', title: 'Antecipação Salarial', text: 'Seu salário não precisa esperar o dia 5. Antecipe até R$ 1.200 do seu saldo hoje.', buttonText: 'Antecipar Agora', route: 'NavScreen176', image: require('../../assets/ctbx-campaign-antecipacao-salarial.png') },
   { id: 'working_capital', audience: 'PJ', title: 'Capital de Giro', text: 'Capital de Giro sob medida para a sua empresa crescer. Simule até R$ 50 mil em parcelas fixas.', buttonText: 'Simular Giro', route: 'NavScreen179', image: require('../../assets/legacy/assets_images_pj_capitalgiro.webp') },
-  { id: 'refer_and_earn', audience: 'ALL', title: 'Indique e Ganhe', text: 'Amigo CTB vale ouro! Compartilhe seu código de indicação e ganhe R$ 20 de cashback após a ativação.', buttonText: 'Indicar Agora', route: 'NavScreen87', image: require('../../assets/legacy/assets_images_indique.jpg') },
+  { id: 'refer_and_earn', audience: 'ALL', title: 'Indique e Ganhe', text: 'Amigo CTB vale ouro! Compartilhe seu código de indicação e ganhe R$ 20 de cashback após a ativação.', buttonText: 'Indicar Agora', route: 'NavScreen87', image: require('../../assets/ctbx-campaign-indique-e-ganhe.png') },
 ];
 
 function formatTransactionAmount(transaction) {
@@ -191,6 +191,12 @@ const HOME_ROUTE_BY_KEY = {
   11: ['BillingStart'], 13: ['ServiceReceipts'], 26: ['Profile'],
   27: ['ServiceInfo', { type: 'fees' }], 31: ['ServiceInfo', { type: 'help' }],
   39: ['ConsignedCredit'], 43: ['CardRecharge', { transport: true }],
+  37: ['ServiceProduct', { productId: 'salary_advance' }],
+  38: ['ServiceProduct', { productId: 'benefits' }],
+  40: ['ServiceProduct', { productId: 'working_capital' }],
+  41: ['ServiceProduct', { productId: 'receivables_advance' }],
+  42: ['ServiceProduct', { productId: 'pos_tapon' }],
+  22: ['ServiceProduct', { productId: 'digital_microcredit' }],
 };
 
 // MOCK TEMPORARIO: no APK esta lista e recuperada do AsyncStorage por conta e
@@ -476,7 +482,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.campaignsModule}>
             <View style={styles.sectionHeadingRow}><Text style={styles.sectionHeading}>Campanhas</Text><TouchableOpacity onPress={() => navigation.navigate('Services')}><Text style={styles.sectionAction}>Ver todas</Text></TouchableOpacity></View>
             <ScrollView horizontal bounces={false} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.promotionScrollContent}>
-              {visiblePromotionCards.map((promotion) => <TouchableOpacity key={promotion.id} activeOpacity={0.88} onPress={() => navigation.navigate('Services')} style={[styles.promotionCard, { width: width * 0.72 }]}><Image source={promotion.image} resizeMode="cover" style={styles.promotionImageArea} /><View style={styles.promotionContent}><Text numberOfLines={1} style={styles.promotionTitle}>{promotion.title}</Text><Text numberOfLines={2} style={styles.promotionText}>{promotion.text}</Text><View style={styles.promotionButton}><Text style={styles.promotionButtonText}>{promotion.buttonText}</Text></View></View></TouchableOpacity>)}
+              {visiblePromotionCards.map((promotion) => <TouchableOpacity key={promotion.id} activeOpacity={0.88} onPress={() => promotion.id === 'salary_advance' ? navigation.navigate('ServiceProduct', { productId: 'salary_advance' }) : navigation.navigate('Services')} style={[styles.promotionCard, { width: width * 0.72 }]}><Image source={promotion.image} resizeMode="cover" style={styles.promotionImageArea} /><View style={styles.promotionContent}><Text numberOfLines={1} style={styles.promotionTitle}>{promotion.title}</Text><Text numberOfLines={2} style={styles.promotionText}>{promotion.text}</Text><View style={styles.promotionButton}><Text style={styles.promotionButtonText}>{promotion.buttonText}</Text></View></View></TouchableOpacity>)}
             </ScrollView>
           </View>
         </ScrollView>
@@ -711,7 +717,7 @@ const styles = StyleSheet.create({
   promotionModule: { backgroundColor: 'transparent' },
   promotionScrollContent: { paddingBottom: spacing.xxl, paddingRight: spacing.xl },
   promotionCard: { backgroundColor: HOME_VISUAL.glassStrong, borderColor: HOME_VISUAL.glassBorder, borderRadius: radii.xl, borderWidth: 1, marginRight: spacing.lg, overflow: 'hidden', ...HOME_CARD_SHADOW },
-  promotionImageArea: { height: 92, width: '100%' },
+  promotionImageArea: { height: 224, width: '100%' },
   promotionContent: { padding: spacing.lg },
   promotionTitle: { ...typography.heading3, color: colors.textPrimary, marginBottom: spacing.xs },
   promotionText: { ...typography.caption, color: colors.textSecondary, height: 48, lineHeight: 16, marginBottom: spacing.md },

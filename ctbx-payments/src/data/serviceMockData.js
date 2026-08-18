@@ -18,14 +18,14 @@ export const SERVICE_SECTIONS=[
  ],},
  {title:'Produtos',items:[
   {key:39,label:'Crédito Consignado',nav:'NavScreen178',route:'ConsignedCredit',class:'B',icon:'wallet-outline'},
-  {key:38,label:'Benefícios',nav:'NavScreen177',class:'C',icon:'gift-outline'},
-  {key:37,label:'Antecipação Salarial',nav:'NavScreen176',class:'C',icon:'cash-outline'},
+  {key:38,label:'Benefícios',nav:'NavScreen177',route:'ServiceProduct',params:{productId:'benefits'},class:'B',icon:'gift-outline'},
+  {key:37,label:'Antecipação Salarial',nav:'NavScreen176',route:'ServiceProduct',params:{productId:'salary_advance'},class:'B',icon:'cash-outline'},
  ],},
  {title:'Empresas',items:[
-  {key:40,label:'Capital de Giro',nav:'NavScreen179',class:'C',icon:'briefcase-outline'},
-  {key:41,label:'Antecipação de Recebíveis',nav:'NavScreen180',class:'C',icon:'checkmark-done-outline'},
-  {key:42,label:'POS Tapon',nav:'NavScreen181',class:'C',icon:'phone-portrait-outline'},
-  {key:22,label:'Microcrédito Digital',nav:'NavScreen72',class:'C',icon:'sparkles-outline'},
+  {key:40,label:'Capital de Giro',nav:'NavScreen179',route:'ServiceProduct',params:{productId:'working_capital'},class:'B',icon:'briefcase-outline'},
+  {key:41,label:'Antecipação de Recebíveis',nav:'NavScreen180',route:'ServiceProduct',params:{productId:'receivables_advance'},class:'B',icon:'checkmark-done-outline'},
+  {key:42,label:'POS Tapon',nav:'NavScreen181',route:'ServiceProduct',params:{productId:'pos_tapon'},class:'B',icon:'phone-portrait-outline'},
+  {key:22,label:'Microcrédito Digital',nav:'NavScreen72',route:'ServiceProduct',params:{productId:'digital_microcredit'},class:'B',icon:'sparkles-outline'},
  ],},
  {title:'Configurações',items:[
   {key:27,label:'Tarifas',nav:'NavScreen51',route:'ServiceInfo',params:{type:'fees'},class:'B',icon:'pricetag-outline'},
