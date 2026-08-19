@@ -62,6 +62,9 @@ import CardTransactionScreen from './src/screens/cards/CardTransactionScreen';
 import CardReceiptsScreen from './src/screens/cards/CardReceiptsScreen';
 import CardRequestScreen from './src/screens/cards/CardRequestScreen';
 import CardRequestReceiptScreen from './src/screens/cards/CardRequestReceiptScreen';
+import CardVirtualCreateScreen from './src/screens/cards/CardVirtualCreateScreen';
+import CardVirtualDetailsScreen from './src/screens/cards/CardVirtualDetailsScreen';
+import CardVirtualTransactionsScreen from './src/screens/cards/CardVirtualTransactionsScreen';
 import TransportCardScreen from './src/screens/cards/TransportCardScreen';
 import ServicesScreen from './src/screens/services/ServicesScreen';
 import InvestmentsScreen from './src/screens/services/investments/InvestmentsScreen';
@@ -148,6 +151,9 @@ function AuthenticatedStack() {
         <Stack.Screen name="CardReceipts" component={CardReceiptsScreen} />
         <Stack.Screen name="CardRequest" component={CardRequestScreen} />
         <Stack.Screen name="CardRequestReceipt" component={CardRequestReceiptScreen} />
+        <Stack.Screen name="CardVirtualCreate" component={CardVirtualCreateScreen} />
+        <Stack.Screen name="CardVirtualDetails" component={CardVirtualDetailsScreen} />
+        <Stack.Screen name="CardVirtualTransactions" component={CardVirtualTransactionsScreen} />
         <Stack.Screen name="TransportCard" component={TransportCardScreen} />
         <Stack.Screen name="Services" component={ServicesScreen} />
         <Stack.Screen name="Investments" component={InvestmentsScreen} />

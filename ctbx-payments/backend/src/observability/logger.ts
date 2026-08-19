@@ -1,5 +1,5 @@
 const redactPaths = [
-  'req.headers.authorization', 'req.headers.cookie', 'req.body.password', 'req.body.senha',
+  'req.headers.authorization', 'req.headers.cookie', 'req.headers["x-admin-token"]', 'req.body.password', 'req.body.senha',
   'req.body.otp', 'req.body.cvv', 'req.body.token', 'req.body.refreshToken',
   'req.body.pan', 'req.body.document', 'req.body.documento', 'res.headers.set-cookie',
 ];

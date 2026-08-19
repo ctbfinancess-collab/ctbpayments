@@ -24,6 +24,11 @@ const variants = {
     borderColor: colors.whiteAlpha14,
     color: colors.textSecondary,
   },
+  danger: {
+    backgroundColor: colors.dangerAlpha20,
+    borderColor: colors.dangerAlpha45,
+    color: colors.danger,
+  },
 };
 
 export default function Badge({ children, variant = 'primary', style, textStyle }) {

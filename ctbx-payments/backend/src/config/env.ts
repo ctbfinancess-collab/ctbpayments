@@ -7,6 +7,10 @@ export interface AppConfig {
   apiVersion: string;
   logLevel: string;
   corsOrigins: string[];
+  adminApiToken: string | undefined;
+  databaseUrl: string | undefined;
+  adminSessionSecret: string | undefined;
+  sandboxCardEncryptionKey: string | undefined;
 }
 
 const environments = new Set<Environment>(['development', 'test', 'staging', 'production']);
@@ -29,6 +33,23 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   // Em development/test o CORS continua usando a regex fixa de
   // localhost/127.0.0.1, então esta variável só importa em staging/production.
   const corsOrigins = (source.CORS_ORIGINS ?? '').split(',').map((origin) => origin.trim()).filter(Boolean);
+  // Token administrativo (não é segredo do Cloudinary) exigido no header
+  // X-Admin-Token pelas rotas /admin/media/*. Sem ele, essas rotas ficam
+  // indisponíveis (ver requireAdminToken) — nunca há fallback inseguro.
+  const adminApiToken = source.ADMIN_API_TOKEN?.trim() || undefined;
+  // Sem DATABASE_URL, nenhuma rota que depende de Postgres é registrada
+  // (mesmo padrão fail-closed do Cloudinary) — nunca um valor inventado.
+  const databaseUrl = source.DATABASE_URL?.trim() || undefined;
+  // Assina/deriva o hash do token de sessão do admin (ver adminAuthService).
+  // Sem ele, login real fica indisponível.
+  const adminSessionSecret = source.ADMIN_SESSION_SECRET?.trim() || undefined;
+  // Criptografa PAN completo/CVV do cartão virtual SANDBOX (ver
+  // security/cardEncryption.ts). Sem ela, criar/revelar cartão virtual
+  // falha fechado (PROVIDER_NOT_CONFIGURED) em vez de guardar em texto puro.
+  const sandboxCardEncryptionKey = source.SANDBOX_CARD_ENCRYPTION_KEY?.trim() || undefined;
 
-  return { nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins };
+  return {
+    nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins,
+    adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey,
+  };
 }

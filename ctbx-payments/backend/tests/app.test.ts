@@ -9,6 +9,16 @@ import { SANDBOX_EMAIL, SANDBOX_PASSWORD, SandboxAuthProvider } from '../src/pro
 import { SandboxCardProvider } from '../src/providers/sandbox/SandboxCardProvider.js';
 import { SandboxChallengeProvider } from '../src/providers/sandbox/SandboxChallengeProvider.js';
 import { SandboxDeviceBindingProvider } from '../src/providers/sandbox/SandboxDeviceBindingProvider.js';
+import { InMemorySandboxAccountRepository } from '../src/providers/sandbox/InMemorySandboxAccountRepository.js';
+import { InMemoryPhysicalCardRepository } from '../src/providers/sandbox/InMemoryPhysicalCardRepository.js';
+import { InMemorySandboxBillingRepository } from '../src/providers/sandbox/InMemorySandboxBillingRepository.js';
+import { InMemorySandboxConsignedRepository } from '../src/providers/sandbox/InMemorySandboxConsignedRepository.js';
+import { InMemorySandboxInvestmentSimulationRepository } from '../src/providers/sandbox/InMemorySandboxInvestmentSimulationRepository.js';
+import { InMemorySandboxLedgerRepository } from '../src/providers/sandbox/InMemorySandboxLedgerRepository.js';
+import { InMemorySandboxPixKeyRepository } from '../src/providers/sandbox/InMemorySandboxPixKeyRepository.js';
+import { InMemorySandboxSessionRepository } from '../src/providers/sandbox/InMemorySandboxSessionRepository.js';
+import { InMemorySandboxValidationRepository } from '../src/providers/sandbox/InMemorySandboxValidationRepository.js';
+import { InMemoryTransportCardRepository } from '../src/providers/sandbox/InMemoryTransportCardRepository.js';
 import { SandboxPixProvider } from '../src/providers/sandbox/SandboxPixProvider.js';
 import { SandboxPaymentProvider } from '../src/providers/sandbox/SandboxPaymentProvider.js';
 import { SandboxSessionStore } from '../src/providers/sandbox/SandboxSessionStore.js';
@@ -17,13 +27,13 @@ import { SandboxInvestmentProvider } from '../src/providers/sandbox/SandboxInves
 import { SandboxBillingProvider } from '../src/providers/sandbox/SandboxBillingProvider.js';
 import { SandboxConsignedProvider } from '../src/providers/sandbox/SandboxConsignedProvider.js';
 
-const testConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [] };
+const testConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [], adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined };
 const loginPayload = { username: SANDBOX_EMAIL, password: SANDBOX_PASSWORD, device: { installationId: 'sbx-installation-test', platform: 'ANDROID' } };
 
 function createProviders(options: { now?: () => number; accessTtlMs?: number } = {}): ProviderRegistry {
-  const sessions = new SandboxSessionStore({ environment: 'test', ...options });
+  const sessions = new SandboxSessionStore(new InMemorySandboxSessionRepository(), { environment: 'test', ...options });
   const deviceBinding = new SandboxDeviceBindingProvider('test');
-  return { sessions, deviceBinding, auth: new SandboxAuthProvider(sessions, deviceBinding, 'test'), account: new SandboxAccountProvider('test') };
+  return { sessions, deviceBinding, auth: new SandboxAuthProvider(sessions, deviceBinding, 'test'), account: new SandboxAccountProvider('test', new InMemorySandboxAccountRepository()) };
 }
 
 async function login(app: Awaited<ReturnType<typeof buildApp>>) {
@@ -298,7 +308,8 @@ test('card reads reject missing auth, device mismatch and unknown resources', as
 });
 
 test('production forbids the sandbox card provider', () => {
-  assert.throws(() => new SandboxCardProvider('production'), /forbidden in production/);
+  const cardAccounts = new InMemorySandboxAccountRepository();
+  assert.throws(() => new SandboxCardProvider('production', cardAccounts, new InMemorySandboxLedgerRepository(cardAccounts), new InMemoryPhysicalCardRepository(), new InMemoryTransportCardRepository()), /forbidden in production/);
 });
 
 test('card activation challenge and state transitions are simulated and controlled', async (t) => {
@@ -386,7 +397,8 @@ test('PIX own keys and receive QR are authenticated, masked and structural only'
 });
 
 test('production forbids the sandbox PIX provider', () => {
-  assert.throws(() => new SandboxPixProvider('production'), /forbidden in production/);
+  const pixAccounts = new InMemorySandboxAccountRepository();
+  assert.throws(() => new SandboxPixProvider('production', pixAccounts, new InMemorySandboxLedgerRepository(pixAccounts), new InMemorySandboxPixKeyRepository(), new InMemorySandboxValidationRepository()), /forbidden in production/);
 });
 
 test('PIX validation enforces beneficiary, integer amount, balance and schedule rules', async (t) => {
@@ -496,7 +508,8 @@ test('transfer reads reject device mismatch and sandbox provider is forbidden in
   const response = await app.inject({ method: 'GET', url: '/v1/transfers/banks', headers: { authorization: `Bearer ${session.accessToken}`, 'x-device-id': 'sbx_dev_wrong' } });
   assert.equal(response.statusCode, 401);
   assert.equal(response.json().error.code, 'AUTH_DEVICE_MISMATCH');
-  assert.throws(() => new SandboxTransferProvider('production'), /forbidden in production/);
+  const transferAccounts = new InMemorySandboxAccountRepository();
+  assert.throws(() => new SandboxTransferProvider('production', transferAccounts, new InMemorySandboxLedgerRepository(transferAccounts), new InMemorySandboxValidationRepository()), /forbidden in production/);
 });
 
 test('verified OTP submits internal and external SANDBOX transfers with detail and receipt', async (t) => {
@@ -641,21 +654,104 @@ test('scheduled and installment SANDBOX payments remain simulated in memory', as
   assert.equal(installment.statusCode, 200); assert.equal(installment.json().data.installments, 2); assert.equal(installment.json().data.simulated, true);
 });
 
+test('PIX, transfer and payment share a single source of truth: each COMPLETED operation debits the real account balance and appends a matching statement entry', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const balances = () => app.inject({ method: 'GET', url: '/v1/accounts/current/balances', headers: authHeaders(session) }).then((r) => r.json().data);
+  const statement = () => app.inject({ method: 'GET', url: '/v1/accounts/current/statement', headers: authHeaders(session) }).then((r) => r.json().data);
+  const verify = async (purpose: string, operationId: string) => {
+    const challenge = (await app.inject({ method: 'POST', url: '/v1/security/challenges', headers: authHeaders(session), payload: { purpose, operationId, type: 'OTP' } })).json().data;
+    await app.inject({ method: 'POST', url: `/v1/security/challenges/${challenge.id}/verify`, headers: authHeaders(session), payload: { proof: '123456' } });
+    return challenge.id;
+  };
+
+  const initial = await balances();
+  assert.equal(initial.available.amount, 125_000); // saldo semeado (test 1: saldo inicial)
+
+  // --- PIX (test 2/3/4: PIX de teste, confirma variação exata, confirma extrato) ---
+  const pixValidation = (await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: 10_000, currency: 'BRL' } })).json().data;
+  const pixChallengeId = await verify('PIX', pixValidation.validationId);
+  const pixHeaders = { ...authHeaders(session), 'idempotency-key': 'idem-ledger-pix-001' };
+  const pix = (await app.inject({ method: 'POST', url: '/v1/pix/transfers', headers: pixHeaders, payload: { validationId: pixValidation.validationId, challengeId: pixChallengeId } })).json().data;
+  const afterPix = await balances();
+  assert.equal(afterPix.available.amount, initial.available.amount - 10_000);
+  const statementAfterPix = await statement();
+  assert.ok(statementAfterPix.some((item: { amountMinor: number; type: string }) => item.amountMinor === 10_000 && item.type === 'PIX_SENT'));
+
+  // --- Transferência (test 5/6) ---
+  const transferValidation = (await app.inject({ method: 'POST', url: '/v1/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_beneficiary_external', amountMinor: 8_000, currency: 'BRL' } })).json().data;
+  const transferChallengeId = await verify('TRANSFER', transferValidation.validationId);
+  const transferHeaders = { ...authHeaders(session), 'idempotency-key': 'idem-ledger-transfer-001' };
+  await app.inject({ method: 'POST', url: '/v1/transfers', headers: transferHeaders, payload: { validationId: transferValidation.validationId, challengeId: transferChallengeId } });
+  const afterTransfer = await balances();
+  assert.equal(afterTransfer.available.amount, afterPix.available.amount - 8_000);
+  const statementAfterTransfer = await statement();
+  assert.ok(statementAfterTransfer.some((item: { amountMinor: number; type: string }) => item.amountMinor === 8_000 && item.type === 'TRANSFER_SENT'));
+
+  // --- Pagamento (test 7/8) — 7_777 de propósito: não colide com o boleto
+  // já seedado (12_500), pra provar que é uma entrada NOVA no extrato, não
+  // a que já existia desde a Etapa 2.
+  const paymentValidation = (await app.inject({ method: 'POST', url: '/v1/payments/bills/validate', headers: authHeaders(session), payload: { billId: 'sbx_bill_001', amountMinor: 7_777, currency: 'BRL' } })).json().data;
+  const paymentChallengeId = await verify('PAYMENT', paymentValidation.validationId);
+  const paymentHeaders = { ...authHeaders(session), 'idempotency-key': 'idem-ledger-payment-001' };
+  await app.inject({ method: 'POST', url: '/v1/payments/bills', headers: paymentHeaders, payload: { validationId: paymentValidation.validationId, challengeId: paymentChallengeId } });
+  const afterPayment = await balances();
+  assert.equal(afterPayment.available.amount, afterTransfer.available.amount - 7_777);
+  const statementAfterPayment = await statement();
+  assert.ok(statementAfterPayment.some((item: { amountMinor: number; type: string }) => item.amountMinor === 7_777 && item.type === 'BILL_PAYMENT'));
+
+  // --- Idempotência: repetir a MESMA Idempotency-Key não debita de novo (test 12) ---
+  await app.inject({ method: 'POST', url: '/v1/pix/transfers', headers: pixHeaders, payload: { validationId: pixValidation.validationId, challengeId: pixChallengeId } });
+  const afterReplay = await balances();
+  assert.equal(afterReplay.available.amount, afterPayment.available.amount); // nenhum débito extra
+
+  // --- Saldo insuficiente é checado contra o saldo REAL, não um teto fixo ---
+  const remaining = afterReplay.available.amount as number;
+  const tooMuchValidation = await app.inject({ method: 'POST', url: '/v1/pix/transfers/validate', headers: authHeaders(session), payload: { beneficiaryId: 'sbx_pix_beneficiary_001', amountMinor: remaining + 1, currency: 'BRL' } });
+  assert.equal(tooMuchValidation.statusCode, 422);
+  assert.equal(tooMuchValidation.json().error.code, 'INSUFFICIENT_FUNDS');
+
+  // getTransfer/getPayment também refletem o registro persistido (não só o cache do processo)
+  const pixDetail = await app.inject({ method: 'GET', url: `/v1/pix/transfers/${pix.pixTransferId}`, headers: authHeaders(session) });
+  assert.equal(pixDetail.statusCode, 200);
+  assert.equal(pixDetail.json().data.status, 'COMPLETED');
+});
+
+test('PIX key creation and removal persist across requests (previously a stub that always returned unavailable)', async (t) => {
+  const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close());
+  const session = await login(app);
+  const created = await app.inject({ method: 'POST', url: '/v1/pix/keys', headers: { ...authHeaders(session), 'idempotency-key': 'idem-pix-key-create-01' }, payload: { type: 'EMAIL', value: 'nova.chave@sandbox.invalid' } });
+  assert.equal(created.statusCode, 200);
+  assert.equal(created.json().data.type, 'EMAIL');
+  assert.equal(created.json().data.status, 'ACTIVE');
+  const afterCreate = await app.inject({ method: 'GET', url: '/v1/pix/keys', headers: authHeaders(session) });
+  assert.equal(afterCreate.json().data.length, 4); // 3 semeadas + 1 nova
+  assert.ok(afterCreate.json().data.some((item: { id: string }) => item.id === created.json().data.id));
+  const removed = await app.inject({ method: 'DELETE', url: `/v1/pix/keys/${created.json().data.id}`, headers: { ...authHeaders(session), 'idempotency-key': 'idem-pix-key-remove-01' } });
+  assert.equal(removed.statusCode, 200);
+  assert.equal(removed.json().data.status, 'REMOVED');
+  const afterRemove = await app.inject({ method: 'GET', url: '/v1/pix/keys', headers: authHeaders(session) });
+  assert.equal(afterRemove.json().data.length, 3); // volta a mostrar só as 3 originais (soft delete, nunca aparece de novo)
+  const removeUnknown = await app.inject({ method: 'DELETE', url: '/v1/pix/keys/sbx_pix_key_does_not_exist', headers: { ...authHeaders(session), 'idempotency-key': 'idem-pix-key-remove-02' } });
+  assert.equal(removeUnknown.statusCode, 404);
+});
+
 test('payment reads reject device mismatch and sandbox providers are forbidden in production', async (t) => {
   const app = await buildApp({ config: testConfig, logger: false }); t.after(() => app.close()); const session = await login(app);
   const mismatch = await app.inject({ method: 'POST', url: '/v1/payments/bills/lookup', headers: { authorization: `Bearer ${session.accessToken}`, 'x-device-id': 'sbx_dev_wrong' }, payload: { code: sandboxBillCode } });
   assert.equal(mismatch.statusCode, 401); assert.equal(mismatch.json().error.code, 'AUTH_DEVICE_MISMATCH');
   const challenge = new SandboxChallengeProvider('test');
-  assert.throws(() => new SandboxPaymentProvider('production', challenge), /forbidden in production/);
+  const paymentAccounts = new InMemorySandboxAccountRepository();
+  assert.throws(() => new SandboxPaymentProvider('production', paymentAccounts, new InMemorySandboxLedgerRepository(paymentAccounts), new InMemorySandboxValidationRepository(), challenge), /forbidden in production/);
   assert.throws(() => new SandboxChallengeProvider('production'), /forbidden in production/);
 });
 
 test('production refuses sandbox auth and account providers', () => {
-  const sessions = new SandboxSessionStore({ environment: 'test' });
+  const sessions = new SandboxSessionStore(new InMemorySandboxSessionRepository(), { environment: 'test' });
   const devices = new SandboxDeviceBindingProvider('test');
   assert.throws(() => new SandboxAuthProvider(sessions, devices, 'production'), /forbidden in production/);
-  assert.throws(() => new SandboxAccountProvider('production'), /forbidden in production/);
-  assert.throws(() => new SandboxSessionStore({ environment: 'production' }), /forbidden in production/);
+  assert.throws(() => new SandboxAccountProvider('production', new InMemorySandboxAccountRepository()), /forbidden in production/);
+  assert.throws(() => new SandboxSessionStore(new InMemorySandboxSessionRepository(), { environment: 'production' }), /forbidden in production/);
   assert.throws(() => new SandboxDeviceBindingProvider('production'), /forbidden in production/);
 });
 
@@ -663,7 +759,7 @@ test('investment SANDBOX completes products, simulation, idempotent order, posit
 
 test('billing SANDBOX supports payer CRUD, limits, safe bill, sharing and receipt',async t=>{const app=await buildApp({config:testConfig,logger:false});t.after(()=>app.close());const s=await login(app),h=authHeaders(s),created=await app.inject({method:'POST',url:'/v1/billing/payers',headers:{...h,'idempotency-key':'idem-payer-test-0001'},payload:{name:'Sacado Fictício'}});const id=created.json().data.payerId;assert.equal((await app.inject({method:'PUT',url:`/v1/billing/payers/${id}`,headers:h,payload:{name:'Sacado Atualizado'}})).statusCode,200);assert.equal((await app.inject({method:'GET',url:'/v1/billing/limits',headers:h})).json().data.maximumBills,20);const due=new Date(Date.now()+86400000).toISOString(),headers={...h,'idempotency-key':'idem-bill-test-0001'},payload={payerId:id,dueDate:due,amountMinor:12500,description:'Teste'};const a=await app.inject({method:'POST',url:'/v1/billing/bills',headers,payload}),b=await app.inject({method:'POST',url:'/v1/billing/bills',headers,payload});assert.equal(a.json().data.billId,b.json().data.billId);assert.match(a.json().data.digitableLineSandbox,/SANDBOX-NOT-A-BANK-BILL/);assert.equal((await app.inject({method:'POST',url:`/v1/billing/bills/${a.json().data.billId}/share`,headers:h,payload:{}})).json().data.channel,'SANDBOX');assert.equal((await app.inject({method:'GET',url:`/v1/billing/bills/${a.json().data.billId}/receipt`,headers:h})).json().data.simulated,true);assert.equal((await app.inject({method:'DELETE',url:`/v1/billing/payers/${id}`,headers:h})).statusCode,200);});
 
-test('consigned SANDBOX exposes structural documents and creates idempotent under-review application',async t=>{const app=await buildApp({config:testConfig,logger:false});t.after(()=>app.close());const s=await login(app),h=authHeaders(s),p=(await app.inject({method:'GET',url:'/v1/consigned/products',headers:h})).json().data[0];assert.equal((await app.inject({method:'GET',url:`/v1/consigned/products/${p.id}/documents`,headers:h})).json().data.length,2);assert.equal((await app.inject({method:'GET',url:`/v1/consigned/products/${p.id}/terms`,headers:h})).json().data.simulated,true);const headers={...h,'idempotency-key':'idem-consigned-0001'},payload={productId:p.id,amountMinor:20000,installments:p.installmentOptions[0],termsAccepted:true,documentsAcknowledged:true};const a=await app.inject({method:'POST',url:'/v1/consigned/applications',headers,payload}),b=await app.inject({method:'POST',url:'/v1/consigned/applications',headers,payload});assert.equal(a.json().data.applicationId,b.json().data.applicationId);assert.equal(a.json().data.status,'UNDER_REVIEW');assert.equal((await app.inject({method:'GET',url:`/v1/consigned/applications/${a.json().data.applicationId}/receipt`,headers:h})).json().data.simulated,true);const raw=JSON.stringify(a.json().data).toLowerCase();for(const bad of['cpf','password','token'])assert.equal(raw.includes(bad),false);assert.throws(()=>new SandboxInvestmentProvider('production'));assert.throws(()=>new SandboxBillingProvider('production'));assert.throws(()=>new SandboxConsignedProvider('production'));});
+test('consigned SANDBOX exposes structural documents and creates idempotent under-review application',async t=>{const app=await buildApp({config:testConfig,logger:false});t.after(()=>app.close());const s=await login(app),h=authHeaders(s),p=(await app.inject({method:'GET',url:'/v1/consigned/products',headers:h})).json().data[0];assert.equal((await app.inject({method:'GET',url:`/v1/consigned/products/${p.id}/documents`,headers:h})).json().data.length,2);assert.equal((await app.inject({method:'GET',url:`/v1/consigned/products/${p.id}/terms`,headers:h})).json().data.simulated,true);const headers={...h,'idempotency-key':'idem-consigned-0001'},payload={productId:p.id,amountMinor:20000,installments:p.installmentOptions[0],termsAccepted:true,documentsAcknowledged:true};const a=await app.inject({method:'POST',url:'/v1/consigned/applications',headers,payload}),b=await app.inject({method:'POST',url:'/v1/consigned/applications',headers,payload});assert.equal(a.json().data.applicationId,b.json().data.applicationId);assert.equal(a.json().data.status,'UNDER_REVIEW');assert.equal((await app.inject({method:'GET',url:`/v1/consigned/applications/${a.json().data.applicationId}/receipt`,headers:h})).json().data.simulated,true);const raw=JSON.stringify(a.json().data).toLowerCase();for(const bad of['cpf','password','token'])assert.equal(raw.includes(bad),false);const invAccounts=new InMemorySandboxAccountRepository();assert.throws(()=>new SandboxInvestmentProvider('production',invAccounts,new InMemorySandboxLedgerRepository(invAccounts),new InMemorySandboxInvestmentSimulationRepository()));assert.throws(()=>new SandboxBillingProvider('production',new InMemorySandboxBillingRepository()));assert.throws(()=>new SandboxConsignedProvider('production',new InMemorySandboxConsignedRepository()));});
 
 test('production app does not initialize sandbox providers', async (t) => {
   const app = await buildApp({ config: { ...testConfig, nodeEnv: 'production' }, logger: false }); t.after(() => app.close());

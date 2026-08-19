@@ -36,6 +36,8 @@ const colors = {
   orangeAlpha45: 'rgba(242, 106, 33, 0.45)',
   successAlpha20: 'rgba(89, 70, 200, 0.20)',
   successAlpha45: 'rgba(89, 70, 200, 0.45)',
+  dangerAlpha20: 'rgba(224, 82, 96, 0.20)',
+  dangerAlpha45: 'rgba(224, 82, 96, 0.45)',
   border: 'rgba(36, 65, 95, 0.13)',
   borderSubtle: 'rgba(26, 48, 73, 0.16)',
   borderStrong: 'rgba(36, 65, 95, 0.24)',

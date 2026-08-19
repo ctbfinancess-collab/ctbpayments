@@ -12,6 +12,21 @@ export const MOCK_CARD_TRANSACTIONS = [
 
 export const MOCK_TRANSPORT_CARD = { lastFour: '9073', balance: 'R$ 48,20', status: 'Ativo' };
 
+// Mesma lógica do MOCK_FINANCIAL_CARD acima: já no formato final (pós-mapper),
+// pois em modo DEMO os cartões nunca passam por mapSandboxVirtualCard.
+export const MOCK_VIRTUAL_CARDS = [
+  {
+    id: 'demo-virtual-1', type: 'VIRTUAL', statusKey: 'ACTIVE', status: 'Desbloqueado', nickname: 'Assinaturas',
+    color: 'Roxo', lastFour: '4587', holder: 'CLIENTE DEMONSTRAÇÃO', expiry: '08/29',
+    limit: 'R$ 5.000,00', used: 'R$ 342,00', balance: 'R$ 4.658,00', createdAt: new Date(Date.now() - 12 * 86400000).toISOString(),
+  },
+];
+
+export const MOCK_VIRTUAL_LIMIT_POOL = {
+  totalMinor: 3_000_000, allocatedMinor: 500_000, availableMinor: 2_500_000,
+  total: 'R$ 30.000,00', allocated: 'R$ 5.000,00', available: 'R$ 25.000,00',
+};
+
 export const CARD_ENDPOINTS = [
   'cartao/consultar', 'cartao/codigo-validacao', 'cartao/valida-codigo',
   'cartao/gerar-senha-e-login-v2', 'cartao/unlock-card', 'cartao/pass-card',

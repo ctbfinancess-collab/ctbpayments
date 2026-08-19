@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import AdminShell from './components/AdminShell';
 import { ADMIN_NAV_SECTIONS } from './components/AdminSidebar';
+import AdminLoginScreen from './screens/AdminLoginScreen';
+import { adminGetSession, adminLogout } from './services/adminAuthClient';
 import AdminDashboardScreen from './screens/AdminDashboardScreen';
 import AdminClientsScreen from './screens/AdminClientsScreen';
 import AdminAccountsScreen from './screens/AdminAccountsScreen';
@@ -56,12 +58,46 @@ function ComingSoonPanel({ label }) {
   );
 }
 
+// Estados possíveis da sessão do admin nesta árvore isolada:
+// 'loading' (checando sessão existente) → 'unauthenticated' (mostra login)
+// ou 'authenticated' (mostra o shell). Nenhum outro componente do app
+// cliente compartilha esse state — sessão de admin é um domínio à parte.
 export default function AdminApp() {
+  const [session, setSession] = useState({ status: 'loading', admin: null });
   const [activeSection, setActiveSection] = useState('dashboard');
+
+  useEffect(() => {
+    let cancelled = false;
+    adminGetSession()
+      .then((data) => {
+        if (cancelled) return;
+        setSession(data?.admin ? { status: 'authenticated', admin: data.admin } : { status: 'unauthenticated', admin: null });
+      })
+      .catch(() => { if (!cancelled) setSession({ status: 'unauthenticated', admin: null }); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleLoginSuccess = (admin) => setSession({ status: 'authenticated', admin });
+  const handleLogout = async () => {
+    try { await adminLogout(); } catch { /* revoga do lado do servidor mesmo se a chamada falhar visualmente */ }
+    setSession({ status: 'unauthenticated', admin: null });
+  };
+
+  if (session.status === 'loading') {
+    return (
+      <View style={styles.loadingRoot}>
+        <Text style={styles.loadingText}>Carregando...</Text>
+      </View>
+    );
+  }
+  if (session.status === 'unauthenticated') {
+    return <AdminLoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
+
   const section = ADMIN_NAV_SECTIONS.find((item) => item.id === activeSection) || ADMIN_NAV_SECTIONS[0];
   const SectionScreen = SECTION_SCREENS[activeSection];
   return (
-    <AdminShell activeSection={activeSection} onSelectSection={setActiveSection} title={section.label}>
+    <AdminShell activeSection={activeSection} admin={session.admin} onLogout={handleLogout} onSelectSection={setActiveSection} title={section.label}>
       {SectionScreen ? <SectionScreen /> : <ComingSoonPanel label={section.label} />}
     </AdminShell>
   );
@@ -71,4 +107,6 @@ const styles = StyleSheet.create({
   comingSoon: { alignItems: 'flex-start', backgroundColor: adminColors.card, borderColor: adminColors.border, borderRadius: radii.xl, borderWidth: 1, padding: spacing.xxl },
   comingSoonTitle: { ...typography.heading2, color: adminColors.textPrimary, marginBottom: spacing.sm },
   comingSoonText: { ...typography.body, color: adminColors.textSecondary, maxWidth: 480 },
+  loadingRoot: { alignItems: 'center', backgroundColor: adminColors.background, flex: 1, height: '100vh', justifyContent: 'center' },
+  loadingText: { ...typography.body, color: adminColors.textMuted },
 });

@@ -1,11 +1,18 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Icon } from '../../components/ui';
 import { appMode } from '../../config';
 import { radii, spacing, typography } from '../../theme';
 import adminColors from '../theme/adminColors';
 
-export default function AdminTopbar({ title }) {
+function initialsFor(admin) {
+  const source = admin?.name?.trim() || admin?.email || '';
+  const words = source.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+  return source.slice(0, 2).toUpperCase();
+}
+
+export default function AdminTopbar({ admin, onLogout, title }) {
   return (
     <View style={styles.topbar}>
       <Text style={styles.title}>{title}</Text>
@@ -24,12 +31,17 @@ export default function AdminTopbar({ title }) {
         <Icon color={adminColors.textSecondary} name="notifications-outline" size={20} />
         <Icon color={adminColors.textSecondary} name="help-circle-outline" size={20} style={styles.actionSpacing} />
         <View style={[styles.actionSpacing, styles.avatarGroup]}>
-          <View style={styles.avatar}><Text style={styles.avatarText}>EB</Text></View>
+          <View style={styles.avatar}><Text style={styles.avatarText}>{initialsFor(admin)}</Text></View>
           <View>
-            <Text style={styles.userName}>Elma Bichara</Text>
-            <Text style={styles.userRole}>Administrador</Text>
+            <Text style={styles.userName}>{admin?.name || admin?.email || 'Administrador'}</Text>
+            <Text style={styles.userRole}>{admin?.role === 'admin' ? 'Administrador' : (admin?.role || 'Administrador')}</Text>
           </View>
         </View>
+        {onLogout ? (
+          <TouchableOpacity accessibilityLabel="Sair" accessibilityRole="button" onPress={onLogout} style={styles.logoutButton}>
+            <Icon color={adminColors.textSecondary} name="log-out-outline" size={18} />
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -50,4 +62,5 @@ const styles = StyleSheet.create({
   avatarText: { ...typography.label, color: '#FFFFFF' },
   userName: { ...typography.bodyMedium, color: adminColors.textPrimary },
   userRole: { ...typography.caption, color: adminColors.textMuted },
+  logoutButton: { marginLeft: spacing.lg, padding: spacing.xs },
 });

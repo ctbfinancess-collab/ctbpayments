@@ -7,6 +7,9 @@ import { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxPixReceipt, mapSandbo
 
 const unavailable = () => { throw new ApiError('Operação PIX não disponível no ambiente sandbox.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
 const notConfigured = () => { throw new ApiError('Backend not configured', { code: 'BACKEND_NOT_CONFIGURED' }); };
+// PixCreateKeyScreen manda o label em português (vindo de PIX_KEY_TYPES) —
+// o backend espera o enum CPF|CNPJ|EMAIL|PHONE|RANDOM.
+const SANDBOX_KEY_TYPE_MAP = { 'Chave aleatória': 'RANDOM', 'CPF/CNPJ': 'CPF', Celular: 'PHONE', 'E-mail': 'EMAIL' };
 const SANDBOX_FAVORITES = Object.freeze([{ id: 'sbx-favorite-1', name: 'Cliente Recebedor SANDBOX', key: 'recebedor@sandbox.invalid', bank: 'Banco SANDBOX', type: 'email' }]);
 const SANDBOX_RECENT = Object.freeze([{ id: 'sbx-recent-1', name: 'Cliente Recebedor SANDBOX', key: 'recebedor@sandbox.invalid', bank: 'Banco SANDBOX', type: 'email', lastAmount: '0,00', lastAt: '—' }]);
 const SANDBOX_LIMITS = Object.freeze({ day: { used: 0, total: 5000, window: '06h às 20h' }, night: { used: 0, total: 1000, window: '20h às 06h' } });
@@ -39,8 +42,19 @@ export function createPixService({ demoMode = false, sandboxMode = false, client
     createTransfer: (input) => demoMode ? buildMockPixTransfer(input) : sandboxMode ? unavailable() : notConfigured(),
     authorizeTransfer: async (transfer, otp) => demoMode ? { ...transfer, demoMode: true } : sandboxMode ? submitSandbox(transfer, otp) : notConfigured(),
     scheduleTransfer: async (transfer, otp) => demoMode ? { ...transfer, demoMode: true } : sandboxMode ? submitSandbox(transfer, otp) : notConfigured(),
-    createKey: (key) => demoMode ? { ...key, id: `DEMO-KEY-${Date.now()}`, status: 'Ativo' } : sandboxMode ? unavailable() : notConfigured(),
-    deleteKey: (key) => demoMode ? key : sandboxMode ? unavailable() : notConfigured(),
+    createKey: async (key) => {
+      if (demoMode) return { ...key, id: `DEMO-KEY-${Date.now()}`, status: 'Ativo' };
+      if (!sandboxMode) return notConfigured();
+      const type = SANDBOX_KEY_TYPE_MAP[key.type] || key.type;
+      const created = (await request('/v1/pix/keys', { method: 'POST', headers: { 'Idempotency-Key': `ctbx-pix-key-create-${type}-${key.value}` }, body: JSON.stringify({ type, value: key.value }) })).data;
+      return mapSandboxPixKeys([created])[0];
+    },
+    deleteKey: async (key) => {
+      if (demoMode) return key;
+      if (!sandboxMode) return unavailable();
+      await request(`/v1/pix/keys/${key.id}`, { method: 'DELETE', headers: { 'Idempotency-Key': `ctbx-pix-key-remove-${key.id}` } });
+      return key;
+    },
     getReceipt: async (transfer) => demoMode ? transfer : sandboxMode ? mapSandboxPixReceipt((await request(`/v1/pix/transfers/${transfer.pixTransferId}/receipt`, { method: 'GET' })).data) : notConfigured(),
     getPixTransferData: async () => ({ balance: await getBalance() }),
     // Recentes / Agendamentos / Limites / Comprovantes (Gerenciar Pix) — leitura

@@ -5,12 +5,12 @@ import AdminTopbar from './AdminTopbar';
 import adminColors from '../theme/adminColors';
 import { spacing } from '../../theme';
 
-export default function AdminShell({ activeSection, children, onSelectSection, title }) {
+export default function AdminShell({ activeSection, admin, children, onLogout, onSelectSection, title }) {
   return (
     <View style={styles.root}>
       <AdminSidebar activeSection={activeSection} onSelect={onSelectSection} />
       <View style={styles.main}>
-        <AdminTopbar title={title} />
+        <AdminTopbar admin={admin} onLogout={onLogout} title={title} />
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} style={styles.contentScroll}>
           {children}
         </ScrollView>
