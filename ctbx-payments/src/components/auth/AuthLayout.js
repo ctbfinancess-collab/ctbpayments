@@ -12,6 +12,18 @@ import Icon from '../ui/Icon';
 // moldura + tipografia maior) usado por Login e Onboarding. Cada tela passa
 // sua própria `backgroundSource` — a arte de fundo é a imagem oficial
 // fornecida, usada como está, sem gradiente/arco gerado por código.
+// No Android, com edgeToEdgeEnabled (obrigatório a partir do Android 15,
+// já ligado em app.json) + newArchEnabled, o KeyboardAvoidingView entra em
+// conflito com o próprio redimensionamento nativo do Android ao focar um
+// campo — resultado: a tela pisca e o teclado nem chega a abrir (o
+// KeyboardAvoidingView some do layout e volta em loop, competindo com o
+// SO). iOS não tem esse redimensionamento nativo automático, então
+// continua precisando do KeyboardAvoidingView de verdade.
+function KeyboardWrapper({ children, style }) {
+  if (Platform.OS !== 'ios') return <View style={style}>{children}</View>;
+  return <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0} style={style}>{children}</KeyboardAvoidingView>;
+}
+
 export default function AuthLayout({ atmospheric = false, backgroundSource, children, eyebrow, footer = true, onBack, premium = false, showLogo = true, subtitle, title }) {
   const Background = atmospheric && !premium ? AppBackground : View;
   return (
@@ -25,11 +37,7 @@ export default function AuthLayout({ atmospheric = false, backgroundSource, chil
         />
       ) : null}
       <StatusBar style="light" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-        style={styles.flex}
-      >
+      <KeyboardWrapper style={styles.flex}>
         <ScrollView
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
           contentContainerStyle={[styles.content, premium && styles.premiumContent]}
@@ -56,7 +64,7 @@ export default function AuthLayout({ atmospheric = false, backgroundSource, chil
           <View style={[styles.body, premium && styles.premiumBody]}>{children}</View>
           {footer ? <Text style={[styles.footer, premium && styles.premiumFooter]}>Segurança  •  Privacidade  •  Ajuda</Text> : null}
         </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardWrapper>
     </Background>
   );
 }

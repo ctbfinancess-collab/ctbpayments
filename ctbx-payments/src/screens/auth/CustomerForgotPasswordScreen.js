@@ -11,12 +11,19 @@ const backgroundSource = require('../../../assets/ctbx-onboarding-background.png
 // Pedido real de recuperação de senha (Customer Identity) — fala com
 // /v1/customers/password/forgot, diferente do mock em
 // src/screens/auth/ForgotPasswordScreen.js (fluxo SANDBOX, sem backend,
-// preso à navegação do login sandbox). Tela standalone, mesmo padrão de
-// VerifyEmailScreen/ResetPasswordScreen (fora de NavigationContainer/
-// SessionProvider), alcançada em /forgot-password.
-export default function CustomerForgotPasswordScreen() {
+// preso à navegação do login sandbox). Alcançada de duas formas: (1)
+// standalone em /forgot-password (fora de NavigationContainer/
+// SessionProvider, sem `navigation`, mesmo padrão de VerifyEmailScreen/
+// ResetPasswordScreen); (2) dentro do PublicStack em PRODUCTION (rota
+// "ForgotPassword", com `navigation` normal) — o link "Esqueci minha
+// senha" do LoginScreen. `goToLogin` cobre os dois contextos.
+export default function CustomerForgotPasswordScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [state, setState] = useState('form'); // form | sending | sent
+  const goToLogin = () => {
+    if (navigation) navigation.navigate('Login');
+    else if (typeof window !== 'undefined') window.location.href = '/';
+  };
 
   const handleSubmit = async () => {
     if (!isValidEmail(email)) return;
@@ -34,7 +41,7 @@ export default function CustomerForgotPasswordScreen() {
         <View style={styles.notice}>
           <Text style={styles.noticeText}>O link é válido por 30 minutos e pode ser usado apenas uma vez.</Text>
         </View>
-        <TouchableOpacity onPress={() => { window.location.href = '/'; }} style={styles.backToLogin}><Text style={styles.backToLoginText}>Voltar ao login</Text></TouchableOpacity>
+        <TouchableOpacity onPress={goToLogin} style={styles.backToLogin}><Text style={styles.backToLoginText}>Voltar ao login</Text></TouchableOpacity>
       </AuthLayout>
     );
   }

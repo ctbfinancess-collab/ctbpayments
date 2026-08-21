@@ -41,7 +41,7 @@ const { mapSandboxSession, refreshSandboxSession, sandboxLogin, logoutSandboxSes
 const { initialSessionState, sessionReducer } = reducerModule;
 const { filterTransactions } = statementUtilsModule;
 const { createInvestmentService } = investmentServiceModule; const { createBillingService } = billingServiceModule; const { createConsignedService } = consignedServiceModule;
-const { mapInvestmentSimulation } = investmentMapperModule; const { mapBillingBill } = billingMapperModule; const { mapConsignedApplication } = consignedMapperModule;
+const { mapInvestmentSimulation, mapInvestmentPosition } = investmentMapperModule; const { mapBillingBill } = billingMapperModule; const { mapConsignedApplication } = consignedMapperModule;
 
 const statementIso = (days, hour = 12) => { const value = new Date(); value.setDate(value.getDate() + days); value.setHours(hour, 0, 0, 0); return value.toISOString(); };
 const rawStatementItem = (overrides = {}) => ({ id: 'sbx_txn_test', occurredAt: statementIso(0), type: 'PIX_RECEIVED', direction: 'CREDIT', description: 'Pix recebido', counterparty: 'Cliente Sandbox', amountMinor: 125050, currency: 'BRL', status: 'COMPLETED', category: 'Pix', feeMinor: 0, receiptAvailable: true, institution: 'Banco Sandbox', document: '***', ...overrides });
@@ -859,6 +859,17 @@ test('logout calls BFF route and reducer cleanup removes all tokens', async () =
 });
 
 test('investment service SANDBOX simulates and submits one idempotent order',async()=>{const product={id:'p',name:'Renda SANDBOX',termDays:30,rateDisplay:'Demo',riskLabel:'Demo'},sim={simulationId:'s',product,amountMinor:10000,projectedGrossMinor:10100,projectedNetMinor:10085,termDays:30,rateDisplay:'Demo',simulated:true,environment:'SANDBOX',warnings:[]},order={orderId:'o',product,amountMinor:10000,status:'COMPLETED',simulated:true,environment:'SANDBOX'},calls=[];const client=async(path,options)=>{calls.push({path,options});if(path.endsWith('/products'))return{data:[product]};if(path.endsWith('/simulations'))return{data:sim};if(path.endsWith('/orders'))return{data:order};if(path.endsWith('/receipt'))return{data:{...order,receiptType:'INVESTMENT_SANDBOX'}};throw new Error(path)};const s=createInvestmentService({sandboxMode:true,client});assert.equal((await s.getProducts())[0].term,'30 dias');const x=await s.simulate(product,'100,00');const[a,b]=await Promise.all([s.order(x),s.order(x)]);assert.equal(a.orderId,b.orderId);assert.equal(calls.filter(x=>x.path.endsWith('/orders')).length,1);assert.equal(mapInvestmentSimulation(sim).projectedNet,'100,85');});
+
+// Regressão: GET /v1/investments/positions devolve
+// {positionId,orderId,product,investedMinor,currentMinor,status,...} — a
+// tela (InvestmentsScreen/PositionRow) esperava o formato do mock DEMO
+// (id,invested,yieldAmount,yieldPercent em reais) e quebrava com
+// "Cannot read properties of undefined (reading 'toFixed')" ao calcular
+// percent(position.yieldPercent). mapInvestmentPosition traduz só o que é
+// real (nunca inventa rentabilidade/vencimento/indexador).
+test('investment service SANDBOX maps real positions without inventing financial fields',async()=>{const product={id:'sbx_inv_liquidity_30',name:'Liquidez SANDBOX',termDays:30,rateDisplay:'Projeção demonstrativa A',riskLabel:'Risco não avaliado'},raw={positionId:'pos_1',orderId:'o1',product,investedMinor:100000,currentMinor:100000,status:'ACTIVE',simulated:true,environment:'SANDBOX'},client=async(path)=>path.endsWith('/positions')?{data:[raw]}:{data:[]},s=createInvestmentService({sandboxMode:true,client});const[position]=await s.getPositions();assert.equal(position.id,'pos_1');assert.equal(position.name,'Liquidez SANDBOX');assert.equal(position.rateLabel,'Projeção demonstrativa A');assert.equal(position.status,'Ativo');assert.equal(position.invested,1000);assert.equal(position.yieldAmount,0);assert.equal(position.yieldPercent,0);assert.equal(position.maturity,'—');assert.equal(typeof position.yieldPercent.toFixed(2),'string');});
+
+test('mapInvestmentPosition never divides by zero and never invents a maturity/indexer',()=>{const mapped=mapInvestmentPosition({positionId:'p',orderId:'o',product:{name:'X',rateDisplay:'Y'},investedMinor:0,currentMinor:0,status:'ACTIVE'});assert.equal(mapped.yieldPercent,0);assert.equal(mapped.invested,0);assert.equal(mapped.maturity,'—');assert.equal(mapped.indexer,'—');});
 
 test('billing service SANDBOX issues unequivocally fake bill and receipt',async()=>{const payer={payerId:'payer',name:'SANDBOX'},bill={billId:'bill',payer,amountMinor:12500,digitableLineSandbox:'SANDBOX-NOT-A-BANK-BILL',simulated:true,environment:'SANDBOX'},client=async(path)=>path.endsWith('/payers')?{data:[payer]}:path.endsWith('/receipt')?{data:{...bill,receiptType:'BILLING_SANDBOX_NOT_BANK_BILL'}}:{data:bill},s=createBillingService({sandboxMode:true,client});const x=await s.issueBill({payerId:'payer',value:'125,00',dueDate:new Date(Date.now()+86400000).toISOString()});assert.equal(x.value,'125,00');assert.match(x.code,/SANDBOX/);assert.equal(mapBillingBill(bill).simulated,true);});
 

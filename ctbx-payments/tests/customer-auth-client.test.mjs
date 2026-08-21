@@ -3,8 +3,53 @@ import test from 'node:test';
 import customerAuthClientModule from '../src/services/customerAuthClient.js';
 import ApiErrorModule from '../src/api/ApiError.js';
 
-const { verifyCustomerEmail, resendCustomerEmailVerification, requestCustomerPasswordReset, confirmCustomerPasswordReset, confirmCustomerEmailChange } = customerAuthClientModule;
+const { registerCustomer, loginCustomer, verifyCustomerEmail, resendCustomerEmailVerification, requestCustomerPasswordReset, confirmCustomerPasswordReset, confirmCustomerEmailChange } = customerAuthClientModule;
 const ApiError = ApiErrorModule.default || ApiErrorModule;
+
+// Cadastro e login reais — usados por CustomerRegisterScreen e por
+// authService.login (branch PRODUCTION). skipAuth:true nos dois, mesmo
+// espírito de todo o resto deste arquivo: nenhuma das duas chamadas
+// exige sessão prévia.
+
+test('registerCustomer calls POST /v1/customers/register with the full payload, skipping auth', async () => {
+  let call;
+  const client = async (path, options) => {
+    call = { path, options, body: JSON.parse(options.body) };
+    return { data: { customer: { id: 'cust-1', type: 'PF', name: 'Cliente Exemplo', email: 'cliente@sandbox.invalid', documentMasked: '***.111.***-**', status: 'ACTIVE', createdAt: new Date().toISOString() } } };
+  };
+  const result = await registerCustomer({ name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999998888', password: 'senha-nova-456' }, client);
+  assert.equal(call.path, '/v1/customers/register');
+  assert.equal(call.options.method, 'POST');
+  assert.deepEqual(call.body, { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999998888', password: 'senha-nova-456' });
+  assert.equal(call.options.skipAuth, true);
+  assert.equal(call.options.retryOnUnauthorized, false);
+  assert.equal(result.data.customer.id, 'cust-1');
+});
+
+test('registerCustomer propagates a duplicate e-mail/document error untouched (the screen decides the message)', async () => {
+  const client = async () => { throw new ApiError('Este e-mail já está cadastrado.', { code: 'CUSTOMER_EMAIL_ALREADY_REGISTERED', status: 409 }); };
+  await assert.rejects(registerCustomer({ name: 'a', document: '1', email: 'a@a.invalid', phone: '1', password: 'senha-nova-456' }, client), (error) => error.code === 'CUSTOMER_EMAIL_ALREADY_REGISTERED' && error.status === 409);
+});
+
+test('loginCustomer calls POST /v1/customers/login with e-mail and password, skipping auth', async () => {
+  let call;
+  const client = async (path, options) => {
+    call = { path, options, body: JSON.parse(options.body) };
+    return { data: { token: 'token-de-sessao', expiresAt: new Date().toISOString(), customer: { id: 'cust-1', type: 'PF', name: 'Cliente Exemplo', email: 'cliente@sandbox.invalid', status: 'ACTIVE' } } };
+  };
+  const result = await loginCustomer({ email: 'cliente@sandbox.invalid', password: 'senha-nova-456' }, client);
+  assert.equal(call.path, '/v1/customers/login');
+  assert.equal(call.options.method, 'POST');
+  assert.deepEqual(call.body, { email: 'cliente@sandbox.invalid', password: 'senha-nova-456' });
+  assert.equal(call.options.skipAuth, true);
+  assert.equal(call.options.retryOnUnauthorized, false);
+  assert.equal(result.data.token, 'token-de-sessao');
+});
+
+test('loginCustomer propagates invalid-credentials error untouched (never reveals which field failed)', async () => {
+  const client = async () => { throw new ApiError('E-mail ou senha inválidos.', { code: 'CUSTOMER_LOGIN_INVALID', status: 401 }); };
+  await assert.rejects(loginCustomer({ email: 'cliente@sandbox.invalid', password: 'errada' }, client), (error) => error.code === 'CUSTOMER_LOGIN_INVALID' && error.status === 401);
+});
 
 // Customer Identity, Etapa 3 (verificação real de e-mail) — integração
 // frontend -> /v1/customers/verify-email(/resend). Cobre exatamente o que

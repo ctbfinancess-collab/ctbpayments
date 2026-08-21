@@ -14,9 +14,11 @@ import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
 import VerifyEmailScreen from './src/screens/auth/VerifyEmailScreen';
 import CustomerForgotPasswordScreen from './src/screens/auth/CustomerForgotPasswordScreen';
+import CustomerRegisterScreen from './src/screens/auth/CustomerRegisterScreen';
 import ResetPasswordScreen from './src/screens/auth/ResetPasswordScreen';
 import ConfirmEmailChangeScreen from './src/screens/auth/ConfirmEmailChangeScreen';
 import OnboardingScreen from './src/screens/auth/OnboardingScreen';
+import ProductionHomePlaceholderScreen from './src/screens/ProductionHomePlaceholderScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import GlobalAccountScreen from './src/screens/accounts/GlobalAccountScreen';
 import PixScreen from './src/screens/PixScreen';
@@ -95,6 +97,7 @@ import ProfileDevicesScreen from './src/screens/profile/ProfileDevicesScreen';
 import ProfileTokenScreen from './src/screens/profile/ProfileTokenScreen';
 import ProfileTermsScreen from './src/screens/profile/ProfileTermsScreen';
 import { LoadingState } from './src/components/ui';
+import { isProductionMode } from './src/config';
 import { SessionProvider, useSession } from './src/session';
 import { colors, layout, shadows } from './src/theme';
 
@@ -102,7 +105,18 @@ const Stack = createNativeStackNavigator();
 
 const stackOptions = { headerShown: false, animation: 'fade' };
 
+// PRODUCTION: nenhuma tela financeira do SANDBOX (todas em cima de dados
+// mock) pode ser exibida pra um cliente real autenticado — ver
+// ProductionHomePlaceholderScreen. DEMO/SANDBOX continuam com a stack
+// completa de sempre, sem nenhuma mudança.
 function AuthenticatedStack() {
+  if (isProductionMode) {
+    return (
+      <Stack.Navigator screenOptions={stackOptions}>
+        <Stack.Screen name="Home" component={ProductionHomePlaceholderScreen} />
+      </Stack.Navigator>
+    );
+  }
   return (
       <Stack.Navigator initialRouteName="Home" screenOptions={stackOptions}>
         <Stack.Screen name="Home" component={HomeScreen} />
@@ -186,12 +200,17 @@ function AuthenticatedStack() {
   );
 }
 
+// PRODUCTION troca "ForgotPassword"/"Onboarding" pelas telas reais
+// (Customer Identity) mantendo os MESMOS nomes de rota — LoginScreen
+// (component('ForgotPassword')/navigate('Onboarding')) não precisa saber
+// qual modo está ativo. DEMO/SANDBOX continuam com os componentes mock
+// de sempre, sem nenhuma mudança.
 function PublicStack() {
   return (
     <Stack.Navigator screenOptions={stackOptions}>
       <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-      <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+      <Stack.Screen name="ForgotPassword" component={isProductionMode ? CustomerForgotPasswordScreen : ForgotPasswordScreen} />
+      <Stack.Screen name="Onboarding" component={isProductionMode ? CustomerRegisterScreen : OnboardingScreen} />
     </Stack.Navigator>
   );
 }
