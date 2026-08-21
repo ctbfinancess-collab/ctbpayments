@@ -5,7 +5,7 @@ import type { AppConfig } from '../src/config/env.js';
 
 const baseConfig: AppConfig = {
   nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [],
-  adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined,
+  adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined,
 };
 
 // Sem DATABASE_URL/ADMIN_SESSION_SECRET (caso real hoje, sem banco

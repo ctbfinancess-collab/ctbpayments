@@ -11,6 +11,9 @@ export interface AppConfig {
   databaseUrl: string | undefined;
   adminSessionSecret: string | undefined;
   sandboxCardEncryptionKey: string | undefined;
+  resendApiKey: string | undefined;
+  emailFrom: string | undefined;
+  customerAppBaseUrl: string | undefined;
 }
 
 const environments = new Set<Environment>(['development', 'test', 'staging', 'production']);
@@ -47,9 +50,19 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   // security/cardEncryption.ts). Sem ela, criar/revelar cartão virtual
   // falha fechado (PROVIDER_NOT_CONFIGURED) em vez de guardar em texto puro.
   const sandboxCardEncryptionKey = source.SANDBOX_CARD_ENCRYPTION_KEY?.trim() || undefined;
+  // Envio de e-mail (Resend) — ver providers/createEmailProvider.ts. Ainda
+  // não consumido por nenhuma rota (nenhum fluxo real de e-mail existe no
+  // produto hoje); só a infraestrutura fica pronta nesta etapa.
+  const resendApiKey = source.RESEND_API_KEY?.trim() || undefined;
+  const emailFrom = source.EMAIL_FROM?.trim() || undefined;
+  // Base do link de verificação de e-mail/recuperação de senha (ex.:
+  // https://app.ctbxpayments.com). Ainda não definido — sem domínio
+  // decidido, cai num fallback só de desenvolvimento local (ver
+  // services/customerEmailVerificationService.ts). Nunca inventado aqui.
+  const customerAppBaseUrl = source.CUSTOMER_APP_BASE_URL?.trim() || undefined;
 
   return {
     nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins,
-    adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey,
+    adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl,
   };
 }

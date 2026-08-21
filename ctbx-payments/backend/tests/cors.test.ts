@@ -4,7 +4,7 @@ import { buildApp } from '../src/app.js';
 import type { AppConfig } from '../src/config/env.js';
 import { SANDBOX_EMAIL, SANDBOX_PASSWORD } from '../src/providers/sandbox/SandboxAuthProvider.js';
 
-const baseConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [], adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined };
+const baseConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [], adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined };
 const loginPayload = { username: SANDBOX_EMAIL, password: SANDBOX_PASSWORD, device: { installationId: 'sbx-installation-cors-test', platform: 'ANDROID' } };
 
 test('staging loads the sandbox providers just like development', async (t) => {

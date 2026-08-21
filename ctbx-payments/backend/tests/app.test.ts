@@ -27,7 +27,7 @@ import { SandboxInvestmentProvider } from '../src/providers/sandbox/SandboxInves
 import { SandboxBillingProvider } from '../src/providers/sandbox/SandboxBillingProvider.js';
 import { SandboxConsignedProvider } from '../src/providers/sandbox/SandboxConsignedProvider.js';
 
-const testConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [], adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined };
+const testConfig: AppConfig = { nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [], adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined };
 const loginPayload = { username: SANDBOX_EMAIL, password: SANDBOX_PASSWORD, device: { installationId: 'sbx-installation-test', platform: 'ANDROID' } };
 
 function createProviders(options: { now?: () => number; accessTtlMs?: number } = {}): ProviderRegistry {

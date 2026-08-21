@@ -32,6 +32,20 @@ import { AdminSessionRepository } from './repositories/AdminSessionRepository.js
 import { AdminUserRepository } from './repositories/AdminUserRepository.js';
 import { CmsItemsRepository } from './repositories/CmsItemsRepository.js';
 import { CmsSectionsRepository } from './repositories/CmsSectionsRepository.js';
+import { PostgresCompanyRepository, type CompanyRepository } from './repositories/CompanyRepository.js';
+import { PostgresCompanyRepresentativeRepository, type CompanyRepresentativeRepository } from './repositories/CompanyRepresentativeRepository.js';
+import { PostgresCustomerEmailChangeRepository, type CustomerEmailChangeRepository } from './repositories/CustomerEmailChangeRepository.js';
+import { PostgresCustomerEmailVerificationRepository, type CustomerEmailVerificationRepository } from './repositories/CustomerEmailVerificationRepository.js';
+import { PostgresCustomerPasswordResetRepository, type CustomerPasswordResetRepository } from './repositories/CustomerPasswordResetRepository.js';
+import { PostgresCustomerRepository, type CustomerRepository } from './repositories/CustomerRepository.js';
+import { PostgresCustomerSessionRepository, type CustomerSessionRepository } from './repositories/CustomerSessionRepository.js';
+import { InMemoryCompanyRepository } from './repositories/InMemoryCompanyRepository.js';
+import { InMemoryCompanyRepresentativeRepository } from './repositories/InMemoryCompanyRepresentativeRepository.js';
+import { InMemoryCustomerEmailChangeRepository } from './repositories/InMemoryCustomerEmailChangeRepository.js';
+import { InMemoryCustomerEmailVerificationRepository } from './repositories/InMemoryCustomerEmailVerificationRepository.js';
+import { InMemoryCustomerPasswordResetRepository } from './repositories/InMemoryCustomerPasswordResetRepository.js';
+import { InMemoryCustomerRepository } from './repositories/InMemoryCustomerRepository.js';
+import { InMemoryCustomerSessionRepository } from './repositories/InMemoryCustomerSessionRepository.js';
 import { MediaRepository } from './repositories/MediaRepository.js';
 import { PostgresPhysicalCardRepository, type PhysicalCardRepository } from './repositories/PhysicalCardRepository.js';
 import { PostgresSandboxAccountRepository, type SandboxAccountRepository } from './repositories/SandboxAccountRepository.js';
@@ -52,9 +66,16 @@ import { InMemorySandboxPixKeyRepository } from './providers/sandbox/InMemorySan
 import { InMemorySandboxValidationRepository } from './providers/sandbox/InMemorySandboxValidationRepository.js';
 import { InMemoryTransportCardRepository } from './providers/sandbox/InMemoryTransportCardRepository.js';
 import { VirtualCardRepository } from './repositories/VirtualCardRepository.js';
+import { customerRoutes } from './routes/customers.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 import { AdminAuthService } from './services/adminAuthService.js';
+import { CompanyService } from './services/companyService.js';
+import { CustomerAuthService } from './services/customerAuthService.js';
+import { CustomerEmailChangeService } from './services/customerEmailChangeService.js';
+import { CustomerEmailVerificationService } from './services/customerEmailVerificationService.js';
+import { CustomerPasswordResetService } from './services/customerPasswordResetService.js';
+import { createEmailProvider } from './providers/createEmailProvider.js';
 
 export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean }
 
@@ -134,6 +155,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Validações de PIX/Transferência/Pagamento (Etapa 5.2) — mesmo par
   // real+fallback; rascunho de vida curta (ver sandboxValidations.ts).
   let validationRepository: SandboxValidationRepository = new InMemorySandboxValidationRepository();
+  // Customer Identity (Etapa 1 — cadastro real PF). Mesmo par real+
+  // fallback dos domínios financeiros acima (nunca fail-closed sem
+  // DATABASE_URL, diferente do admin/CMS) — é o cadastro real de cliente,
+  // não uma ferramenta interna.
+  let customerRepository: CustomerRepository = new InMemoryCustomerRepository();
+  // Sessão real de cliente (Etapa 2) — mesmo par real+fallback.
+  let customerSessionRepository: CustomerSessionRepository = new InMemoryCustomerSessionRepository();
+  // Verificação de e-mail real de cliente (Etapa 3) — mesmo par real+fallback.
+  let customerEmailVerificationRepository: CustomerEmailVerificationRepository = new InMemoryCustomerEmailVerificationRepository();
+  // Recuperação de senha real de cliente — mesmo par real+fallback.
+  let customerPasswordResetRepository: CustomerPasswordResetRepository = new InMemoryCustomerPasswordResetRepository();
+  // Troca de e-mail autenticada — mesmo par real+fallback.
+  let customerEmailChangeRepository: CustomerEmailChangeRepository = new InMemoryCustomerEmailChangeRepository();
+  // Estrutura PJ (empresas + representantes) — mesmo par real+fallback.
+  let companyRepository: CompanyRepository = new InMemoryCompanyRepository();
+  let companyRepresentativeRepository: CompanyRepresentativeRepository = new InMemoryCompanyRepresentativeRepository();
   if (!options.providers && config.databaseUrl) {
     const { db, close } = createDbConnection(config.databaseUrl);
     app.addHook('onClose', async () => { await close(); });
@@ -148,8 +185,43 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     consignedRepository = new PostgresSandboxConsignedRepository(db);
     billingRepository = new PostgresSandboxBillingRepository(db);
     validationRepository = new PostgresSandboxValidationRepository(db);
+    customerRepository = new PostgresCustomerRepository(db);
+    customerSessionRepository = new PostgresCustomerSessionRepository(db);
+    customerEmailVerificationRepository = new PostgresCustomerEmailVerificationRepository(db);
+    customerPasswordResetRepository = new PostgresCustomerPasswordResetRepository(db);
+    customerEmailChangeRepository = new PostgresCustomerEmailChangeRepository(db);
+    companyRepository = new PostgresCompanyRepository(db);
+    companyRepresentativeRepository = new PostgresCompanyRepresentativeRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
+  const customerAuthService = new CustomerAuthService(customerRepository, customerSessionRepository);
+  // Estrutura PJ — nunca fail-closed sem DATABASE_URL, mesmo par real+
+  // fallback de tudo em Customer Identity. Sem EmailProvider nenhum
+  // (empresa nunca recebe e-mail própria — quem recebe é sempre um
+  // customer/representante).
+  const companyService = new CompanyService(companyRepository, companyRepresentativeRepository);
+  // Etapa 3 — mesmo EmailProvider criado na Etapa 1 (createEmailProvider):
+  // Resend real em produção, InMemory em dev/test por padrão. Nenhuma
+  // segunda integração com o Resend é feita em lugar nenhum.
+  //
+  // createEmailProvider() é fail-closed em produção (lança sem as duas
+  // variáveis) — de propósito, nunca cai pro mock em produção de verdade.
+  // Mas isso não pode derrubar o BOOT inteiro do resto do app (conta,
+  // PIX, cartões...) só porque o Resend não está configurado; mesmo
+  // espírito do admin/CMS logo abaixo, que também fica undefined (e
+  // responde PROVIDER_NOT_CONFIGURED por rota) em vez de travar tudo.
+  // Mesmo raciocínio pra recuperação de senha — mesmo EmailProvider,
+  // mesmo undefined-em-vez-de-derrubar-o-boot quando o Resend não está
+  // configurado em produção.
+  let emailVerificationService: CustomerEmailVerificationService | undefined;
+  let passwordResetService: CustomerPasswordResetService | undefined;
+  let emailChangeService: CustomerEmailChangeService | undefined;
+  if (config.nodeEnv !== 'production' || (config.resendApiKey && config.emailFrom)) {
+    const emailProvider = createEmailProvider({ nodeEnv: config.nodeEnv, resendApiKey: config.resendApiKey, emailFrom: config.emailFrom });
+    emailVerificationService = new CustomerEmailVerificationService(customerRepository, customerEmailVerificationRepository, emailProvider, config.customerAppBaseUrl);
+    passwordResetService = new CustomerPasswordResetService(customerRepository, customerPasswordResetRepository, customerSessionRepository, emailProvider, config.customerAppBaseUrl);
+    emailChangeService = new CustomerEmailChangeService(customerRepository, customerEmailChangeRepository, emailProvider, config.customerAppBaseUrl);
+  }
 
   await app.register(helmet, { contentSecurityPolicy: false });
   // Em staging e production, só as origens listadas em CORS_ORIGINS
@@ -179,6 +251,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   registerErrorHandler(app, config.nodeEnv === 'production');
   await app.register(healthRoutes);
   await app.register(async (api) => v1Routes(api, providers), { prefix: `/${config.apiVersion}` });
+  // Customer Identity — rota isolada, fora do ProviderRegistry sandbox
+  // (não implementa nenhuma das interfaces de ports.ts). Etapa 1: só
+  // cadastro PF, sem sessão/login próprios ainda.
+  await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService }), { prefix: `/${config.apiVersion}/customers` });
 
   await app.register(async (adminApi) => {
     // Persistência real do CMS (Etapa 1 — fundação). Fail closed: sem

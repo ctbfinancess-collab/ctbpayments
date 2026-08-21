@@ -12,6 +12,10 @@ import AdminApp from './src/admin/AdminApp';
 
 import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
+import VerifyEmailScreen from './src/screens/auth/VerifyEmailScreen';
+import CustomerForgotPasswordScreen from './src/screens/auth/CustomerForgotPasswordScreen';
+import ResetPasswordScreen from './src/screens/auth/ResetPasswordScreen';
+import ConfirmEmailChangeScreen from './src/screens/auth/ConfirmEmailChangeScreen';
 import OnboardingScreen from './src/screens/auth/OnboardingScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import GlobalAccountScreen from './src/screens/accounts/GlobalAccountScreen';
@@ -223,6 +227,29 @@ export default function App() {
   // celular) e sem a sessão/navegação do app cliente. Só existe no Web.
   if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
     return <AdminApp />;
+  }
+  // Verificação de e-mail (Customer Identity, Etapa 3): destino do botão
+  // "VERIFICAR MEU E-MAIL" enviado por e-mail — mesmo motivo do /admin
+  // acima, uma URL alcançada de fora do app (nunca por navigation.navigate
+  // interno), então fica fora da árvore normal de sessão/navegação.
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/verify-email')) {
+    return <VerifyEmailScreen />;
+  }
+  // Recuperação de senha real (Customer Identity) — mesmo motivo do
+  // /verify-email acima. /reset-password é o destino do botão "REDEFINIR
+  // MINHA SENHA" enviado por e-mail; /forgot-password é o pedido inicial
+  // (link direto, ainda sem entrada na navegação normal do app). Nomes
+  // distintos do ForgotPasswordScreen SANDBOX (rota nenhuma, só
+  // navigation.navigate) — não colide com ele.
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/reset-password')) {
+    return <ResetPasswordScreen />;
+  }
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/forgot-password')) {
+    return <CustomerForgotPasswordScreen />;
+  }
+  // Confirmação de troca de e-mail — mesmo motivo dos três acima.
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/confirm-email-change')) {
+    return <ConfirmEmailChangeScreen />;
   }
   return (
     <WebFrame>
