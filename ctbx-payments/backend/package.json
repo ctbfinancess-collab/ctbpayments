@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20.19.0" },
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
@@ -11,16 +13,33 @@
     "build": "tsc",
     "test": "node --import tsx --test tests/**/*.test.ts",
     "lint": "tsc --noEmit",
-    "validate:openapi": "node --import tsx scripts/validate-openapi.ts"
+    "validate:openapi": "node --import tsx scripts/validate-openapi.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed-admin": "node --import tsx scripts/seedAdminUser.ts",
+    "db:seed-banners": "node --import tsx scripts/seedBanners.ts",
+    "db:seed-services": "node --import tsx scripts/seedServices.ts",
+    "db:seed-products": "node --import tsx scripts/seedProducts.ts",
+    "db:seed-texts": "node --import tsx scripts/seedTexts.ts",
+    "db:seed-links": "node --import tsx scripts/seedLinks.ts",
+    "db:seed-nav": "node --import tsx scripts/seedNavItems.ts",
+    "db:seed-sections": "node --import tsx scripts/seedCmsSections.ts"
   },
   "dependencies": {
+    "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.0.0",
     "@fastify/helmet": "^13.0.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "argon2": "^0.45.1",
+    "drizzle-orm": "^0.45.2",
     "fastify": "^5.6.0",
+    "postgres": "^3.4.9",
+    "resend": "^6.20.0",
     "yaml": "^2.8.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }

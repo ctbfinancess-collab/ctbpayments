@@ -42,10 +42,10 @@ export default function ButtonBase({
 const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     borderWidth: 1,
     justifyContent: 'center',
-    minHeight: 50,
+    minHeight: 48,
     paddingHorizontal: spacing.xl,
   },
   disabled: { backgroundColor: colors.disabled, opacity: 0.65, ...shadows.none },

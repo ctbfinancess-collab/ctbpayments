@@ -1,13 +1,18 @@
 import { ApiError, apiClient } from '../api';
 import { isDemoMode, isSandboxMode } from '../config';
-import { MOCK_PIX_BALANCE, MOCK_PIX_BENEFICIARY, MOCK_PIX_FAVORITES, MOCK_PIX_KEYS, PIX_KEY_TYPES, buildMockPixTransfer } from '../data/pixMockData';
+import { MOCK_PIX_BALANCE, MOCK_PIX_BENEFICIARY, MOCK_PIX_FAVORITES, MOCK_PIX_KEYS, MOCK_PIX_LIMITS, MOCK_PIX_RECEIPTS, MOCK_PIX_RECENT, MOCK_PIX_SCHEDULED, PIX_KEY_TYPES, buildMockPixTransfer } from '../data/pixMockData';
 import { parseCurrency } from '../utils/pixValidation';
 import { getBalances } from './accountService';
 import { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxPixReceipt, mapSandboxPixTransfer, mapSandboxPixValidation, mapSandboxQrLookup, mapSandboxReceiveQr } from './mappers/pixMapper';
 
 const unavailable = () => { throw new ApiError('Operação PIX não disponível no ambiente sandbox.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
 const notConfigured = () => { throw new ApiError('Backend not configured', { code: 'BACKEND_NOT_CONFIGURED' }); };
+// PixCreateKeyScreen manda o label em português (vindo de PIX_KEY_TYPES) —
+// o backend espera o enum CPF|CNPJ|EMAIL|PHONE|RANDOM.
+const SANDBOX_KEY_TYPE_MAP = { 'Chave aleatória': 'RANDOM', 'CPF/CNPJ': 'CPF', Celular: 'PHONE', 'E-mail': 'EMAIL' };
 const SANDBOX_FAVORITES = Object.freeze([{ id: 'sbx-favorite-1', name: 'Cliente Recebedor SANDBOX', key: 'recebedor@sandbox.invalid', bank: 'Banco SANDBOX', type: 'email' }]);
+const SANDBOX_RECENT = Object.freeze([{ id: 'sbx-recent-1', name: 'Cliente Recebedor SANDBOX', key: 'recebedor@sandbox.invalid', bank: 'Banco SANDBOX', type: 'email', lastAmount: '0,00', lastAt: '—' }]);
+const SANDBOX_LIMITS = Object.freeze({ day: { used: 0, total: 5000, window: '06h às 20h' }, night: { used: 0, total: 1000, window: '20h às 06h' } });
 const scheduleDateToIso = (value) => { const [day, month, year] = value.split('/').map(Number); return new Date(year, month - 1, day, 12).toISOString(); };
 
 export function createPixService({ demoMode = false, sandboxMode = false, client = apiClient, balanceLoader = getBalances } = {}) {
@@ -37,12 +42,38 @@ export function createPixService({ demoMode = false, sandboxMode = false, client
     createTransfer: (input) => demoMode ? buildMockPixTransfer(input) : sandboxMode ? unavailable() : notConfigured(),
     authorizeTransfer: async (transfer, otp) => demoMode ? { ...transfer, demoMode: true } : sandboxMode ? submitSandbox(transfer, otp) : notConfigured(),
     scheduleTransfer: async (transfer, otp) => demoMode ? { ...transfer, demoMode: true } : sandboxMode ? submitSandbox(transfer, otp) : notConfigured(),
-    createKey: (key) => demoMode ? { ...key, id: `DEMO-KEY-${Date.now()}`, status: 'Ativo' } : sandboxMode ? unavailable() : notConfigured(),
-    deleteKey: (key) => demoMode ? key : sandboxMode ? unavailable() : notConfigured(),
+    createKey: async (key) => {
+      if (demoMode) return { ...key, id: `DEMO-KEY-${Date.now()}`, status: 'Ativo' };
+      if (!sandboxMode) return notConfigured();
+      const type = SANDBOX_KEY_TYPE_MAP[key.type] || key.type;
+      const created = (await request('/v1/pix/keys', { method: 'POST', headers: { 'Idempotency-Key': `ctbx-pix-key-create-${type}-${key.value}` }, body: JSON.stringify({ type, value: key.value }) })).data;
+      return mapSandboxPixKeys([created])[0];
+    },
+    deleteKey: async (key) => {
+      if (demoMode) return key;
+      if (!sandboxMode) return unavailable();
+      await request(`/v1/pix/keys/${key.id}`, { method: 'DELETE', headers: { 'Idempotency-Key': `ctbx-pix-key-remove-${key.id}` } });
+      return key;
+    },
     getReceipt: async (transfer) => demoMode ? transfer : sandboxMode ? mapSandboxPixReceipt((await request(`/v1/pix/transfers/${transfer.pixTransferId}/receipt`, { method: 'GET' })).data) : notConfigured(),
     getPixTransferData: async () => ({ balance: await getBalance() }),
+    // Recentes / Agendamentos / Limites / Comprovantes (Gerenciar Pix) — leitura
+    // estrutural em SANDBOX (dataset mínimo ilustrativo), sem endpoint original
+    // dedicado ainda; DEMO usa o dataset completo de pixMockData.
+    getRecent: async () => demoMode ? MOCK_PIX_RECENT : sandboxMode ? SANDBOX_RECENT : notConfigured(),
+    getScheduled: async () => demoMode ? MOCK_PIX_SCHEDULED : sandboxMode ? [] : notConfigured(),
+    cancelScheduled: async (item) => demoMode ? item : sandboxMode ? unavailable() : notConfigured(),
+    getLimits: async () => demoMode ? MOCK_PIX_LIMITS : sandboxMode ? SANDBOX_LIMITS : notConfigured(),
+    requestLimitChange: async (input) => demoMode ? { ...input, status: 'Em análise' } : sandboxMode ? unavailable() : notConfigured(),
+    getPixReceipts: async () => demoMode ? MOCK_PIX_RECEIPTS : sandboxMode ? [] : notConfigured(),
+    addFavorite: async (favorite) => demoMode ? { ...favorite, id: `DEMO-FAV-${Date.now()}` } : sandboxMode ? unavailable() : notConfigured(),
+    removeFavorite: async (favorite) => demoMode ? favorite : sandboxMode ? unavailable() : notConfigured(),
+    renameFavorite: async (favorite, name) => demoMode ? { ...favorite, name } : sandboxMode ? unavailable() : notConfigured(),
   };
 }
 
 const service = createPixService({ demoMode: isDemoMode, sandboxMode: isSandboxMode });
 export const getBalance = service.getBalance; export const lookupKey = service.lookupKey; export const lookupQrCode = service.lookupQrCode; export const getKeys = service.getKeys; export const listKeys = service.getKeys; export const generateReceiveQr = service.generateReceiveQr; export const getFavorites = service.getFavorites; export const listFavorites = service.getFavorites; export const getAvailableKeyTypes = service.getAvailableKeyTypes; export const createTransfer = service.createTransfer; export const validateTransfer = service.validateTransfer; export const authorizeTransfer = service.authorizeTransfer; export const scheduleTransfer = service.scheduleTransfer; export const createKey = service.createKey; export const deleteKey = service.deleteKey; export const getReceipt = service.getReceipt; export const getPixTransferData = service.getPixTransferData;
+export const getRecent = service.getRecent; export const getScheduled = service.getScheduled; export const cancelScheduled = service.cancelScheduled;
+export const getLimits = service.getLimits; export const requestLimitChange = service.requestLimitChange; export const getPixReceipts = service.getPixReceipts;
+export const addFavorite = service.addFavorite; export const removeFavorite = service.removeFavorite; export const renameFavorite = service.renameFavorite;

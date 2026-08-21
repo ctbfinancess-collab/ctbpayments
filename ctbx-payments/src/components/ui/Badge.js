@@ -12,7 +12,7 @@ const variants = {
   confirmation: {
     backgroundColor: colors.orangeAlpha20,
     borderColor: colors.orangeAlpha45,
-    color: colors.orange300,
+    color: colors.orange400,
   },
   success: {
     backgroundColor: colors.successAlpha20,
@@ -23,6 +23,11 @@ const variants = {
     backgroundColor: colors.whiteAlpha08,
     borderColor: colors.whiteAlpha14,
     color: colors.textSecondary,
+  },
+  danger: {
+    backgroundColor: colors.dangerAlpha20,
+    borderColor: colors.dangerAlpha45,
+    color: colors.danger,
   },
 };
 

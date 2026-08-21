@@ -87,10 +87,16 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
     return envelope(request, await providers.pix.listKeys(request.auth!));
   });
   app.post('/pix/keys', {
-    preHandler: requireIdempotencyKey,
+    preHandler: [authenticated, requireIdempotencyKey],
     schema: { body: objectSchema(['type', 'value'], { type: { type: 'string', enum: ['CPF', 'CNPJ', 'EMAIL', 'PHONE', 'RANDOM'] }, value: string }) },
-  }, unavailable('PIX'));
-  app.delete('/pix/keys/:id', { preHandler: requireIdempotencyKey, schema: { params: idParams } }, unavailable('PIX'));
+  }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.createKey(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.delete('/pix/keys/:id', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: idParams } }, async (request) => {
+    if (!providers.pix) throw providerNotConfigured('PIX');
+    return envelope(request, await providers.pix.removeKey(request.auth!, (request.params as { id: string }).id, request.headers['idempotency-key'] as string, request.id));
+  });
   app.post('/pix/qr/lookup', { preHandler: authenticated, schema: { body: objectSchema(['payload'], { payload: string }) } }, async (request) => {
     if (!providers.pix) throw providerNotConfigured('PIX');
     return envelope(request, await providers.pix.lookupQr(request.auth!, request.body));
@@ -250,6 +256,81 @@ export async function v1Routes(app: FastifyInstance, providers: ProviderRegistry
   });
   app.post('/cards/:id/recharge', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: idParams, body: objectSchema(['amountMinor', 'currency'], { amountMinor: { type: 'integer' }, currency: { type: 'string', enum: ['BRL'] } }) } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.recharge(request.auth!, (request.params as { id: string }).id, request.body, request.headers['idempotency-key'] as string, request.id)); });
   app.post('/transport-card/recharge', { preHandler: [authenticated, requireIdempotencyKey], schema: { body: objectSchema(['amountMinor', 'currency'], { amountMinor: { type: 'integer' }, currency: { type: 'string', enum: ['BRL'] } }) } }, async (request) => { if (!providers.card) throw providerNotConfigured('de cartões'); return envelope(request, await providers.card.rechargeTransport(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id)); });
+
+  // Cartão virtual — família de rotas própria (/cards/virtual), separada
+  // de /cards/:id/... (cartão físico) pelo mesmo motivo de /transport-card
+  // já ser separado: "virtual" é um segmento estático, então convive sem
+  // ambiguidade com as rotas parametrizadas /cards/:cardId acima (o router
+  // do Fastify sempre prioriza segmento estático sobre :param).
+  const virtualCardParams = { type: 'object', additionalProperties: false, required: ['id'], properties: { id: idSchema } } as const;
+  const virtualCardColor = { type: 'string', enum: ['Roxo', 'Verde', 'Preto', 'Dourado'] } as const;
+  const virtualCardLimit = { type: 'integer', minimum: 100, maximum: 10_000_000 } as const;
+  app.get('/cards/virtual', { preHandler: authenticated }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.listVirtualCards(request.auth!));
+  });
+  app.get('/cards/virtual/limit-pool', { preHandler: authenticated }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.getVirtualCardLimitPool(request.auth!));
+  });
+  app.post('/cards/virtual', {
+    preHandler: [authenticated, requireIdempotencyKey],
+    schema: { body: objectSchema(['color', 'limitMinor'], { color: virtualCardColor, nickname: { type: 'string', maxLength: 60 }, limitMinor: virtualCardLimit }) },
+  }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.createVirtualCard(request.auth!, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.get('/cards/virtual/:id', { preHandler: authenticated, schema: { params: virtualCardParams } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    return envelope(request, await providers.card.getVirtualCard(request.auth!, (request.params as { id: string }).id));
+  });
+  app.put('/cards/virtual/:id/limit', {
+    preHandler: [authenticated, requireIdempotencyKey],
+    schema: { params: virtualCardParams, body: objectSchema(['limitMinor'], { limitMinor: virtualCardLimit }) },
+  }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return envelope(request, await providers.card.setVirtualCardLimit(request.auth!, id, request.body, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.post('/cards/virtual/:id/block', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: virtualCardParams, body: emptyObjectSchema } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return envelope(request, await providers.card.setVirtualCardBlocked(request.auth!, id, true, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.post('/cards/virtual/:id/unblock', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: virtualCardParams, body: emptyObjectSchema } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return envelope(request, await providers.card.setVirtualCardBlocked(request.auth!, id, false, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.post('/cards/virtual/:id/cancel', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: virtualCardParams, body: emptyObjectSchema } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return envelope(request, await providers.card.cancelVirtualCard(request.auth!, id, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.post('/cards/virtual/:id/recreate', { preHandler: [authenticated, requireIdempotencyKey], schema: { params: virtualCardParams, body: emptyObjectSchema } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return envelope(request, await providers.card.recreateVirtualCard(request.auth!, id, request.headers['idempotency-key'] as string, request.id));
+  });
+  app.get('/cards/virtual/:id/transactions', { preHandler: authenticated, schema: { params: virtualCardParams } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return envelope(request, await providers.card.listVirtualCardTransactions(request.auth!, id));
+  });
+  // Revelar PAN completo/CVV exige challenge OTP verificado antes (mesmo
+  // fluxo de /cards/:id/activation/challenge + /activate) — challenge e
+  // verify são as MESMAS rotas genéricas de segurança já usadas em outros
+  // domínios (ver /security/challenges abaixo), só o "purpose" muda.
+  app.post('/cards/virtual/:id/reveal/challenge', { preHandler: authenticated, schema: { params: virtualCardParams, body: emptyObjectSchema } }, async (request, reply) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return reply.status(201).send(envelope(request, await providers.card.createRevealChallenge(request.auth!, id)));
+  });
+  app.post('/cards/virtual/:id/reveal', { preHandler: authenticated, schema: { params: virtualCardParams, body: objectSchema(['challengeId'], { challengeId: idSchema }) } }, async (request) => {
+    if (!providers.card) throw providerNotConfigured('de cartões');
+    const { id } = request.params as { id: string };
+    return envelope(request, await providers.card.revealVirtualCardData(request.auth!, id, request.body, request.id));
+  });
 
   app.get('/investments/products',{preHandler:authenticated},async request=>envelope(request,await providers.investment!.listProducts(request.auth!)));
   app.post('/investments/simulations',{preHandler:authenticated,schema:{body:objectSchema(['productId','amountMinor'],{productId:idSchema,amountMinor:{type:'integer'}})}},async request=>envelope(request,await providers.investment!.simulate(request.auth!,request.body)));

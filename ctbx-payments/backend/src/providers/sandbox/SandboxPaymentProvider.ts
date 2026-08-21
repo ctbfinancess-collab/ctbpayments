@@ -1,20 +1,35 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { ApiError } from '../../errors/ApiError.js';
 import type { AuthContext, PaymentProvider } from '../ports.js';
+import type { SandboxAccountRepository } from '../../repositories/SandboxAccountRepository.js';
+import type { SandboxLedgerRepository, SandboxOperationRecord } from '../../repositories/SandboxLedgerRepository.js';
+import type { SandboxValidationRepository } from '../../repositories/SandboxValidationRepository.js';
+import { ensureSandboxAccount } from './ensureSandboxAccount.js';
+import { hashPayload, withPersistedIdempotency } from './persistedIdempotency.js';
 import type { SandboxChallengeProvider } from './SandboxChallengeProvider.js';
 
 const VALID_CODE = '00190500954014481606906809350314337370000000100';
 const MISSING_CODE = '99999999999999999999999999999999999999999999999';
 const beneficiary = Object.freeze({ name: 'Empresa Beneficiária SANDBOX', documentMasked: '**.***.***/****-**' });
 type Bill = ReturnType<SandboxPaymentProvider['bill']>;
+type PaymentDetails = { operationId: string; requestId: string; beneficiary: typeof beneficiary; barcodeMasked: string; description?: string; installments?: number; requestHash: string };
 type Payment = { paymentId: string; operationId: string; requestId: string; accountId: string; environment: 'SANDBOX'; simulated: true; status: 'COMPLETED' | 'SCHEDULED'; createdAt: string; amountMinor: number; currency: 'BRL'; beneficiary: typeof beneficiary; barcodeMasked: string; description?: string; scheduledFor?: string; installments?: number };
+type BillValidationPayload = { bill: Bill; amountMinor: number; scheduledFor?: string };
+type InstallmentSimulationPayload = { bill: Bill; amountMinor: number; options: Array<Record<string, unknown>> };
+// Ver comentário equivalente em SandboxPixProvider (Etapa 5.2). Duas
+// "categorias" de rascunho persistidas nesse provider: a validação de
+// boleto (BILL_PAYMENT) e a simulação de parcelamento (INSTALLMENT_SIMULATION).
+const VALIDATION_TTL_MS = 30 * 60_000;
 
 export class SandboxPaymentProvider implements PaymentProvider {
-  private readonly validations = new Map<string, { accountId: string; bill: Bill; amountMinor: number; scheduledFor?: string }>();
-  private readonly simulations = new Map<string, { accountId: string; bill: Bill; amountMinor: number; options: Array<Record<string, unknown>> }>();
-  private readonly payments = new Map<string, Payment>();
-  private readonly idempotency = new Map<string, { hash: string; result: Payment }>();
-  constructor(environment: string, private readonly challenges: SandboxChallengeProvider, private readonly now: () => Date = () => new Date()) {
+  constructor(
+    environment: string,
+    private readonly accounts: SandboxAccountRepository,
+    private readonly ledger: SandboxLedgerRepository,
+    private readonly validations: SandboxValidationRepository,
+    private readonly challenges: SandboxChallengeProvider,
+    private readonly now: () => Date = () => new Date(),
+  ) {
     if (environment === 'production') throw new Error('SandboxPaymentProvider is forbidden in production');
   }
   private bill() {
@@ -37,11 +52,14 @@ export class SandboxPaymentProvider implements PaymentProvider {
     const input = raw as { billId?: string; amountMinor?: number; currency?: string; scheduledFor?: string };
     const bill = this.ownedBill(input.billId);
     if (!Number.isInteger(input.amountMinor) || (input.amountMinor ?? 0) <= 0 || input.currency !== 'BRL') throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Dados do pagamento inválidos.', { statusCode: 422 });
-    if ((input.amountMinor ?? 0) > 125_000) throw new ApiError('INSUFFICIENT_FUNDS', 'Saldo SANDBOX insuficiente.', { statusCode: 422 });
+    // Saldo REAL da conta (fonte única de verdade), não mais um teto fixo.
+    const account = await ensureSandboxAccount(this.accounts, context, this.now);
+    if ((input.amountMinor ?? 0) > account.availableMinor) throw new ApiError('INSUFFICIENT_FUNDS', 'Saldo SANDBOX insuficiente.', { statusCode: 422 });
     if (input.scheduledFor && (!Number.isFinite(Date.parse(input.scheduledFor)) || Date.parse(input.scheduledFor) < this.now().getTime())) throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Data de pagamento inválida.', { statusCode: 422 });
     const validationId = `sbx_payment_validation_${randomUUID()}`;
     const amountMinor = input.amountMinor as number;
-    this.validations.set(validationId, { accountId: context.accountId, bill, amountMinor, ...(input.scheduledFor ? { scheduledFor: input.scheduledFor } : {}) });
+    const payload: BillValidationPayload = { bill, amountMinor, ...(input.scheduledFor ? { scheduledFor: input.scheduledFor } : {}) };
+    await this.validations.create({ id: validationId, accountId: context.accountId, kind: 'BILL_PAYMENT', payload, expiresAt: new Date(this.now().getTime() + VALIDATION_TTL_MS) });
     return { validationId, bill, amountMinor, currency: 'BRL', feeMinor: 0, totalDebitMinor: amountMinor, ...(input.scheduledFor ? { scheduledFor: input.scheduledFor } : {}), status: 'VALIDATED', requiresChallenge: true, warnings: input.scheduledFor ? ['Agendamento SANDBOX sem execução automática'] : [] };
   }
   async simulateInstallments(context: AuthContext, raw: unknown) {
@@ -53,51 +71,94 @@ export class SandboxPaymentProvider implements PaymentProvider {
     const simulationId = `sbx_payment_simulation_${randomUUID()}`;
     const amountMinor = input.amountMinor as number;
     const options = counts.map((installments) => { const totalAmountMinor = Math.round(amountMinor * (1 + Math.max(0, installments - 1) * 0.012)); return { optionId: `sbx_option_${installments}`, installments, installmentAmountMinor: Math.ceil(totalAmountMinor / installments), totalAmountMinor, feeMinor: totalAmountMinor - amountMinor, currency: 'BRL', rule: 'SANDBOX_1_2_PERCENT_PER_ADDITIONAL_INSTALLMENT' }; });
-    this.simulations.set(simulationId, { accountId: context.accountId, bill, amountMinor, options });
+    const payload: InstallmentSimulationPayload = { bill, amountMinor, options };
+    await this.validations.create({ id: simulationId, accountId: context.accountId, kind: 'INSTALLMENT_SIMULATION', payload, expiresAt: new Date(this.now().getTime() + VALIDATION_TTL_MS) });
     return { simulationId, environment: 'SANDBOX', simulated: true, options };
   }
   private ensureChallenge(context: AuthContext, challengeId: string | undefined, operationId: string) {
     if (!challengeId || !this.challenges.isVerified(context, challengeId, operationId)) throw new ApiError('AUTH_CHALLENGE_REQUIRED', 'Challenge OTP verificado é obrigatório.', { statusCode: 401 });
   }
-  private idempotent(context: AuthContext, route: string, key: string, raw: unknown, factory: () => Payment) {
-    const scope = `${context.accountId}:${route}:${key}`;
-    const hash = createHash('sha256').update(JSON.stringify(raw)).digest('hex');
-    const existing = this.idempotency.get(scope);
-    if (existing) {
-      if (existing.hash !== hash) throw new ApiError('IDEMPOTENCY_KEY_CONFLICT', 'Idempotency-Key reutilizada com payload diferente.', { statusCode: 409 });
-      return existing.result;
-    }
-    const result = factory(); this.idempotency.set(scope, { hash, result }); this.payments.set(result.paymentId, result); return result;
+  // Reconstrói o mesmo formato de resposta público de sempre a partir do
+  // registro persistido (sandbox_operations) — assim getPayment/getReceipt
+  // também sobrevivem a um restart real do backend, não só o saldo/extrato.
+  private toPublicPayment(row: SandboxOperationRecord): Payment {
+    const details = row.details as unknown as PaymentDetails;
+    return {
+      paymentId: row.id, operationId: details.operationId, requestId: details.requestId, accountId: row.accountId, environment: 'SANDBOX', simulated: true,
+      status: row.status, createdAt: row.createdAt.toISOString(), amountMinor: row.amountMinor, currency: 'BRL', beneficiary: details.beneficiary, barcodeMasked: details.barcodeMasked,
+      ...(details.description ? { description: details.description } : {}),
+      ...(row.scheduledFor ? { scheduledFor: row.scheduledFor.toISOString() } : {}),
+      ...(details.installments ? { installments: details.installments } : {}),
+    };
   }
-  private buildPayment(context: AuthContext, bill: Bill, amountMinor: number, requestId: string, status: 'COMPLETED' | 'SCHEDULED', input: { description?: string; scheduledFor?: string }, installments?: number): Payment {
-    return { paymentId: `sbx_payment_${randomUUID()}`, operationId: `sbx_operation_${randomUUID()}`, requestId, accountId: context.accountId, environment: 'SANDBOX', simulated: true, status, createdAt: this.now().toISOString(), amountMinor, currency: 'BRL', beneficiary, barcodeMasked: `${bill.barcode.slice(0, 5)}••••••••${bill.barcode.slice(-5)}`, ...(input.description ? { description: input.description } : {}), ...(input.scheduledFor ? { scheduledFor: input.scheduledFor } : {}), ...(installments ? { installments } : {}) };
+  // Etapa 5.1 (Prioridade 2): idempotência PERSISTIDA — ver comentário
+  // equivalente em SandboxPixProvider.submit(). `check` roda ANTES da
+  // validação/simulação (que continuam em memória) — um replay com o
+  // mesmo payload devolve o pagamento já persistido mesmo depois de um
+  // restart real, em vez de falhar com "validação não encontrada".
+  private async recordPayment(context: AuthContext, key: string, raw: unknown, build: () => Promise<{ bill: Bill; amountMinor: number; status: 'COMPLETED' | 'SCHEDULED'; input: { description?: string; scheduledFor?: string }; requestId: string; installments?: number }>): Promise<Payment> {
+    const operation = await withPersistedIdempotency({
+      raw,
+      find: () => this.ledger.findByIdempotencyKey(context.accountId, 'BILL_PAYMENT', key),
+      requestHashOf: (row) => (row.details as unknown as PaymentDetails).requestHash,
+      create: async () => {
+        const { bill, amountMinor, status, input, requestId, installments } = await build();
+        const paymentId = `sbx_payment_${randomUUID()}`;
+        const details: PaymentDetails = { operationId: `sbx_operation_${randomUUID()}`, requestId, beneficiary, barcodeMasked: `${bill.barcode.slice(0, 5)}••••••••${bill.barcode.slice(-5)}`, ...(input.description ? { description: input.description } : {}), ...(installments ? { installments } : {}), requestHash: hashPayload(raw) };
+        // Única escrita financeira: opera + saldo + extrato, atomicamente,
+        // com checagem final de saldo negativo dentro da própria transação.
+        return this.ledger.recordOperation({
+          operationId: paymentId, accountId: context.accountId, kind: 'BILL_PAYMENT', status, amountMinor,
+          ...(status === 'SCHEDULED' ? { scheduledFor: new Date(input.scheduledFor!) } : {}),
+          details, idempotencyKey: key,
+          ...(status === 'COMPLETED' ? { ledgerEntry: {
+            balanceField: 'availableMinor' as const, deltaMinor: -amountMinor,
+            transaction: {
+              id: `sbx_txn_${context.accountId}_payment_${randomUUID()}`, accountId: context.accountId, occurredAt: this.now(), type: installments ? 'INSTALLMENT_PAYMENT' : 'BILL_PAYMENT', direction: 'DEBIT',
+              description: input.description || 'Pagamento de boleto', counterparty: beneficiary.name, amountMinor, currency: 'BRL', status: 'COMPLETED',
+              category: 'Pagamento', feeMinor: 0, receiptAvailable: true, institution: bill.bankName, document: beneficiary.documentMasked, reason: null,
+            },
+          } } : {}),
+        });
+      },
+    });
+    return this.toPublicPayment(operation);
   }
   async payBill(context: AuthContext, raw: unknown, key: string, requestId: string) {
     const input = raw as { validationId?: string; challengeId?: string; description?: string };
-    const validation = this.validations.get(input.validationId ?? '');
-    if (!validation || validation.accountId !== context.accountId || validation.scheduledFor) throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Validação de pagamento inválida.', { statusCode: 422 });
-    this.ensureChallenge(context, input.challengeId, input.validationId!);
-    return this.idempotent(context, 'bill', key, raw, () => this.buildPayment(context, validation.bill, validation.amountMinor, requestId, 'COMPLETED', input));
+    return this.recordPayment(context, key, raw, async () => {
+      const validationRow = await this.validations.findById(input.validationId ?? '', context.accountId, 'BILL_PAYMENT');
+      const validation = validationRow?.payload as unknown as BillValidationPayload | undefined;
+      if (!validation || validation.scheduledFor) throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Validação de pagamento inválida.', { statusCode: 422 });
+      this.ensureChallenge(context, input.challengeId, input.validationId!);
+      return { bill: validation.bill, amountMinor: validation.amountMinor, status: 'COMPLETED', input, requestId };
+    });
   }
   async scheduleBill(context: AuthContext, raw: unknown, key: string, requestId: string) {
     const input = raw as { validationId?: string; challengeId?: string; description?: string; scheduledFor?: string };
-    const validation = this.validations.get(input.validationId ?? '');
-    if (!validation || validation.accountId !== context.accountId || !validation.scheduledFor || validation.scheduledFor !== input.scheduledFor) throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Validação de agendamento inválida.', { statusCode: 422 });
-    this.ensureChallenge(context, input.challengeId, input.validationId!);
-    return this.idempotent(context, 'schedule', key, raw, () => this.buildPayment(context, validation.bill, validation.amountMinor, requestId, 'SCHEDULED', input));
+    return this.recordPayment(context, key, raw, async () => {
+      const validationRow = await this.validations.findById(input.validationId ?? '', context.accountId, 'BILL_PAYMENT');
+      const validation = validationRow?.payload as unknown as BillValidationPayload | undefined;
+      if (!validation || !validation.scheduledFor || validation.scheduledFor !== input.scheduledFor) throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Validação de agendamento inválida.', { statusCode: 422 });
+      this.ensureChallenge(context, input.challengeId, input.validationId!);
+      return { bill: validation.bill, amountMinor: validation.amountMinor, status: 'SCHEDULED', input, requestId };
+    });
   }
   async payInstallments(context: AuthContext, raw: unknown, key: string, requestId: string) {
     const input = raw as { simulationId?: string; optionId?: string; challengeId?: string; description?: string };
-    const simulation = this.simulations.get(input.simulationId ?? '');
-    const option = simulation?.options.find((item) => item.optionId === input.optionId) as { installments: number; totalAmountMinor: number } | undefined;
-    if (!simulation || simulation.accountId !== context.accountId || !option) throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Simulação de parcelamento inválida.', { statusCode: 422 });
-    this.ensureChallenge(context, input.challengeId, input.simulationId!);
-    return this.idempotent(context, 'installments', key, raw, () => this.buildPayment(context, simulation.bill, option.totalAmountMinor, requestId, 'COMPLETED', input, option.installments));
+    return this.recordPayment(context, key, raw, async () => {
+      const simulationRow = await this.validations.findById(input.simulationId ?? '', context.accountId, 'INSTALLMENT_SIMULATION');
+      const simulation = simulationRow?.payload as unknown as InstallmentSimulationPayload | undefined;
+      const option = simulation?.options.find((item) => item.optionId === input.optionId) as { installments: number; totalAmountMinor: number } | undefined;
+      if (!simulation || !option) throw new ApiError('PAYMENT_VALIDATION_FAILED', 'Simulação de parcelamento inválida.', { statusCode: 422 });
+      this.ensureChallenge(context, input.challengeId, input.simulationId!);
+      return { bill: simulation.bill, amountMinor: option.totalAmountMinor, status: 'COMPLETED', input, requestId, installments: option.installments };
+    });
   }
   async getPayment(context: AuthContext, paymentId: string) {
-    const payment = this.payments.get(paymentId);
-    if (!payment || payment.accountId !== context.accountId) throw new ApiError('PAYMENT_NOT_FOUND', 'Pagamento não encontrado.', { statusCode: 404 });
-    return payment;
+    const operation = await this.ledger.findById(paymentId, context.accountId);
+    if (!operation || operation.kind !== 'BILL_PAYMENT') throw new ApiError('PAYMENT_NOT_FOUND', 'Pagamento não encontrado.', { statusCode: 404 });
+    return this.toPublicPayment(operation);
   }
   async getReceipt(context: AuthContext, paymentId: string, requestId: string) {
     const payment = await this.getPayment(context, paymentId) as Payment;

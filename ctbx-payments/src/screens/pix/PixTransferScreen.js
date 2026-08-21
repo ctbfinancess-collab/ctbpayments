@@ -5,7 +5,7 @@ import { InfoRow, PixButton, PixField } from '../../components/pix/PixForm';
 import { getPixTransferData, validateTransfer } from '../../services/pixService'; import useAsyncResource from '../../hooks/useAsyncResource';
 import { parseCurrency } from '../../utils/pixValidation';
 import { isTodayOrFutureDate } from '../../utils/dateValidation';
-import { MissingDataState } from '../../components/ui';
+import { Icon, MissingDataState } from '../../components/ui';
 
 export default function PixTransferScreen({ navigation, route }) {
   const {data: pixData} = useAsyncResource(getPixTransferData, {balance: ''}); const transfer = route.params?.transfer;
@@ -57,13 +57,13 @@ export default function PixTransferScreen({ navigation, route }) {
       <PixField label="Mensagem" multiline onChangeText={setMessage} value={message} />
       <TouchableOpacity onPress={() => setFavorite((current) => !current)} style={styles.favoriteRow}>
         <View style={[styles.checkbox, favorite && styles.checkboxChecked]}>
-          <Text style={styles.checkmark}>{favorite ? '✓' : ''}</Text>
+          {favorite ? <Icon color="#FFFFFF" name="checkmark" size={13} /> : null}
         </View>
         <Text style={styles.favoriteText}>Salvar favorito</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => setScheduled((current) => !current)} style={styles.favoriteRow}>
         <View style={[styles.checkbox, scheduled && styles.checkboxChecked]}>
-          <Text style={styles.checkmark}>{scheduled ? '✓' : ''}</Text>
+          {scheduled ? <Icon color="#FFFFFF" name="checkmark" size={13} /> : null}
         </View>
         <Text style={styles.favoriteText}>Agendar Pix</Text>
       </TouchableOpacity>
@@ -90,6 +90,5 @@ const styles = StyleSheet.create({
   favoriteRow: { alignItems: 'center', flexDirection: 'row', marginBottom: 12 },
   checkbox: { alignItems: 'center', borderColor: PIX_COLORS.accent, borderRadius: 3, borderWidth: 1, height: 20, justifyContent: 'center', marginRight: 9, width: 20 },
   checkboxChecked: { backgroundColor: PIX_COLORS.accent },
-  checkmark: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
   favoriteText: { color: PIX_COLORS.text, fontSize: 13 },
 });

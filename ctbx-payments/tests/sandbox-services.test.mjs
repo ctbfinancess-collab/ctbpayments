@@ -28,7 +28,7 @@ const { apiClient, buildAuthHeaders, configureApiClient } = apiClientModule;
 const ApiError = ApiErrorModule.default || ApiErrorModule;
 const { formatCents, mapSandboxAccount, mapSandboxBalances } = mapperModule;
 const { mapSandboxReceipt, mapSandboxStatement, mapSandboxTransaction } = statementMapperModule;
-const { mapSandboxCard, mapSandboxCardMutation, mapSandboxCardRecharge, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSandboxCardTransactions } = cardMapperModule;
+const { mapSandboxCard, mapSandboxCardMutation, mapSandboxCardRecharge, mapSandboxCardReceipt, mapSandboxCardTransaction, mapSandboxCardTransactions, mapSandboxVirtualCard, mapSandboxVirtualCards, mapVirtualCardLimitPool } = cardMapperModule;
 const { createCardService } = cardServiceModule;
 const { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxPixReceipt, mapSandboxPixTransfer, mapSandboxPixValidation, mapSandboxQrLookup, mapSandboxReceiveQr } = pixMapperModule;
 const { createPixService } = pixServiceModule;
@@ -285,6 +285,113 @@ test('card mutation mappers preserve cents and SANDBOX markers', () => {
   assert.throws(() => mapSandboxCardRecharge({ amountMinor: 10.5, newBalanceMinor: 20 }), /integer minor units/);
 });
 
+test('virtual card mapper preserves the raw status enum (statusKey) alongside the pt-BR label, and formats limit/used', () => {
+  const raw = { id: 'sbx_card_vrt_test', type: 'VIRTUAL', status: 'BLOCKED', nickname: 'Assinaturas', color: 'Roxo', lastFour: '4587', holderName: 'CLIENTE SANDBOX', expiryMonth: 8, expiryYear: 2030, limitMinor: 500000, usedMinor: 82000, availableMinor: 418000, currency: 'BRL', createdAt: new Date().toISOString() };
+  const card = mapSandboxVirtualCard(raw);
+  assert.equal(card.statusKey, 'BLOCKED');
+  assert.equal(card.status, 'Bloqueado');
+  assert.equal(card.limit, 'R$ 5.000,00');
+  assert.equal(card.used, 'R$ 820,00');
+  assert.equal(card.balance, 'R$ 4.180,00');
+  assert.equal(mapSandboxVirtualCards([raw, raw]).length, 2);
+});
+
+test('virtual card limit pool mapper formats totals and rejects fractional minor units', () => {
+  const pool = mapVirtualCardLimitPool({ totalMinor: 3000000, allocatedMinor: 500000, availableMinor: 2500000, currency: 'BRL' });
+  assert.equal(pool.total, 'R$ 30.000,00');
+  assert.equal(pool.allocated, 'R$ 5.000,00');
+  assert.equal(pool.available, 'R$ 25.000,00');
+  assert.throws(() => mapVirtualCardLimitPool({ totalMinor: 1.5, allocatedMinor: 0, availableMinor: 0 }), /integer minor units/);
+});
+
+test('card service SANDBOX connects the full virtual card lifecycle (list, create, limit, block/unblock, cancel)', async () => {
+  const virtualCard = { id: 'sbx_card_vrt_test', type: 'VIRTUAL', status: 'ACTIVE', nickname: 'Assinaturas', color: 'Roxo', lastFour: '4587', holderName: 'CLIENTE SANDBOX', expiryMonth: 8, expiryYear: 2030, limitMinor: 500000, usedMinor: 0, availableMinor: 500000, currency: 'BRL', createdAt: new Date().toISOString() };
+  const pool = { totalMinor: 3000000, allocatedMinor: 500000, availableMinor: 2500000, currency: 'BRL' };
+  const calls = [];
+  const client = async (path, options) => {
+    calls.push({ path, options, body: options.body ? JSON.parse(options.body) : undefined });
+    if (path === '/v1/cards/virtual') return { data: options.method === 'POST' ? virtualCard : [virtualCard] };
+    if (path === '/v1/cards/virtual/limit-pool') return { data: pool };
+    if (path === `/v1/cards/virtual/${virtualCard.id}`) return { data: virtualCard };
+    if (path.endsWith('/limit')) return { data: { ...virtualCard, limitMinor: 800000, availableMinor: 800000 } };
+    if (path.endsWith('/block')) return { data: { cardId: virtualCard.id, status: 'BLOCKED', environment: 'SANDBOX', simulated: true } };
+    if (path.endsWith('/unblock')) return { data: { cardId: virtualCard.id, status: 'ACTIVE', environment: 'SANDBOX', simulated: true } };
+    if (path.endsWith('/cancel')) return { data: { cardId: virtualCard.id, status: 'CANCELLED', environment: 'SANDBOX', simulated: true } };
+    throw new Error(path);
+  };
+  const sandbox = createCardService({ sandboxMode: true, client });
+
+  assert.equal((await sandbox.listVirtualCards())[0].id, virtualCard.id);
+  assert.equal((await sandbox.getVirtualCard(virtualCard.id)).limit, 'R$ 5.000,00');
+  assert.equal((await sandbox.getVirtualCardLimitPool()).available, 'R$ 25.000,00');
+  const overview = await sandbox.getVirtualCardsOverview();
+  assert.equal(overview.cards[0].id, virtualCard.id);
+  assert.equal(overview.pool.available, 'R$ 25.000,00');
+
+  const [created, replay] = await Promise.all([
+    sandbox.createVirtualCard({ color: 'Roxo', nickname: 'Assinaturas', limit: '5.000,00' }),
+    sandbox.createVirtualCard({ color: 'Roxo', nickname: 'Assinaturas', limit: '5.000,00' }),
+  ]);
+  assert.equal(created.id, virtualCard.id);
+  assert.equal(replay.id, virtualCard.id);
+  assert.equal(calls.filter((call) => call.path === '/v1/cards/virtual' && call.options.method === 'POST').length, 1); // idempotência dedup
+
+  assert.equal((await sandbox.setVirtualCardLimit(virtualCard.id, '8.000,00')).limit, 'R$ 8.000,00');
+  const limitCall = calls.find((call) => call.path.endsWith('/limit'));
+  assert.equal(limitCall.options.method, 'PUT');
+  assert.equal(limitCall.body.limitMinor, 800000);
+
+  assert.equal((await sandbox.blockVirtualCard(virtualCard.id)).statusLabel, 'Bloqueado');
+  assert.equal((await sandbox.unblockVirtualCard(virtualCard.id)).statusLabel, 'Desbloqueado');
+  assert.equal((await sandbox.cancelVirtualCard(virtualCard.id)).statusLabel, 'Cancelado');
+  assert.ok(calls.filter((call) => call.options.headers?.['Idempotency-Key']).length >= 5);
+
+  const demo = createCardService({ demoMode: true });
+  assert.ok((await demo.listVirtualCards()).length >= 1);
+  assert.equal((await demo.getVirtualCardLimitPool()).available, 'R$ 25.000,00');
+  assert.equal((await demo.cancelVirtualCard('demo-virtual-1')).status, 'CANCELLED');
+});
+
+test('card service SANDBOX connects recreate, transactions and the reveal (challenge + verify + reveal) flow', async () => {
+  const cardId = 'sbx_card_vrt_test';
+  const recreated = { id: cardId, type: 'VIRTUAL', status: 'ACTIVE', nickname: 'Assinaturas', color: 'Roxo', lastFour: '9012', holderName: 'CLIENTE SANDBOX', expiryMonth: 8, expiryYear: 2030, limitMinor: 500000, usedMinor: 0, availableMinor: 500000, currency: 'BRL', createdAt: new Date().toISOString() };
+  const transactions = [{ id: 'sbx_vctx_1', cardId, occurredAt: new Date().toISOString(), merchantName: 'Streaming Sandbox', amountMinor: 3990, currency: 'BRL', status: 'APPROVED' }];
+  const calls = [];
+  const client = async (path, options) => {
+    calls.push({ path, options, body: options.body ? JSON.parse(options.body) : undefined });
+    if (path.endsWith('/recreate')) return { data: recreated };
+    if (path.endsWith('/transactions')) return { data: transactions };
+    if (path.endsWith('/reveal/challenge')) return { data: { id: 'sbx_challenge_reveal_1' } };
+    if (path.endsWith('/verify')) return { data: { status: 'VERIFIED' } };
+    if (path.endsWith('/reveal')) return { data: { cardId, number: '4111222233339012', cvv: '456' } };
+    throw new Error(path);
+  };
+  const sandbox = createCardService({ sandboxMode: true, client });
+
+  const result = await sandbox.recreateVirtualCard(cardId);
+  assert.equal(result.lastFour, '9012');
+  const recreateCall = calls.find((call) => call.path.endsWith('/recreate'));
+  assert.equal(recreateCall.options.method, 'POST');
+  assert.ok(recreateCall.options.headers['Idempotency-Key']);
+
+  const cardTransactions = await sandbox.getVirtualCardTransactions(cardId);
+  assert.equal(cardTransactions.length, 1);
+  assert.equal(cardTransactions[0].value, '- R$ 39,90');
+  assert.equal(cardTransactions[0].status, 'Aprovada');
+
+  const revealed = await sandbox.revealVirtualCardData(cardId);
+  assert.equal(revealed.number, '4111222233339012');
+  assert.equal(revealed.cvv, '456');
+  assert.ok(calls.some((call) => call.path.endsWith('/reveal/challenge')));
+  assert.ok(calls.some((call) => call.path.endsWith('/verify') && call.body.proof === '123456'));
+  assert.ok(calls.some((call) => call.path.endsWith('/reveal') && call.body.challengeId === 'sbx_challenge_reveal_1'));
+
+  const demo = createCardService({ demoMode: true });
+  assert.ok((await demo.recreateVirtualCard(cardId)).lastFour);
+  assert.ok((await demo.getVirtualCardTransactions(cardId)).length >= 0);
+  assert.ok((await demo.revealVirtualCardData(cardId)).number);
+});
+
 test('PIX mappers preserve cents and normalize SANDBOX reads for existing screens', () => {
   const beneficiary = { name: 'Cliente Recebedor SANDBOX', documentMasked: '***.***.***-**', bankName: 'Banco SANDBOX', branch: '0001', accountMasked: '******-0', accountType: 'Conta corrente' };
   const lookup = mapSandboxPixLookup({ key: 'recebedor@sandbox.invalid', keyType: 'EMAIL', beneficiary, status: 'ACTIVE', requestId: 'request-pix' });
@@ -377,16 +484,42 @@ test('PIX service SANDBOX schedules a validated transfer through the dedicated r
   assert.ok(calls.includes('/v1/pix/transfers/schedule'));
 });
 
-test('PIX SANDBOX propagates lookup errors and blocks only unsupported mutations', async () => {
+test('PIX SANDBOX propagates lookup/key-management errors and blocks only the still-unsupported createTransfer', async () => {
   const service = createPixService({ sandboxMode: true, client: async () => { throw new ApiError('Chave PIX não encontrada.', { code: 'PIX_KEY_NOT_FOUND', status: 404 }); } });
   await assert.rejects(service.lookupKey({ key: 'missing' }), (error) => error.code === 'PIX_KEY_NOT_FOUND' && error.status === 404);
-  for (const action of [() => service.createTransfer({}), () => service.createKey({}), () => service.deleteKey({})]) {
-    await assert.rejects(Promise.resolve().then(action), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
-  }
+  // createKey/deleteKey agora chamam o backend de verdade (Etapa 3 —
+  // antes eram stubs "unavailable"), então propagam o erro real da API,
+  // igual lookupKey — não mais um SANDBOX_OPERATION_UNAVAILABLE sintético.
+  await assert.rejects(service.createKey({ type: 'E-mail', value: 'x@y.z' }), (error) => error.code === 'PIX_KEY_NOT_FOUND');
+  await assert.rejects(service.deleteKey({ id: 'sbx_pix_key_x' }), (error) => error.code === 'PIX_KEY_NOT_FOUND');
+  // createTransfer continua sem rota própria dedicada (o fluxo real é
+  // validateTransfer + submitSandbox) — segue bloqueado como sempre foi.
+  await assert.rejects(Promise.resolve().then(() => service.createTransfer({})), (error) => error.code === 'SANDBOX_OPERATION_UNAVAILABLE');
   const production = createPixService();
   await assert.rejects(production.getKeys(), (error) => error.code === 'BACKEND_NOT_CONFIGURED');
   const demo = createPixService({ demoMode: true });
   assert.ok((await demo.getKeys()).length > 0);
+});
+
+test('PIX SANDBOX createKey/deleteKey call the real backend routes with a deterministic Idempotency-Key', async () => {
+  const calls = [];
+  const client = async (path, options = {}) => {
+    calls.push({ path, method: options.method, key: options.headers?.['Idempotency-Key'], body: options.body ? JSON.parse(options.body) : undefined });
+    if (path === '/v1/pix/keys' && options.method === 'POST') return { data: { id: 'sbx_pix_key_new', type: 'EMAIL', keyMasked: 'no••@sandbox.invalid', status: 'ACTIVE', createdAt: '2026-01-01T00:00:00.000Z' } };
+    if (path === '/v1/pix/keys/sbx_pix_key_new' && options.method === 'DELETE') return { data: { id: 'sbx_pix_key_new', status: 'REMOVED' } };
+    throw new Error(`Unexpected call ${path}`);
+  };
+  const service = createPixService({ sandboxMode: true, client });
+  const created = await service.createKey({ type: 'E-mail', value: 'nova@sandbox.invalid' });
+  assert.equal(created.id, 'sbx_pix_key_new');
+  assert.equal(created.status, 'Ativo'); // mapeado pelo mesmo mapSandboxPixKeys usado em getKeys
+  const createCall = calls.find((call) => call.method === 'POST');
+  assert.equal(createCall.body.type, 'EMAIL'); // label "E-mail" convertido pro enum do backend
+  assert.ok(createCall.key.length > 0);
+  await service.deleteKey({ id: 'sbx_pix_key_new' });
+  const deleteCall = calls.find((call) => call.method === 'DELETE');
+  assert.equal(deleteCall.path, '/v1/pix/keys/sbx_pix_key_new');
+  assert.ok(deleteCall.key.length > 0);
 });
 
 test('PIX lookup refreshes once after 401 and retries with the rotated access token', async (t) => {

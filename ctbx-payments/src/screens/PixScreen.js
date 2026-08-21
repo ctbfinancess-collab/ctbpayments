@@ -6,55 +6,60 @@ import {
   Text,
   TouchableOpacity,
   View,
-  useWindowDimensions,
 } from 'react-native';
-import { AppHeader, Card, Screen, SectionTitle, ServiceCard } from '../components/ui';
-import { colors, radii, shadows, spacing, typography } from '../theme';
+import { AppHeader, Card, Icon, Screen, SectionTitle, ServiceCard } from '../components/ui';
+import useAppWidth from '../hooks/useAppWidth';
+import { colors, radii, spacing, typography } from '../theme';
 
-// Rotas/acoes originais recuperadas do Modulo_BotoesChaves. Nesta primeira
-// etapa os subfluxos permanecem intencionalmente sem implementacao.
+// Rotas/acoes originais recuperadas do Modulo_BotoesChaves.
+// `icon` usa nomes do conjunto Ionicons (ver src/components/ui/Icon.js).
+// Arquitetura revisada: "Favoritos"/"Recentes" saíram da grade de métodos de
+// envio (viraram atalhos rápidos no topo de "Enviar") e "Minhas Chaves"
+// passou a viver em "Gerenciar Pix", junto de Agendamentos/Limites/
+// Comprovantes — a mesma tela recuperada, só organizada em menos níveis.
+const QUICK_SEND_OPTIONS = [
+  { id: 'favorites', label: 'Favoritos', icon: 'star-outline', route: 'PixFavorites' },
+  { id: 'recent', label: 'Recentes', icon: 'time-outline', route: 'PixRecent' },
+];
+
 const PAY_OPTIONS = [
-  { id: 'qr_code', label: 'QR Code', symbol: '▦', originalAction: 'abrirModal(1)' },
-  { id: 'cpf', label: 'CPF', symbol: '●', originalAction: 'abrirModal(2)' },
-  { id: 'cnpj', label: 'CNPJ', symbol: '▣', originalAction: 'abrirModal(3)' },
-  { id: 'phone', label: 'Celular', symbol: '▯', originalAction: 'abrirModal(4)' },
-  { id: 'email', label: 'E-mail', symbol: '✉', originalAction: 'abrirModal(5)' },
+  { id: 'qr_code', label: 'QR Code', icon: 'qr-code-outline', originalAction: 'abrirModal(1)' },
+  { id: 'cpf', label: 'CPF', icon: 'person-outline', originalAction: 'abrirModal(2)' },
+  { id: 'cnpj', label: 'CNPJ', icon: 'briefcase-outline', originalAction: 'abrirModal(3)' },
+  { id: 'phone', label: 'Celular', icon: 'call-outline', originalAction: 'abrirModal(4)' },
+  { id: 'email', label: 'E-mail', icon: 'mail-outline', originalAction: 'abrirModal(5)' },
   {
     id: 'random_key',
     label: 'Chave Aleatória',
-    symbol: '⚿',
+    icon: 'key-outline',
     originalAction: 'abrirModal(6)',
   },
   {
     id: 'copy_paste',
     label: 'Copia\ne Cola',
-    symbol: '▤',
+    icon: 'copy-outline',
     originalAction: 'abrirModal(7)',
   },
-  { id: 'agency_account', label: 'Agência e Conta', symbol: '▥', originalAction: 'abrirModal(8)' },
-  { id: 'favorites', label: 'Favoritos', symbol: '☷', originalAction: 'abrirModal(10)' },
+  { id: 'agency_account', label: 'Agência e Conta', icon: 'business-outline', originalAction: 'abrirModal(8)' },
 ];
 
 const RECEIVE_OPTIONS = [
-  {
-    id: 'generate_qr',
-    label: 'Gerar QR Code',
-    symbol: '▦',
-    originalAction: 'abrirModal(0)',
-  },
-  {
-    id: 'my_keys',
-    label: 'Minhas Chaves',
-    symbol: '⚿',
-    originalAction: 'abrirModal(9)',
-  },
+  { id: 'my_qr', label: 'Meu QR Code', icon: 'qr-code-outline', originalAction: 'abrirModal(0)' },
+  { id: 'copy_paste_receive', label: 'Copia e Cola', icon: 'copy-outline', originalAction: 'abrirModal(0)' },
+];
+
+const MANAGE_OPTIONS = [
+  { id: 'my_keys', label: 'Minhas Chaves', icon: 'key-outline', route: 'PixKeys' },
+  { id: 'scheduled', label: 'Agendamentos', icon: 'calendar-outline', route: 'PixScheduled' },
+  { id: 'limits', label: 'Limites Pix', icon: 'speedometer-outline', route: 'PixLimits' },
+  { id: 'receipts', label: 'Comprovantes', icon: 'receipt-outline', route: 'PixReceiptsList' },
 ];
 
 function PixOption({ item, cardWidth, onPress }) {
   return (
     <ServiceCard
-      accessibilityHint={`Ação original: ${item.originalAction}`}
-      icon={<Text style={styles.optionIcon}>{item.symbol}</Text>}
+      accessibilityHint={item.originalAction ? `Ação original: ${item.originalAction}` : undefined}
+      icon={<Icon color={colors.purple300} name={item.icon} size={20} />}
       label={item.label}
       onPress={onPress}
       style={[styles.optionCard, { width: cardWidth }]}
@@ -63,14 +68,12 @@ function PixOption({ item, cardWidth, onPress }) {
 }
 
 export default function PixScreen({ navigation }) {
-  const { width } = useWindowDimensions();
-  const cardWidth = (width - 60) / 3;
+  const width = useAppWidth();
+  const cardWidth = (width - 60) / 2;
 
   const openPayOption = (item) => {
     if (item.id === 'qr_code') {
       navigation.navigate('PixQrScanner');
-    } else if (item.id === 'favorites') {
-      navigation.navigate('PixFavorites');
     } else if (item.id === 'agency_account') {
       navigation.navigate('PixAgencyAccount');
     } else {
@@ -78,14 +81,10 @@ export default function PixScreen({ navigation }) {
     }
   };
 
-  const openReceiveOption = (item) => {
-    navigation.navigate(item.id === 'generate_qr' ? 'PixReceive' : 'PixKeys');
-  };
-
   return (
-    <Screen contentContainerStyle={styles.screenContent} gradient>
+    <Screen atmospheric backgroundSource={require('../../assets/ctbx-pix-background.png')} contentContainerStyle={styles.screenContent} gradient={false}>
       <AppHeader
-        leftContent={<Text style={styles.backIcon}>‹</Text>}
+        leftContent={<Icon color={colors.textPrimary} name="chevron-back" size={24} />}
         onLeftPress={() => navigation.goBack()}
         title="PIX"
       />
@@ -96,15 +95,25 @@ export default function PixScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.pixContainer}>
-          <Card style={styles.heroCard}>
-            <View style={styles.heroIcon}><Text style={styles.heroIconText}>◆</Text></View>
+          <Card elevated={false} style={styles.heroCard}>
+            <View style={styles.heroIcon}><Icon color={colors.purple300} name="flash-outline" size={26} /></View>
             <View style={styles.heroCopy}>
               <Text style={styles.heroTitle}>Pix CTBX</Text>
               <Text style={styles.heroSubtitle}>Transfira e receba em poucos segundos.</Text>
             </View>
           </Card>
+
           <View style={styles.paySection}>
-            <SectionTitle style={styles.sectionTitle} title="Pagar" />
+            <SectionTitle style={styles.sectionTitle} title="Enviar" />
+            <View style={styles.quickRow}>
+              {QUICK_SEND_OPTIONS.map((item) => (
+                <TouchableOpacity key={item.id} onPress={() => navigation.navigate(item.route)} style={styles.quickChip}>
+                  <Icon color={colors.purple300} name={item.icon} size={16} />
+                  <Text style={styles.quickChipText}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.subheading}>Como deseja enviar?</Text>
             <View style={styles.optionsGrid}>
               {PAY_OPTIONS.map((item) => (
                 <PixOption
@@ -119,13 +128,27 @@ export default function PixScreen({ navigation }) {
 
           <View style={styles.receiveSection}>
             <SectionTitle style={styles.sectionTitle} title="Receber" />
-            <View style={styles.receiveRow}>
+            <View style={styles.optionsGrid}>
               {RECEIVE_OPTIONS.map((item) => (
                 <PixOption
                   key={item.id}
                   cardWidth={cardWidth}
                   item={item}
-                  onPress={() => openReceiveOption(item)}
+                  onPress={() => navigation.navigate('PixReceive')}
+                />
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.receiveSection}>
+            <SectionTitle style={styles.sectionTitle} title="Gerenciar Pix" />
+            <View style={styles.optionsGrid}>
+              {MANAGE_OPTIONS.map((item) => (
+                <PixOption
+                  key={item.id}
+                  cardWidth={cardWidth}
+                  item={item}
+                  onPress={() => navigation.navigate(item.route)}
                 />
               ))}
             </View>
@@ -139,7 +162,7 @@ export default function PixScreen({ navigation }) {
               style={styles.helpButton}
             >
               <Text style={styles.helpButtonText}>Via e-mail</Text>
-              <Text style={styles.helpChevron}>›</Text>
+              <Icon color={colors.purple300} name="chevron-forward" size={20} />
             </TouchableOpacity>
             <TouchableOpacity
               activeOpacity={0.6}
@@ -149,7 +172,7 @@ export default function PixScreen({ navigation }) {
               <Text style={styles.helpButtonText}>
                 Registrar reclamação no Banco Central
               </Text>
-              <Text style={styles.helpChevron}>›</Text>
+              <Icon color={colors.purple300} name="chevron-forward" size={20} />
             </TouchableOpacity>
           </View>
         </View>
@@ -160,35 +183,6 @@ export default function PixScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   screenContent: { paddingHorizontal: 0 },
-  navigationBar: {
-    alignItems: 'center',
-    backgroundColor: colors.navy900,
-    flexDirection: 'row',
-    height: 48,
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-  },
-  backButton: {
-    alignItems: 'center',
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  backIcon: {
-    color: '#FFFFFF',
-    fontSize: 38,
-    fontWeight: '300',
-    lineHeight: 38,
-  },
-  navigationTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  navigationSpacer: {
-    width: 40,
-  },
   content: { backgroundColor: 'transparent', flexGrow: 1 },
   pixContainer: {
     backgroundColor: 'transparent',
@@ -196,9 +190,8 @@ const styles = StyleSheet.create({
     borderBottomStartRadius: 20,
     paddingBottom: spacing.xxl,
   },
-  heroCard: { alignItems: 'center', flexDirection: 'row', margin: spacing.xl, marginBottom: spacing.md, padding: spacing.xl },
+  heroCard: { alignItems: 'center', backgroundColor: 'rgba(12, 43, 76, 0.72)', borderColor: 'rgba(99, 102, 241, 0.35)', borderWidth: 1, flexDirection: 'row', margin: spacing.xl, marginBottom: spacing.md, padding: spacing.xl, shadowColor: '#5946C8', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.16, shadowRadius: 28, elevation: 6 },
   heroIcon: { alignItems: 'center', backgroundColor: colors.purpleAlpha20, borderRadius: radii.lg, height: 56, justifyContent: 'center', width: 56 },
-  heroIconText: { color: colors.purple300, fontSize: 26 },
   heroCopy: { flex: 1, marginLeft: spacing.lg },
   heroTitle: { ...typography.heading2, color: colors.textPrimary },
   heroSubtitle: { ...typography.body, color: colors.textSecondary, marginTop: spacing.xs },
@@ -212,6 +205,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 15,
   },
+  quickRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.lg },
+  quickChip: { alignItems: 'center', backgroundColor: 'rgba(12, 43, 76, 0.6)', borderColor: 'rgba(99, 102, 241, 0.35)', borderRadius: radii.pill, borderWidth: 1, flexDirection: 'row', gap: 6, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  quickChipText: { color: colors.purple300, fontSize: 12, fontWeight: '700' },
+  subheading: { color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 10 },
   optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -220,48 +217,23 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.borderSubtle,
+    backgroundColor: 'rgba(12, 43, 76, 0.72)',
+    borderColor: 'rgba(92, 142, 220, 0.10)',
     borderRadius: radii.lg,
     borderWidth: 1,
-    minHeight: 104,
+    minHeight: 88,
     justifyContent: 'center',
     margin: 5,
-    ...shadows.soft,
-  },
-  optionIconContainer: {
-    alignItems: 'center',
-    backgroundColor: '#F1F8F3',
-    borderColor: '#DDEFE4',
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 38,
-    justifyContent: 'center',
-    marginBottom: 7,
-    padding: 8,
-    width: 38,
-  },
-  optionIcon: {
-    color: colors.purple300,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  optionLabel: {
-    color: '#2E2E2E',
-    fontSize: 11,
-    fontWeight: '700',
-    paddingHorizontal: 5,
-    textAlign: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
+    elevation: 4,
   },
   receiveSection: {
     marginBottom: 10,
     marginTop: 25,
     paddingHorizontal: spacing.lg,
-  },
-  receiveRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    marginTop: 5,
   },
   helpSection: {
     marginTop: 20,
@@ -276,8 +248,8 @@ const styles = StyleSheet.create({
   },
   helpButton: {
     alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.borderSubtle,
+    backgroundColor: 'rgba(12, 43, 76, 0.6)',
+    borderColor: 'rgba(92, 142, 220, 0.10)',
     borderRadius: radii.md,
     borderWidth: 1,
     flexDirection: 'row',
@@ -291,10 +263,5 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     fontWeight: '500',
-  },
-  helpChevron: {
-    color: colors.purple300,
-    fontSize: 20,
-    marginLeft: 8,
   },
 });

@@ -1,6 +1,11 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { ApiError } from '../../errors/ApiError.js';
 import type { AuthContext, TransferProvider } from '../ports.js';
+import type { SandboxAccountRepository } from '../../repositories/SandboxAccountRepository.js';
+import type { SandboxLedgerRepository, SandboxOperationRecord } from '../../repositories/SandboxLedgerRepository.js';
+import type { SandboxValidationRepository } from '../../repositories/SandboxValidationRepository.js';
+import { ensureSandboxAccount } from './ensureSandboxAccount.js';
+import { hashPayload, withPersistedIdempotency } from './persistedIdempotency.js';
 import type { SandboxChallengeProvider } from './SandboxChallengeProvider.js';
 
 const banks = Object.freeze([
@@ -18,15 +23,24 @@ const favorites = Object.freeze([
   { id: 'sbx_favorite_external', ...beneficiaries.external },
 ]);
 
+type Beneficiary = typeof beneficiaries.internal | typeof beneficiaries.external;
+type TransferOperationDetails = { operationId: string; beneficiary: Beneficiary; description: string; purpose: string; feeMinor: number; totalDebitMinor: number; sandboxReference: string; requestHash: string };
+type TransferValidationPayload = { beneficiary: Beneficiary; amountMinor: number; feeMinor: number; totalDebitMinor: number; description?: string; purpose?: string; scheduledFor?: string };
+// Ver comentário equivalente em SandboxPixProvider (Etapa 5.2).
+const VALIDATION_TTL_MS = 30 * 60_000;
+
 const invalid = () => new ApiError('TRANSFER_BENEFICIARY_INVALID', 'Dados do favorecido inválidos.', { statusCode: 400 });
 const missing = () => new ApiError('TRANSFER_BENEFICIARY_NOT_FOUND', 'Favorecido não encontrado.', { statusCode: 404 });
 
 export class SandboxTransferProvider implements TransferProvider {
-  private readonly validations = new Map<string, { accountId: string; beneficiary: typeof beneficiaries.internal | typeof beneficiaries.external; amountMinor: number; feeMinor: number; totalDebitMinor: number; description?: string; purpose?: string; scheduledFor?: string }>();
-  private readonly transfers = new Map<string, Record<string, unknown> & { accountId: string }>();
-  private readonly idempotency = new Map<string, { hash: string; result: Record<string, unknown> & { accountId: string } }>();
-
-  constructor(environment: string, private readonly challenges?: SandboxChallengeProvider, private readonly now: () => Date = () => new Date()) {
+  constructor(
+    environment: string,
+    private readonly accounts: SandboxAccountRepository,
+    private readonly ledger: SandboxLedgerRepository,
+    private readonly validations: SandboxValidationRepository,
+    private readonly challenges?: SandboxChallengeProvider,
+    private readonly now: () => Date = () => new Date(),
+  ) {
     if (environment === 'production') throw new Error('SandboxTransferProvider is forbidden in production');
   }
 
@@ -70,7 +84,9 @@ export class SandboxTransferProvider implements TransferProvider {
     if (!beneficiary) throw missing();
     if (!Number.isInteger(input.amountMinor) || (input.amountMinor ?? 0) <= 0) throw new ApiError('TRANSFER_AMOUNT_INVALID', 'Valor da transferência inválido.', { statusCode: 422 });
     if (input.currency !== 'BRL') throw new ApiError('TRANSFER_CURRENCY_INVALID', 'Moeda da transferência inválida.', { statusCode: 422 });
-    if ((input.amountMinor ?? 0) > 125_000) throw new ApiError('TRANSFER_INSUFFICIENT_BALANCE', 'Saldo SANDBOX insuficiente.', { statusCode: 422 });
+    // Saldo REAL da conta (fonte única de verdade), não mais um teto fixo.
+    const account = await ensureSandboxAccount(this.accounts, context, this.now);
+    if ((input.amountMinor ?? 0) > account.availableMinor) throw new ApiError('TRANSFER_INSUFFICIENT_BALANCE', 'Saldo SANDBOX insuficiente.', { statusCode: 422 });
     if (input.scheduledFor) {
       const scheduled = Date.parse(input.scheduledFor);
       if (!Number.isFinite(scheduled) || scheduled < this.now().getTime()) throw new ApiError('TRANSFER_SCHEDULE_INVALID', 'Data de agendamento inválida.', { statusCode: 422 });
@@ -78,8 +94,8 @@ export class SandboxTransferProvider implements TransferProvider {
     const amountMinor = input.amountMinor as number;
     const feeMinor = 0;
     const validationId = `sbx_transfer_validation_${randomUUID()}`;
-    const validation = { accountId: context.accountId, beneficiary, amountMinor, feeMinor, totalDebitMinor: amountMinor + feeMinor, ...(input.description ? { description: input.description } : {}), ...(input.purpose ? { purpose: input.purpose } : {}), ...(input.scheduledFor ? { scheduledFor: input.scheduledFor } : {}) };
-    this.validations.set(validationId, validation);
+    const validation: TransferValidationPayload = { beneficiary, amountMinor, feeMinor, totalDebitMinor: amountMinor + feeMinor, ...(input.description ? { description: input.description } : {}), ...(input.purpose ? { purpose: input.purpose } : {}), ...(input.scheduledFor ? { scheduledFor: input.scheduledFor } : {}) };
+    await this.validations.create({ id: validationId, accountId: context.accountId, kind: 'BANK_TRANSFER', payload: validation, expiresAt: new Date(this.now().getTime() + VALIDATION_TTL_MS) });
     return { validationId, beneficiary, amountMinor, currency: 'BRL', feeMinor, totalDebitMinor: validation.totalDebitMinor, ...(input.scheduledFor ? { scheduledFor: input.scheduledFor } : {}), status: 'VALIDATED', requiresChallenge: true, warnings: input.scheduledFor ? ['AGENDAMENTO SANDBOX · NÃO SERÁ EXECUTADO AUTOMATICAMENTE'] : [] };
   }
 
@@ -87,58 +103,65 @@ export class SandboxTransferProvider implements TransferProvider {
     if (!this.challenges?.isVerified(context, challengeId ?? '', validationId)) throw new ApiError('AUTH_CHALLENGE_REQUIRED', 'Challenge OTP verificado é obrigatório.', { statusCode: 401 });
   }
 
-  private publicTransfer(transfer: Record<string, unknown> & { accountId: string }) {
-    const { accountId: _accountId, ...publicTransfer } = transfer;
-    return publicTransfer;
+  // Reconstrói o mesmo formato de resposta público de sempre a partir do
+  // registro persistido (sandbox_operations) — assim getTransfer/getReceipt
+  // também sobrevivem a um restart real do backend, não só o saldo/extrato.
+  private toPublicTransfer(row: SandboxOperationRecord, requestId: string) {
+    const details = row.details as unknown as TransferOperationDetails;
+    return {
+      transferId: row.id, operationId: details.operationId, createdAt: row.createdAt.toISOString(), amountMinor: row.amountMinor, feeMinor: details.feeMinor,
+      totalDebitMinor: details.totalDebitMinor, currency: row.currency, beneficiary: details.beneficiary, transferType: details.beneficiary.transferType,
+      description: details.description, purpose: details.purpose, status: row.status,
+      ...(row.scheduledFor ? { scheduledFor: row.scheduledFor.toISOString() } : {}),
+      environment: 'SANDBOX', simulated: true, sandboxReference: details.sandboxReference, requestId,
+    };
   }
 
-  private submit(context: AuthContext, raw: unknown, idempotencyKey: string, requestId: string, scheduled: boolean) {
+  // Etapa 5.1 (Prioridade 2): idempotência PERSISTIDA — ver comentário
+  // equivalente em SandboxPixProvider.submit().
+  private async submit(context: AuthContext, raw: unknown, idempotencyKey: string, requestId: string, scheduled: boolean) {
     const input = raw as { validationId?: string; challengeId?: string; description?: string; purpose?: string; scheduledFor?: string };
-    const validation = this.validations.get(input.validationId ?? '');
-    if (!validation || validation.accountId !== context.accountId) throw new ApiError('TRANSFER_VALIDATION_NOT_FOUND', 'Validação da transferência não encontrada.', { statusCode: 404 });
-    if (scheduled && (!validation.scheduledFor || input.scheduledFor !== validation.scheduledFor)) throw new ApiError('TRANSFER_VALIDATION_FAILED', 'Agendamento da transferência inválido.', { statusCode: 422 });
-    if (!scheduled && validation.scheduledFor) throw new ApiError('TRANSFER_VALIDATION_FAILED', 'Use a rota de agendamento.', { statusCode: 422 });
-    this.ensureChallenge(context, input.challengeId, input.validationId!);
-    const route = scheduled ? 'schedule' : 'transfer';
-    const scope = `${context.accountId}:${route}:${idempotencyKey}`;
-    const hash = createHash('sha256').update(JSON.stringify(raw)).digest('hex');
-    const existing = this.idempotency.get(scope);
-    if (existing) {
-      if (existing.hash !== hash) throw new ApiError('IDEMPOTENCY_KEY_CONFLICT', 'Idempotency-Key reutilizada com payload diferente.', { statusCode: 409 });
-      return this.publicTransfer(existing.result);
-    }
-    const transferId = `sbx_transfer_${randomUUID()}`;
-    const result = {
-      transferId,
-      operationId: `sbx_transfer_operation_${randomUUID()}`,
-      accountId: context.accountId,
-      createdAt: this.now().toISOString(),
-      amountMinor: validation.amountMinor,
-      feeMinor: validation.feeMinor,
-      totalDebitMinor: validation.totalDebitMinor,
-      currency: 'BRL',
-      beneficiary: validation.beneficiary,
-      transferType: validation.beneficiary.transferType,
-      description: input.description || validation.description || '',
-      purpose: input.purpose || validation.purpose || '',
-      status: scheduled ? 'SCHEDULED' : 'COMPLETED',
-      ...(scheduled ? { scheduledFor: validation.scheduledFor } : {}),
-      environment: 'SANDBOX',
-      simulated: true,
-      sandboxReference: `SBX-TRANSFER-${randomUUID()}`,
-      requestId,
-    };
-    this.idempotency.set(scope, { hash, result });
-    this.transfers.set(transferId, result);
-    return this.publicTransfer(result);
+    const operation = await withPersistedIdempotency({
+      raw,
+      find: () => this.ledger.findByIdempotencyKey(context.accountId, 'BANK_TRANSFER', idempotencyKey),
+      requestHashOf: (row) => (row.details as unknown as TransferOperationDetails).requestHash,
+      create: async () => {
+        const validationRow = await this.validations.findById(input.validationId ?? '', context.accountId, 'BANK_TRANSFER');
+        if (!validationRow) throw new ApiError('TRANSFER_VALIDATION_NOT_FOUND', 'Validação da transferência não encontrada.', { statusCode: 404 });
+        const validation = validationRow.payload as unknown as TransferValidationPayload;
+        if (scheduled && (!validation.scheduledFor || input.scheduledFor !== validation.scheduledFor)) throw new ApiError('TRANSFER_VALIDATION_FAILED', 'Agendamento da transferência inválido.', { statusCode: 422 });
+        if (!scheduled && validation.scheduledFor) throw new ApiError('TRANSFER_VALIDATION_FAILED', 'Use a rota de agendamento.', { statusCode: 422 });
+        this.ensureChallenge(context, input.challengeId, input.validationId!);
+        const transferId = `sbx_transfer_${randomUUID()}`;
+        const description = input.description || validation.description || '';
+        const purpose = input.purpose || validation.purpose || '';
+        const details: TransferOperationDetails = { operationId: `sbx_transfer_operation_${randomUUID()}`, beneficiary: validation.beneficiary, description, purpose, feeMinor: validation.feeMinor, totalDebitMinor: validation.totalDebitMinor, sandboxReference: `SBX-TRANSFER-${randomUUID()}`, requestHash: hashPayload(raw) };
+        // Única escrita financeira: opera + saldo + extrato, atomicamente,
+        // com checagem final de saldo negativo dentro da própria transação.
+        return this.ledger.recordOperation({
+          operationId: transferId, accountId: context.accountId, kind: 'BANK_TRANSFER', status: scheduled ? 'SCHEDULED' : 'COMPLETED', amountMinor: validation.amountMinor,
+          ...(scheduled ? { scheduledFor: new Date(validation.scheduledFor!) } : {}),
+          details, idempotencyKey,
+          ...(scheduled ? {} : { ledgerEntry: {
+            balanceField: 'availableMinor' as const, deltaMinor: -validation.totalDebitMinor,
+            transaction: {
+              id: `sbx_txn_${context.accountId}_transfer_${randomUUID()}`, accountId: context.accountId, occurredAt: this.now(), type: 'TRANSFER_SENT', direction: 'DEBIT',
+              description: description || 'Transferência enviada', counterparty: validation.beneficiary.name, amountMinor: validation.totalDebitMinor, currency: 'BRL', status: 'COMPLETED',
+              category: 'Transferência', feeMinor: validation.feeMinor, receiptAvailable: true, institution: validation.beneficiary.bank?.name ?? 'Banco SANDBOX', document: validation.beneficiary.documentMasked, reason: null,
+            },
+          } }),
+        });
+      },
+    });
+    return this.toPublicTransfer(operation, requestId);
   }
 
   async createTransfer(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string) { return this.submit(context, input, idempotencyKey, requestId, false); }
   async scheduleTransfer(context: AuthContext, input: unknown, idempotencyKey: string, requestId: string) { return this.submit(context, input, idempotencyKey, requestId, true); }
   async getTransfer(context: AuthContext, transferId: string) {
-    const transfer = this.transfers.get(transferId);
-    if (!transfer || transfer.accountId !== context.accountId) throw new ApiError('TRANSFER_NOT_FOUND', 'Transferência não encontrada.', { statusCode: 404 });
-    return this.publicTransfer(transfer);
+    const operation = await this.ledger.findById(transferId, context.accountId);
+    if (!operation || operation.kind !== 'BANK_TRANSFER') throw new ApiError('TRANSFER_NOT_FOUND', 'Transferência não encontrada.', { statusCode: 404 });
+    return this.toPublicTransfer(operation, randomUUID());
   }
   async getReceipt(context: AuthContext, transferId: string, requestId: string) {
     const transfer = await this.getTransfer(context, transferId) as Record<string, unknown>;

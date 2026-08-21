@@ -1,12 +1,31 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { colors, radii, spacing, typography } from '../../theme';
+import { Image, StyleSheet, View } from 'react-native';
+import { colors, radii } from '../../theme';
 
-export default function FinancialCard({ card }) {
-  return <View style={styles.card}>
-    <View style={styles.row}><Text style={styles.brand}>CTBX Payments</Text><Image source={require('../../../assets/legacy/assets_bandeiras_mastercard.png')} style={styles.logo} resizeMode="contain" /></View>
-    <Text style={styles.number}>••••  ••••  ••••  {card.lastFour}</Text>
-    <View style={styles.row}><View><Text style={styles.label}>TITULAR</Text><Text style={styles.value}>{card.holder}</Text></View><View><Text style={styles.label}>VALIDADE</Text><Text style={styles.value}>{card.expiry}</Text></View></View>
-  </View>;
+// Arte por cor — mesmos arquivos oficiais enviados para a tela "Solicitar
+// cartão". `blue` é a cor padrão usada em Home/Cartões/Detalhes do cartão.
+export const CARD_COLOR_ASSETS = {
+  blue: require('../../../assets/ctbx-card-financial.png'),
+  orange: require('../../../assets/ctbx-card-financial-orange.png'),
+  green: require('../../../assets/ctbx-card-financial-green.png'),
+  purple: require('../../../assets/ctbx-card-financial-purple.png'),
+  black: require('../../../assets/ctbx-card-financial-black.png'),
+};
+
+export default function FinancialCard({ card, color = 'blue' }) {
+  return (
+    <View style={styles.card}>
+      <Image
+        accessibilityLabel={`Cartão CTBX final ${card.lastFour}`}
+        resizeMode="cover"
+        source={CARD_COLOR_ASSETS[color] || CARD_COLOR_ASSETS.blue}
+        style={styles.image}
+      />
+    </View>
+  );
 }
-const styles = StyleSheet.create({ card:{backgroundColor:colors.navy700,borderColor:colors.purple400,borderRadius:radii.xl,borderWidth:1,minHeight:190,padding:spacing.xl,justifyContent:'space-between'},row:{alignItems:'center',flexDirection:'row',justifyContent:'space-between'},brand:{...typography.heading3,color:colors.textPrimary},logo:{height:34,width:54},number:{color:colors.textPrimary,fontSize:20,letterSpacing:2},label:{...typography.caption,color:colors.textSecondary},value:{...typography.body,color:colors.textPrimary,fontWeight:'700',marginTop:3}});
+
+const styles = StyleSheet.create({
+  card: { aspectRatio: 1638 / 960, backgroundColor: colors.navy800, borderColor: colors.purple400, borderRadius: radii.xl, borderWidth: 1, overflow: 'hidden', width: '100%' },
+  image: { borderRadius: radii.xl, height: '100%', width: '100%' },
+});

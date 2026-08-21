@@ -26,3 +26,9 @@ test('CORS_ORIGINS is parsed into a trimmed, comma-separated list', () => {
   assert.deepEqual(loadConfig({ NODE_ENV: 'staging', CORS_ORIGINS: ' https://app.ctbxpayments.com , http://localhost:19006 ' }).corsOrigins, ['https://app.ctbxpayments.com', 'http://localhost:19006']);
   assert.deepEqual(loadConfig({ NODE_ENV: 'staging' }).corsOrigins, []);
 });
+
+test('ADMIN_API_TOKEN is undefined by default and trimmed when present', () => {
+  assert.equal(loadConfig({ NODE_ENV: 'test' }).adminApiToken, undefined);
+  assert.equal(loadConfig({ NODE_ENV: 'test', ADMIN_API_TOKEN: '  a-token  ' }).adminApiToken, 'a-token');
+  assert.equal(loadConfig({ NODE_ENV: 'test', ADMIN_API_TOKEN: '   ' }).adminApiToken, undefined);
+});
