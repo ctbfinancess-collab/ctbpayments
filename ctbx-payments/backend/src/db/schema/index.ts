@@ -3,6 +3,7 @@ export * from './adminSessions.js';
 export * from './companies.js';
 export * from './companyRepresentatives.js';
 export * from './customers.js';
+export * from './customerKyc.js';
 export * from './customerEmailChanges.js';
 export * from './customerEmailVerifications.js';
 export * from './customerPasswordResets.js';

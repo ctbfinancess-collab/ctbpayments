@@ -18,6 +18,7 @@ import CustomerRegisterScreen from './src/screens/auth/CustomerRegisterScreen';
 import ResetPasswordScreen from './src/screens/auth/ResetPasswordScreen';
 import ConfirmEmailChangeScreen from './src/screens/auth/ConfirmEmailChangeScreen';
 import OnboardingScreen from './src/screens/auth/OnboardingScreen';
+import KycPersonalInfoScreen from './src/screens/auth/KycPersonalInfoScreen';
 import ProductionHomePlaceholderScreen from './src/screens/ProductionHomePlaceholderScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import GlobalAccountScreen from './src/screens/accounts/GlobalAccountScreen';
@@ -114,6 +115,9 @@ function AuthenticatedStack() {
     return (
       <Stack.Navigator screenOptions={stackOptions}>
         <Stack.Screen name="Home" component={ProductionHomePlaceholderScreen} />
+        {/* KYC real (Customer Identity), Etapa 1 — único destino financeiro
+            além do placeholder em PRODUCTION até o núcleo real existir. */}
+        <Stack.Screen name="KycPersonalInfo" component={KycPersonalInfoScreen} />
       </Stack.Navigator>
     );
   }

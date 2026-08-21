@@ -34,6 +34,7 @@ import { CmsItemsRepository } from './repositories/CmsItemsRepository.js';
 import { CmsSectionsRepository } from './repositories/CmsSectionsRepository.js';
 import { PostgresCompanyRepository, type CompanyRepository } from './repositories/CompanyRepository.js';
 import { PostgresCompanyRepresentativeRepository, type CompanyRepresentativeRepository } from './repositories/CompanyRepresentativeRepository.js';
+import { PostgresCustomerKycRepository, type CustomerKycRepository } from './repositories/CustomerKycRepository.js';
 import { PostgresCustomerEmailChangeRepository, type CustomerEmailChangeRepository } from './repositories/CustomerEmailChangeRepository.js';
 import { PostgresCustomerEmailVerificationRepository, type CustomerEmailVerificationRepository } from './repositories/CustomerEmailVerificationRepository.js';
 import { PostgresCustomerPasswordResetRepository, type CustomerPasswordResetRepository } from './repositories/CustomerPasswordResetRepository.js';
@@ -41,6 +42,7 @@ import { PostgresCustomerRepository, type CustomerRepository } from './repositor
 import { PostgresCustomerSessionRepository, type CustomerSessionRepository } from './repositories/CustomerSessionRepository.js';
 import { InMemoryCompanyRepository } from './repositories/InMemoryCompanyRepository.js';
 import { InMemoryCompanyRepresentativeRepository } from './repositories/InMemoryCompanyRepresentativeRepository.js';
+import { InMemoryCustomerKycRepository } from './repositories/InMemoryCustomerKycRepository.js';
 import { InMemoryCustomerEmailChangeRepository } from './repositories/InMemoryCustomerEmailChangeRepository.js';
 import { InMemoryCustomerEmailVerificationRepository } from './repositories/InMemoryCustomerEmailVerificationRepository.js';
 import { InMemoryCustomerPasswordResetRepository } from './repositories/InMemoryCustomerPasswordResetRepository.js';
@@ -72,6 +74,7 @@ import { v1Routes } from './routes/v1.js';
 import { AdminAuthService } from './services/adminAuthService.js';
 import { CompanyService } from './services/companyService.js';
 import { CustomerAuthService } from './services/customerAuthService.js';
+import { CustomerKycService } from './services/customerKycService.js';
 import { CustomerEmailChangeService } from './services/customerEmailChangeService.js';
 import { CustomerEmailVerificationService } from './services/customerEmailVerificationService.js';
 import { CustomerPasswordResetService } from './services/customerPasswordResetService.js';
@@ -171,6 +174,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Estrutura PJ (empresas + representantes) — mesmo par real+fallback.
   let companyRepository: CompanyRepository = new InMemoryCompanyRepository();
   let companyRepresentativeRepository: CompanyRepresentativeRepository = new InMemoryCompanyRepresentativeRepository();
+  // KYC (Etapa 1 — dados pessoais complementares) — mesmo par real+
+  // fallback dos demais domínios de Customer Identity.
+  let customerKycRepository: CustomerKycRepository = new InMemoryCustomerKycRepository();
   if (!options.providers && config.databaseUrl) {
     const { db, close } = createDbConnection(config.databaseUrl);
     app.addHook('onClose', async () => { await close(); });
@@ -192,6 +198,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     customerEmailChangeRepository = new PostgresCustomerEmailChangeRepository(db);
     companyRepository = new PostgresCompanyRepository(db);
     companyRepresentativeRepository = new PostgresCompanyRepresentativeRepository(db);
+    customerKycRepository = new PostgresCustomerKycRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
   const customerAuthService = new CustomerAuthService(customerRepository, customerSessionRepository);
@@ -200,6 +207,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // (empresa nunca recebe e-mail própria — quem recebe é sempre um
   // customer/representante).
   const companyService = new CompanyService(companyRepository, companyRepresentativeRepository);
+  // KYC — nunca fail-closed sem DATABASE_URL, mesmo par real+fallback de
+  // tudo em Customer Identity (ver comentário acima em
+  // customerKycRepository).
+  const kycService = new CustomerKycService(customerRepository, customerKycRepository);
   // Etapa 3 — mesmo EmailProvider criado na Etapa 1 (createEmailProvider):
   // Resend real em produção, InMemory em dev/test por padrão. Nenhuma
   // segunda integração com o Resend é feita em lugar nenhum.
@@ -254,7 +265,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Customer Identity — rota isolada, fora do ProviderRegistry sandbox
   // (não implementa nenhuma das interfaces de ports.ts). Etapa 1: só
   // cadastro PF, sem sessão/login próprios ainda.
-  await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService }), { prefix: `/${config.apiVersion}/customers` });
+  await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService }), { prefix: `/${config.apiVersion}/customers` });
 
   await app.register(async (adminApi) => {
     // Persistência real do CMS (Etapa 1 — fundação). Fail closed: sem

@@ -6,6 +6,7 @@ import type { CompanyService } from '../services/companyService.js';
 import type { CustomerAuthService } from '../services/customerAuthService.js';
 import type { CustomerEmailChangeService } from '../services/customerEmailChangeService.js';
 import type { CustomerEmailVerificationService } from '../services/customerEmailVerificationService.js';
+import type { CustomerKycService } from '../services/customerKycService.js';
 import type { CustomerPasswordResetService } from '../services/customerPasswordResetService.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
@@ -16,6 +17,7 @@ export interface CustomerRoutesOptions {
   passwordResetService: CustomerPasswordResetService | undefined;
   emailChangeService: CustomerEmailChangeService | undefined;
   companyService: CompanyService | undefined;
+  kycService: CustomerKycService | undefined;
 }
 
 const nameSchema = { type: 'string', minLength: 1, maxLength: 160 } as const;
@@ -27,13 +29,15 @@ const tokenSchema = { type: 'string', minLength: 1, maxLength: 512 } as const;
 const cnpjSchema = { type: 'string', minLength: 14, maxLength: 18 } as const; // CNPJ com ou sem máscara
 const roleSchema = { type: 'string', enum: ['ADMIN', 'MEMBER'] } as const;
 const companyIdParams = { type: 'object', additionalProperties: false, required: ['companyId'], properties: { companyId: idSchema } } as const;
+const birthDateSchema = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const; // YYYY-MM-DD
+const kycFreeTextSchema = { type: 'string', minLength: 2, maxLength: 160 } as const;
 
 // Cadastro + login + verificação de e-mail reais de cliente PF — Customer
 // Identity, Etapas 1, 2, 2.5 e 3. Rotas novas e isoladas (/v1/customers/*),
 // não tocam em /v1/auth/login (SandboxAuthProvider, credencial fixa
 // DEMO_ONLY) nem em nenhuma outra rota existente.
 export async function customerRoutes(app: FastifyInstance, options: CustomerRoutesOptions): Promise<void> {
-  const { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService } = options;
+  const { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService } = options;
   const sessionGuard = customerAuthService ? requireCustomerSession(customerAuthService) : async () => { throw providerNotConfigured('de autenticação de clientes'); };
 
   // Etapa 2.5, item 1 — rate limiting só neste escopo (/v1/customers),
@@ -204,6 +208,31 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
     const { token } = request.body as { token: string };
     await emailChangeService.confirmChange(token);
     return reply.status(204).send();
+  });
+
+  // KYC — Etapa 1 (dados pessoais complementares do titular PF). Igual ao
+  // resto de Customer Identity: sessão real exigida (sessionGuard) e
+  // identidade SEMPRE de request.customerAuth, nunca de um customerId
+  // enviado pelo cliente (mesmo item 5 já aplicado no resto deste
+  // arquivo — sem isso seria possível ler/gravar o KYC de outra pessoa).
+  // GET faz o "carregar automaticamente os dados que já temos do
+  // cliente"; PUT aceita um patch parcial — cada chamada só precisa
+  // enviar os campos que o cliente completou naquela visita, o resto do
+  // que já foi salvo antes é preservado (ver CustomerKycService).
+  app.get('/kyc/personal-info', { preHandler: sessionGuard }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    const personalInfo = await kycService.getPersonalInfo(request.customerAuth!.id);
+    return envelope(request, { personalInfo });
+  });
+
+  app.put('/kyc/personal-info', {
+    preHandler: sessionGuard,
+    schema: { body: objectSchema([], { birthDate: birthDateSchema, motherName: kycFreeTextSchema, nationality: kycFreeTextSchema }) },
+  }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    const input = request.body as { birthDate?: string; motherName?: string; nationality?: string };
+    const personalInfo = await kycService.savePersonalInfo(request.customerAuth!.id, input);
+    return envelope(request, { personalInfo });
   });
 
   // Estrutura PJ — todas as rotas abaixo exigem sessão real (sessionGuard);
