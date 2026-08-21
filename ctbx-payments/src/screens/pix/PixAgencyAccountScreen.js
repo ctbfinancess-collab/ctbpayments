@@ -27,7 +27,7 @@ export default function PixAgencyAccountScreen({ navigation }) {
       <PixField keyboardType="numeric" label="Conta" onChangeText={setAccount} value={account} />
       <PixField keyboardType="numeric" label="CPF/CNPJ" onChangeText={setDocument} value={document} />
       <PixButton onPress={continueFlow}>CONTINUAR</PixButton>
-      <Text style={styles.note}>Consulta do favorecido em ambiente de demonstração.</Text>
+      
     </PixLayout>
   );
 }

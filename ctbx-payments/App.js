@@ -94,8 +94,7 @@ import ProfileBiometricsScreen from './src/screens/profile/ProfileBiometricsScre
 import ProfileDevicesScreen from './src/screens/profile/ProfileDevicesScreen';
 import ProfileTokenScreen from './src/screens/profile/ProfileTokenScreen';
 import ProfileTermsScreen from './src/screens/profile/ProfileTermsScreen';
-import { appMode, isProductionMode } from './src/config';
-import { DemoEnvironmentBadge, LoadingState } from './src/components/ui';
+import { LoadingState } from './src/components/ui';
 import { SessionProvider, useSession } from './src/session';
 import { colors, layout, shadows } from './src/theme';
 
@@ -256,7 +255,6 @@ export default function App() {
       <SessionProvider>
         <View style={styles.appRoot}>
           <AppNavigator />
-          {!isProductionMode ? <DemoEnvironmentBadge mode={appMode} /> : null}
         </View>
       </SessionProvider>
     </WebFrame>

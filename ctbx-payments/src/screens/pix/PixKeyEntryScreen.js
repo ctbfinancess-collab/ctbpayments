@@ -43,7 +43,7 @@ export default function PixKeyEntryScreen({ navigation, route }) {
       />
       <PixButton onPress={continueFlow}>Pesquisar</PixButton>
       <Text style={styles.mockNote}>
-        A consulta usa dados fictícios no ambiente SANDBOX.
+        A consulta pode levar alguns instantes.
       </Text>
     </PixLayout>
   );

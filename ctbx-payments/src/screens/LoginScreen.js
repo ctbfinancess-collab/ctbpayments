@@ -35,11 +35,11 @@ export default function LoginScreen({ navigation }) {
   return (
     <AuthLayout backgroundSource={require('../../assets/ctbx-login-background.png')} eyebrow="CTBX PAYMENTS" footer={false} premium subtitle="Seu mundo financeiro em um só lugar." title="Bem-vinda de volta.">
       <View style={styles.formCard}>
-        <FormField autoCapitalize="none" autoCorrect={false} error={emailError} icon="mail-outline" keyboardType="email-address" label="E-mail" onChangeText={setEmail} onSubmitEditing={() => passwordInputRef.current?.focus()} placeholder="seu@email.com" premium returnKeyType="next" value={email} />
+        <FormField autoCapitalize="none" autoComplete="off" autoCorrect={false} error={emailError} icon="mail-outline" keyboardType="email-address" label="E-mail" onChangeText={setEmail} onSubmitEditing={() => passwordInputRef.current?.focus()} placeholder="seu@email.com" premium returnKeyType="next" value={email} />
         <FormField error={passwordError} icon="lock-closed-outline" inputRef={passwordInputRef} keyboardType={isDemoMode ? 'numeric' : 'default'} label="Senha" maxLength={isDemoMode ? 6 : undefined} onChangeText={setSenha} onRightAction={() => { setMostrarSenha((current) => !current); requestAnimationFrame(() => passwordInputRef.current?.focus()); }} placeholder="Digite sua senha" premium rightActionLabel={mostrarSenha ? 'Ocultar' : 'Mostrar'} secureTextEntry={!mostrarSenha} value={senha} />
         <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')} style={styles.forgot}><Text style={styles.forgotText}>Esqueci minha senha</Text></TouchableOpacity>
         <PrimaryButton disabled={submitting} loading={submitting} onPress={handleLogin} style={styles.enter}>ENTRAR</PrimaryButton>
-        {isSandboxMode ? <View style={styles.environmentRow}><Icon color={colors.textMuted} name="shield-checkmark-outline" size={16} /><Text style={styles.environment}>Ambiente de testes · dados exclusivamente fictícios</Text></View> : null}
+        
       </View>
       <Text style={styles.client}>Ainda não é cliente?</Text>
       <TouchableOpacity accessibilityRole="button" onPress={() => navigation.navigate('Onboarding')} style={styles.openAccount}><Text style={styles.openAccountText}>Abra sua conta →</Text></TouchableOpacity>

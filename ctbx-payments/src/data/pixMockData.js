@@ -4,7 +4,7 @@ export const MOCK_PIX_BALANCE = '2.480,75';
 
 export const MOCK_PIX_BENEFICIARY = {
   name: 'CLIENTE PIX DEMONSTRAÇÃO',
-  bank: 'BANCO DE DEMONSTRAÇÃO',
+  bank: 'BANCO CTBX',
   agency: '0001',
   account: '000000-0',
   document: '***.***.***-**',
@@ -14,14 +14,14 @@ export const MOCK_PIX_BENEFICIARY = {
 export const MOCK_PIX_FAVORITES = [
   {
     id: 'favorite-1',
-    name: 'Contato de demonstração',
+    name: 'Contato',
     key: 'favorecido.demo@ctbx.app',
     bank: 'BANCO DE DEMONSTRAÇÃO',
     type: 'email',
   },
   {
     id: 'favorite-2',
-    name: 'Empresa de demonstração',
+    name: 'Empresa',
     key: '**.***.***/****-**',
     bank: 'INSTITUIÇÃO PIX MOCK',
     type: 'cnpj',

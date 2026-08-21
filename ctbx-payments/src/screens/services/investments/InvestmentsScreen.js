@@ -122,7 +122,7 @@ export default function InvestmentsScreen({ navigation }) {
   });
 
   const openPosition = (position) => navigation.navigate('InvestmentPositionDetail', { position });
-  const openFirstProduct = () => (products[0] ? navigation.navigate('InvestmentSimulation', { product: products[0] }) : Alert.alert('Sem produtos disponíveis', 'Nenhum produto de investimento está disponível nesta demonstração.'));
+  const openFirstProduct = () => (products[0] ? navigation.navigate('InvestmentSimulation', { product: products[0] }) : Alert.alert('Sem produtos disponíveis', 'Nenhum produto de investimento está disponível no momento.'));
 
   if (positionsLoading) return <ServiceScreenLayout atmospheric backgroundSource={backgroundSource} navigation={navigation} title="Investimentos"><LoadingState /></ServiceScreenLayout>;
   if (positionsError) return <ServiceScreenLayout atmospheric backgroundSource={backgroundSource} navigation={navigation} title="Investimentos"><ErrorState onRetry={retryPositions} /></ServiceScreenLayout>;
@@ -167,7 +167,7 @@ export default function InvestmentsScreen({ navigation }) {
         <>
           <View style={styles.sectionHeadingRow}>
             <Text style={styles.sectionHeadingInline}>Meus investimentos</Text>
-            <TouchableOpacity accessibilityRole="button" onPress={() => Alert.alert('Meus investimentos', 'Todos os seus investimentos já estão listados aqui nesta demonstração.')}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => Alert.alert('Meus investimentos', 'Todos os seus investimentos já estão listados aqui.')}>
               <Text style={styles.sectionAction}>Ver todos</Text>
             </TouchableOpacity>
           </View>

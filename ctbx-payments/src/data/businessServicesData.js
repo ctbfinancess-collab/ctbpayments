@@ -48,7 +48,7 @@ export const SERVICE_PRODUCTS = {
     requestTitle: 'Solicitar Capital de Giro',
     submitLabel: 'Enviar simulação',
     statusLabel: 'SIMULAÇÃO ENVIADA',
-    disclaimer: 'Simulação estrutural SANDBOX · nenhum crédito foi aprovado ou originado.',
+    disclaimer: 'Nenhum crédito foi aprovado ou originado ainda.',
   },
   receivables_advance: {
     id: 'receivables_advance',
@@ -66,7 +66,7 @@ export const SERVICE_PRODUCTS = {
     requestTitle: 'Antecipar Recebíveis',
     submitLabel: 'Enviar simulação',
     statusLabel: 'SIMULAÇÃO ENVIADA',
-    disclaimer: 'Simulação estrutural SANDBOX · nenhum recebível foi antecipado de fato.',
+    disclaimer: 'Nenhum recebível foi antecipado ainda.',
   },
   pos_tapon: {
     id: 'pos_tapon',

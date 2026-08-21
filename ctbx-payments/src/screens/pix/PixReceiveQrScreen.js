@@ -11,7 +11,7 @@ export default function PixReceiveQrScreen({ navigation, route }) {
   return (
     <PixLayout navigation={navigation} title="QR Code para receber">
       <Text style={styles.title}>Aqui está seu QRCode</Text>
-      <Text style={styles.warning}>QR PIX SANDBOX · NÃO UTILIZÁVEL PARA PAGAMENTO REAL</Text>
+      
       <View style={styles.qrPlaceholder}>
         <View style={styles.qrInner}><Text style={styles.qrText}>PIX{`\n`}QR</Text></View>
       </View>

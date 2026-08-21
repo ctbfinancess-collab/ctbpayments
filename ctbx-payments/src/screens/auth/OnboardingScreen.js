@@ -6,14 +6,14 @@ import { Card, FormField, Icon } from '../../components/ui';
 import { colors, radii, shadows, spacing, typography } from '../../theme';
 
 const STEPS = [
-  { key: 'welcome', title: 'Uma conta feita para o seu ritmo.', subtitle: 'Conheça a experiência CTBX Payments em um fluxo demonstrativo e seguro.' },
-  { key: 'personal', title: 'Como podemos chamar você?', subtitle: 'Use somente informações fictícias nesta demonstração.' },
+  { key: 'welcome', title: 'Uma conta feita para o seu ritmo.', subtitle: 'Conheça a experiência CTBX Payments em um fluxo simples e seguro.' },
+  { key: 'personal', title: 'Como podemos chamar você?', subtitle: 'Nenhuma informação é enviada ou armazenada nesta etapa.' },
   { key: 'document', title: 'Documento', subtitle: 'Etapa estrutural. Nenhum documento será validado ou enviado.' },
-  { key: 'contact', title: 'Seus contatos', subtitle: 'Use e-mail e telefone fictícios.' },
+  { key: 'contact', title: 'Seus contatos', subtitle: 'E-mail e telefone permanecem apenas nesta tela.' },
   { key: 'address', title: 'Onde você mora?', subtitle: 'O endereço permanece apenas na memória desta tela.' },
-  { key: 'access', title: 'Crie seu acesso', subtitle: 'Estas credenciais não criam uma conta nem alteram o login SANDBOX.' },
-  { key: 'review', title: 'Revise sua jornada', subtitle: 'Confira somente a estrutura antes de concluir a demonstração.' },
-  { key: 'done', title: 'Tudo pronto no SANDBOX.', subtitle: 'Nenhuma conta bancária foi criada e nenhum dado foi enviado ao BFF.' },
+  { key: 'access', title: 'Crie seu acesso', subtitle: 'Estas credenciais não criam uma conta nem alteram seu login.' },
+  { key: 'review', title: 'Revise sua jornada', subtitle: 'Confira os dados antes de concluir.' },
+  { key: 'done', title: 'Tudo pronto.', subtitle: 'Nenhuma conta bancária foi criada e nenhum dado foi enviado ao BFF.' },
 ];
 
 // Laranja sólido (CONTINUAR) e contorno violeta com chevron (VOLTAR) —
@@ -43,11 +43,11 @@ export default function OnboardingScreen({ navigation }) {
   const current = STEPS[step];
   const set = (key) => (value) => setForm((state) => ({ ...state, [key]: value }));
   const fields = useMemo(() => ({
-    personal: [['Nome de demonstração', 'name', 'Cliente Exemplo', 'person-outline']],
-    document: [['Documento fictício', 'document', '000.000.000-00', 'id-card-outline']],
-    contact: [['E-mail fictício', 'email', 'cliente@exemplo.invalid', 'mail-outline'], ['Celular fictício', 'phone', '(00) 00000-0000', 'call-outline']],
-    address: [['CEP fictício', 'zip', '00000-000', 'location-outline'], ['Cidade', 'city', 'Cidade Exemplo', 'business-outline']],
-    access: [['E-mail de acesso fictício', 'accessEmail', 'acesso@exemplo.invalid', 'mail-outline'], ['Senha de demonstração', 'password', '••••••', 'lock-closed-outline']],
+    personal: [['Nome', 'name', 'Cliente Exemplo', 'person-outline']],
+    document: [['Documento', 'document', '000.000.000-00', 'id-card-outline']],
+    contact: [['E-mail', 'email', 'cliente@exemplo.invalid', 'mail-outline'], ['Celular', 'phone', '(00) 00000-0000', 'call-outline']],
+    address: [['CEP', 'zip', '00000-000', 'location-outline'], ['Cidade', 'city', 'Cidade Exemplo', 'business-outline']],
+    access: [['E-mail de acesso', 'accessEmail', 'acesso@exemplo.invalid', 'mail-outline'], ['Senha', 'password', '••••••', 'lock-closed-outline']],
   }), []);
   const advance = () => setStep((value) => Math.min(value + 1, STEPS.length - 1));
   const back = () => step ? setStep((value) => value - 1) : navigation.goBack();
@@ -59,10 +59,10 @@ export default function OnboardingScreen({ navigation }) {
       </View>
       <Text style={styles.step}>ETAPA {step + 1} DE {STEPS.length}</Text>
       {step === 0 ? <Card style={styles.hero}><Text style={styles.heroTitle}>Simples. Seguro. Seu.</Text><Text style={styles.copy}>Explore como será a abertura de conta sem cadastrar dados, consultar documentos ou criar produtos financeiros reais.</Text></Card> : null}
-      {(fields[current.key] || []).map(([label, key, placeholder, icon]) => <FormField icon={icon} key={key} label={label} onChangeText={set(key)} placeholder={placeholder} premium secureTextEntry={key === 'password'} value={form[key] || ''} />)}
+      {(fields[current.key] || []).map(([label, key, placeholder, icon]) => <FormField autoComplete="off" icon={icon} key={key} label={label} onChangeText={set(key)} placeholder={placeholder} premium secureTextEntry={key === 'password'} value={form[key] || ''} />)}
       {current.key === 'review' ? <Card style={styles.hero}><Text style={styles.reviewTitle}>Dados locais preenchidos</Text><Text style={styles.copy}>Nome, documento, contato, endereço e acesso serão descartados ao sair. Nenhuma informação é transmitida.</Text></Card> : null}
       {current.key === 'done' ? <View style={styles.done}><Icon color={colors.purple400} name="checkmark-circle" size={42} style={styles.doneIcon} /><Text style={styles.copy}>Confirmação exclusivamente visual.</Text></View> : null}
-      {current.key === 'done' ? <StepPrimaryButton onPress={() => navigation.navigate('Login')} style={styles.action}>IR PARA O LOGIN</StepPrimaryButton> : <StepPrimaryButton onPress={advance} style={styles.action}>{current.key === 'review' ? 'CONCLUIR DEMONSTRAÇÃO' : 'CONTINUAR'}</StepPrimaryButton>}
+      {current.key === 'done' ? <StepPrimaryButton onPress={() => navigation.navigate('Login')} style={styles.action}>IR PARA O LOGIN</StepPrimaryButton> : <StepPrimaryButton onPress={advance} style={styles.action}>{current.key === 'review' ? 'CONCLUIR' : 'CONTINUAR'}</StepPrimaryButton>}
       {step > 0 && current.key !== 'done' ? <StepOutlineButton onPress={back} style={styles.secondary}>VOLTAR</StepOutlineButton> : null}
       <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.exit}><Text style={styles.exitText}>Já tenho uma conta</Text></TouchableOpacity>
     </AuthLayout>

@@ -41,7 +41,7 @@ export default function CustomerForgotPasswordScreen() {
 
   return (
     <AuthLayout backgroundSource={backgroundSource} footer={false} subtitle="Informe o e-mail da sua conta para receber um link de redefinição." title="Esqueci minha senha">
-      <FormField autoCapitalize="none" autoCorrect={false} keyboardType="email-address" label="E-mail" onChangeText={setEmail} placeholder="seu@email.com" value={email} />
+      <FormField autoCapitalize="none" autoComplete="off" autoCorrect={false} keyboardType="email-address" label="E-mail" onChangeText={setEmail} placeholder="seu@email.com" value={email} />
       <PrimaryButton backgroundColor={colors.orange500} disabled={!isValidEmail(email) || state === 'sending'} loading={state === 'sending'} onPress={handleSubmit} style={styles.action}>ENVIAR LINK DE REDEFINIÇÃO</PrimaryButton>
       <TouchableOpacity onPress={() => { window.location.href = '/'; }} style={styles.backToLogin}><Text style={styles.backToLoginText}>Voltar ao login</Text></TouchableOpacity>
     </AuthLayout>

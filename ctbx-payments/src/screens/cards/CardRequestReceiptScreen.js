@@ -18,7 +18,7 @@ export default function CardRequestReceiptScreen({ navigation, route }) {
         <View style={styles.successArea}>
           <Icon color={colors.purple400} name="checkmark-circle" size={52} />
           <Text style={styles.title}>Cartão solicitado com sucesso!</Text>
-          <Text style={styles.demo}>{isSandboxMode ? 'AMBIENTE SANDBOX · OPERAÇÃO SIMULADA' : 'Ambiente de demonstração'}</Text>
+          
         </View>
 
         <View style={styles.previewFrame}>
@@ -31,7 +31,7 @@ export default function CardRequestReceiptScreen({ navigation, route }) {
           <Row label="Protocolo" value={request.protocol} last />
         </Card>
 
-        <Text style={styles.note}>Tarifa, prazo de entrega e disponibilidade dependem da API original. Nenhuma via física será enviada nesta demonstração.</Text>
+        <Text style={styles.note}>Tarifa, prazo de entrega e disponibilidade dependem da API original.</Text>
 
         <ConfirmationButton onPress={() => navigation.navigate('Cards')}>Voltar aos cartões</ConfirmationButton>
       </View>

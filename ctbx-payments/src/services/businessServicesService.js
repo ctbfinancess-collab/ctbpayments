@@ -7,7 +7,7 @@ import { getServiceProductConfig } from '../data/businessServicesData';
 // Microcrédito Digital). Não há endpoint SANDBOX real para esses produtos ainda —
 // em demoMode a solicitação é simulada localmente; em sandboxMode fica indisponível,
 // mesmo padrão usado em pixService/consignedService.
-const unavailable = () => { throw new ApiError('Produto ainda não disponível no ambiente sandbox.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
+const unavailable = () => { throw new ApiError('Produto ainda não disponível no momento.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
 const notFound = () => { throw new ApiError('Produto não encontrado.', { code: 'PRODUCT_NOT_FOUND' }); };
 
 export function createBusinessServicesService({ demoMode = false, sandboxMode = false } = {}) {

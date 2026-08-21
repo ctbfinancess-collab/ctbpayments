@@ -18,7 +18,7 @@ export default function PixAuthorizationScreen({ navigation, route }) {
 
   const requestToken = () => {
     setTokenRequested(true);
-    Alert.alert(isSandboxMode ? 'AMBIENTE SANDBOX' : 'Token de demonstração', isSandboxMode ? 'OTP SANDBOX para teste: 123456' : 'Use qualquer código de 6 dígitos para continuar.');
+    Alert.alert('Token enviado', 'Digite o código de 6 dígitos enviado para o seu dispositivo.');
   };
 
   const authorize = async () => {
@@ -75,7 +75,7 @@ export default function PixAuthorizationScreen({ navigation, route }) {
         <PixButton onPress={requestToken} secondary>ENVIAR TOKEN</PixButton>
       )}
       <PixButton confirmation disabled={loading} loading={loading} onPress={authorize}>CONFIRMAR PIX</PixButton>
-      <Text style={styles.mockNote}>{isSandboxMode ? 'AMBIENTE SANDBOX · OTP: 123456 · operação PIX simulada.' : 'Autorização simulada. Nenhuma transação bancária será enviada.'}</Text>
+      
     </PixLayout>
   );
 }

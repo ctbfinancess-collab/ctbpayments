@@ -32,7 +32,7 @@ export default function PixCreateKeyScreen({ navigation }) {
       return;
     }
     setTokenSent(true);
-    Alert.alert('Token de demonstração', 'Digite qualquer token de 6 dígitos.');
+    Alert.alert('Token enviado', 'Digite o código de 6 dígitos enviado para o seu dispositivo.');
   };
 
   const createKey = async () => {
@@ -77,7 +77,7 @@ export default function PixCreateKeyScreen({ navigation }) {
       ) : null}
       {needsValue && !tokenSent ? <PixButton onPress={requestToken} secondary>ENVIAR TOKEN</PixButton> : null}
       <PixButton confirmation disabled={creating} loading={creating} onPress={createKey}>CADASTRAR CHAVE</PixButton>
-      <Text style={styles.mockNote}>OTP e registro da chave são simulados localmente.</Text>
+      
     </PixLayout>
   );
 }

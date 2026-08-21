@@ -20,7 +20,7 @@ export default function TransferDetailsScreen({ navigation, route }) {
     <TransferToggle label="Salvar favorecido" onPress={() => setFavorite((v) => !v)} selected={favorite} />
     <TransferToggle label="Agendar transferência" onPress={() => setScheduled((v) => !v)} selected={scheduled} />
     {scheduled ? <TransferField keyboardType="numeric" label="Data da transferência" onChangeText={setDate} placeholder="DD/MM/AAAA" value={date} /> : null}
-    <PrimaryButton onPress={continueFlow}>Continuar</PrimaryButton><Text style={styles.fee}>Tarifa SANDBOX: R$ {detailsData.fee}</Text>
+    <PrimaryButton onPress={continueFlow}>Continuar</PrimaryButton><Text style={styles.fee}>Tarifa: R$ {detailsData.fee}</Text>
   </TransferLayout>;
 }
 const styles = StyleSheet.create({ balance: { marginBottom: spacing.lg }, person: { backgroundColor: 'rgba(12, 43, 76, 0.72)', borderColor: 'rgba(92, 142, 220, 0.10)', borderWidth: 1, marginBottom: spacing.xl, padding: spacing.lg, shadowColor: '#000000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.14, shadowRadius: 24, elevation: 4 }, fee: { ...typography.caption, color: colors.textMuted, marginTop: spacing.md, textAlign: 'center' } });

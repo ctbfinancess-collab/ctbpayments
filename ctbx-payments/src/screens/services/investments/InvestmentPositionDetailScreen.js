@@ -32,7 +32,7 @@ export default function InvestmentPositionDetailScreen({ navigation, route }) {
   const evolutionPoints = buildEvolutionSeries(position.invested, current, EVOLUTION_MONTHS.length);
   const evolutionMin = Math.min(position.invested, ...evolutionPoints) * 0.97;
   const evolutionMax = Math.max(current, ...evolutionPoints) * 1.03;
-  const redeem = () => Alert.alert('Resgate no vencimento', 'O resgate antecipado real depende da integração com a custódia. Nesta demonstração, o resgate só é simulado na tela de simulação de novos investimentos.');
+  const redeem = () => Alert.alert('Resgate no vencimento', 'O resgate antecipado depende da integração com a custódia.');
 
   return (
     <ServiceScreenLayout atmospheric backgroundSource={backgroundSource} navigation={navigation} title="Investimentos">
@@ -67,7 +67,7 @@ export default function InvestmentPositionDetailScreen({ navigation, route }) {
         <>
           <View style={styles.sectionHeadingRow}>
             <Text style={styles.sectionHeading}>Evolução do investimento</Text>
-            <TouchableOpacity accessibilityRole="button" onPress={() => Alert.alert('Período', 'A seleção de outros períodos ainda não está disponível nesta demonstração.')} style={styles.periodChip}>
+            <TouchableOpacity accessibilityRole="button" onPress={() => Alert.alert('Período', 'A seleção de outros períodos ainda não está disponível.')} style={styles.periodChip}>
               <Text style={styles.periodChipText}>Últimos 6 meses</Text>
               <Icon color={colors.purple300} name="chevron-down-outline" size={14} />
             </TouchableOpacity>

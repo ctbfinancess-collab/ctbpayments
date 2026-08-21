@@ -20,7 +20,7 @@ export default function PixQrScannerScreen({ navigation }) {
         <Text style={styles.cameraSubtext}>Câmera indisponível nesta reconstrução</Text>
       </View>
       <PixField label="Código EMV para teste" multiline onChangeText={setEmv} value={emv} />
-      <PixButton onPress={simulateScan}>Simular leitura</PixButton>
+      <PixButton onPress={simulateScan}>Inserir código</PixButton>
     </PixLayout>
   );
 }

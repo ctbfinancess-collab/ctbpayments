@@ -88,7 +88,7 @@ export default function GlobalAccountScreen({ navigation, route }) {
     if (action.id === 'receive') return setTab('account');
     if (action.id === 'invest') return navigation.navigate('Investments');
     if (action.id === 'pay') return navigation.navigate('Payments');
-    if (action.id === 'send') return Alert.alert('Enviar internacional', 'Transferência internacional direta ainda não está disponível nesta demonstração. Use "Converter Moeda" para simular a cotação.');
+    if (action.id === 'send') return Alert.alert('Enviar internacional', 'Transferência internacional direta ainda não está disponível. Use "Converter Moeda" para ver a cotação.');
     Alert.alert('Mais opções', 'Novas ações para a conta global chegam em breve.');
   };
 
@@ -177,7 +177,7 @@ export default function GlobalAccountScreen({ navigation, route }) {
           <>
             <View style={styles.monthRow}>
               <Text style={styles.sectionHeading}>Resumo do mês</Text>
-              <TouchableOpacity onPress={() => Alert.alert('Período', 'A seleção de outros meses ainda não está disponível nesta demonstração.')} style={styles.monthChip}>
+              <TouchableOpacity onPress={() => Alert.alert('Período', 'A seleção de outros meses ainda não está disponível.')} style={styles.monthChip}>
                 <Text style={styles.monthChipText}>Agosto 2026</Text>
                 <Icon color={colors.purple300} name="chevron-down-outline" size={14} />
               </TouchableOpacity>
@@ -246,7 +246,7 @@ export default function GlobalAccountScreen({ navigation, route }) {
                     <Text style={styles.rateValue}>R$ {rate.sell.toFixed(2).replace('.', ',')}</Text>
                   </View>
                 </View>
-                <Text style={styles.rateNote}>1 {currency} · Atualizado em {rate.updatedAt} · SANDBOX, cotação estrutural</Text>
+                <Text style={styles.rateNote}>1 {currency} · Atualizado em {rate.updatedAt}</Text>
               </Card>
             )}
           </View>
@@ -254,7 +254,7 @@ export default function GlobalAccountScreen({ navigation, route }) {
 
         <View style={styles.footer}>
           <Icon color={colors.textMuted} name="lock-closed-outline" size={13} />
-          <Text style={styles.footerText}>Ambiente seguro · Dados de demonstração</Text>
+          <Text style={styles.footerText}>Ambiente seguro</Text>
         </View>
       </ScrollView>
 
@@ -273,7 +273,7 @@ export default function GlobalAccountScreen({ navigation, route }) {
           <View style={styles.resultBox}>
             <Text style={styles.resultLabel}>Você recebe aproximadamente</Text>
             <Text style={styles.resultValue}>{direction === 'toForeign' ? currency : 'R$'} {conversion.result}</Text>
-            <Text style={styles.resultNote}>Taxa usada: {conversion.rate.toFixed(4)} · conversão estrutural SANDBOX, não é uma cotação em tempo real.</Text>
+            <Text style={styles.resultNote}>Taxa usada: {conversion.rate.toFixed(4)}</Text>
           </View>
         ) : null}
       </ModalSheet>

@@ -50,7 +50,11 @@ const styles = StyleSheet.create({
   premiumBox: { backgroundColor: 'rgba(5, 20, 38, 0.88)', borderColor: 'rgba(89, 70, 200, 0.52)', borderRadius: 15, minHeight: 58 },
   focused: { borderColor: colors.inputFocus, shadowColor: colors.purple500, shadowOpacity: 0.12, shadowRadius: 8 },
   invalid: { borderColor: colors.danger, borderWidth: StyleSheet.hairlineWidth },
-  input: { ...typography.input, color: colors.textPrimary, flex: 1, minHeight: 48, paddingVertical: 0 },
+  // outlineStyle: 'none' — só existe no React Native Web. Sem isto, o Chrome
+  // desenha seu próprio contorno de foco azul e retangular por cima da
+  // borda arredondada que já desenhamos em `focused` acima (dois contornos
+  // brigando visualmente). No nativo (iOS/Android) esta chave é ignorada.
+  input: { ...typography.input, color: colors.textPrimary, flex: 1, minHeight: 48, outlineStyle: 'none', paddingVertical: 0 },
   premiumInput: { color: colors.textPrimary, minHeight: 56 },
   icon: { marginRight: spacing.md },
   action: { alignItems: 'center', justifyContent: 'center', minHeight: 44, paddingLeft: spacing.md },

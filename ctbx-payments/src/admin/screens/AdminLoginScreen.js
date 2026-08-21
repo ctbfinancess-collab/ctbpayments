@@ -39,6 +39,7 @@ export default function AdminLoginScreen({ onLoginSuccess }) {
           <Text style={styles.label}>E-mail</Text>
           <TextInput
             autoCapitalize="none"
+            autoComplete="off"
             autoCorrect={false}
             editable={status !== 'loading'}
             keyboardType="email-address"
@@ -89,7 +90,7 @@ const styles = StyleSheet.create({
   label: { ...typography.label, color: adminColors.textMuted, marginBottom: spacing.xs },
   input: {
     ...typography.body, backgroundColor: adminColors.surface, borderColor: adminColors.border, borderRadius: radii.md,
-    borderWidth: 1, color: adminColors.textPrimary, paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderWidth: 1, color: adminColors.textPrimary, outlineStyle: 'none', paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
   },
   errorText: { ...typography.bodyMedium, color: adminColors.danger, marginBottom: spacing.md },
   button: { alignItems: 'center', backgroundColor: adminColors.accentPurple, borderRadius: radii.pill, paddingVertical: spacing.md },

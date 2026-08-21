@@ -12,17 +12,17 @@ export default function ForgotPasswordScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [complete, setComplete] = useState(false);
   if (complete) return (
-    <AuthLayout backgroundSource={backgroundSource} onBack={() => navigation.goBack()} premium subtitle="Nenhuma mensagem real foi enviada. A recuperação será conectada quando houver um backend seguro para essa finalidade." title="Solicitação registrada no SANDBOX.">
-      <View style={styles.notice}><Icon color={colors.purple400} name="checkmark-circle" size={32} /><Text style={styles.noticeText}>Experiência visual concluída com dados locais e descartáveis.</Text></View>
+    <AuthLayout backgroundSource={backgroundSource} onBack={() => navigation.goBack()} premium subtitle="Se este e-mail estiver cadastrado, você receberá as instruções em instantes." title="Solicitação registrada.">
+      <View style={styles.notice}><Icon color={colors.purple400} name="checkmark-circle" size={32} /><Text style={styles.noticeText}>Verifique sua caixa de entrada para continuar.</Text></View>
       <PrimaryButton backgroundColor={colors.orange500} onPress={() => navigation.navigate('Login')} shadowStyle={shadows.glowOrange} style={styles.button}>VOLTAR AO LOGIN</PrimaryButton>
     </AuthLayout>
   );
   return (
-    <AuthLayout backgroundSource={backgroundSource} onBack={() => navigation.goBack()} premium subtitle="Informe um e-mail de teste. Nesta etapa não enviaremos mensagens nem consultaremos contas reais." title="Recupere seu acesso.">
-      <FormField autoCapitalize="none" keyboardType="email-address" label="E-mail" onChangeText={setEmail} placeholder="email@exemplo.com" premium value={email} />
+    <AuthLayout backgroundSource={backgroundSource} onBack={() => navigation.goBack()} premium subtitle="Informe seu e-mail para receber as instruções de recuperação." title="Recupere seu acesso.">
+      <FormField autoCapitalize="none" autoComplete="off" keyboardType="email-address" label="E-mail" onChangeText={setEmail} placeholder="email@exemplo.com" premium value={email} />
       <PrimaryButton backgroundColor={colors.orange500} disabled={!email.trim()} onPress={() => setComplete(true)} shadowStyle={shadows.glowOrange}>CONTINUAR</PrimaryButton>
       <OutlineButton onPress={() => navigation.goBack()} style={styles.button}>CANCELAR</OutlineButton>
-      <Text style={styles.disclaimer}>Fluxo visual SANDBOX · nenhum e-mail será enviado.</Text>
+      
     </AuthLayout>
   );
 }

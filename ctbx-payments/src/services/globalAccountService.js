@@ -19,7 +19,7 @@ export const convertCurrency = async ({ amount, from, to }) => {
   if (!structural()) return notConfigured();
   const foreign = from === 'BRL' ? to : from;
   const rate = MOCK_EXCHANGE_RATES[foreign];
-  if (!rate) throw new ApiError('Moeda não suportada nesta demonstração.', { code: 'UNSUPPORTED_CURRENCY' });
+  if (!rate) throw new ApiError('Moeda não suportada.', { code: 'UNSUPPORTED_CURRENCY' });
   const value = parseCurrency(amount);
   const result = from === 'BRL' ? value / rate.sell : value * rate.buy;
   return { amount: value, from, rate: from === 'BRL' ? rate.sell : rate.buy, result: result.toFixed(2).replace('.', ','), to };

@@ -33,7 +33,7 @@ export default function TransferBeneficiaryScreen({ navigation, route }) {
     </Card>}
     <PrimaryButton onPress={() => navigation.navigate('TransferFavorites', { mode })} style={styles.button}>Escolher favorito</PrimaryButton>
     <PrimaryButton onPress={continueFlow} style={styles.button}>Pesquisar e continuar</PrimaryButton>
-    <Text style={styles.mock}>Consulta estrutural com dados fictícios no ambiente SANDBOX.</Text>
+    
   </TransferLayout>;
 }
 const styles = StyleSheet.create({ methods: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl, marginTop: spacing.lg }, chip: { backgroundColor: 'rgba(12, 43, 76, 0.6)', borderColor: 'rgba(92, 142, 220, 0.10)', borderRadius: radii.pill, borderWidth: 1, paddingHorizontal: spacing.md, paddingVertical: spacing.sm }, chipActive: { backgroundColor: 'rgba(12, 43, 76, 0.6)', borderColor: 'rgba(99, 102, 241, 0.55)', ...shadows.glowPurple }, chipText: { ...typography.caption, color: colors.textSecondary }, chipTextActive: { color: colors.purple300 }, formCard: { backgroundColor: 'rgba(12, 43, 76, 0.72)', borderColor: 'rgba(92, 142, 220, 0.10)', borderWidth: 1, marginTop: spacing.lg, padding: spacing.lg, shadowColor: '#000000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.14, shadowRadius: 24, elevation: 4 }, button: { marginTop: spacing.md }, mock: { ...typography.caption, color: colors.textMuted, marginTop: spacing.lg, textAlign: 'center' } });

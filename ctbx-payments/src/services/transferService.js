@@ -5,7 +5,7 @@ import { transferCurrencyToNumber } from '../utils/transferValidation';
 import { getBalances } from './accountService';
 import { mapSandboxBank, mapSandboxTransfer, mapSandboxTransferBeneficiary, mapSandboxTransferFavorites, mapSandboxTransferReceipt, mapSandboxTransferValidation } from './mappers/transferMapper';
 
-const unavailable = () => { throw new ApiError('Transferências não estão disponíveis no ambiente sandbox.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
+const unavailable = () => { throw new ApiError('Transferências não estão disponíveis no momento.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
 const notConfigured = () => { throw new ApiError('Backend not configured', { code: 'BACKEND_NOT_CONFIGURED' }); };
 
 function scheduleDateToIso(value) {

@@ -21,9 +21,9 @@ export function mapSandboxAccount(account) {
 export function mapSandboxBalances(balance) {
   const components = balance.components || {};
   return [
-    { id: 'digital', description: 'Conta Sandbox', tag: 'R$', value: formatCents(balance.available.amount), blockedValue: formatCents(components.blocked?.amount || 0) },
-    { id: 'investment', description: 'Investimentos Sandbox', tag: 'R$', value: formatCents(components.investments?.amount || 0) },
-    { id: 'card', description: 'Conta Cartão Sandbox', tag: 'R$', value: formatCents(components.cardAccount?.amount || 0) },
-    { id: 'credit', description: 'Crédito Sandbox', tag: 'R$', value: formatCents(components.credit?.amount || 0) },
+    { id: 'digital', description: 'Conta Digital', tag: 'R$', value: formatCents(balance.available.amount), blockedValue: formatCents(components.blocked?.amount || 0) },
+    { id: 'investment', description: 'Investimentos', tag: 'R$', value: formatCents(components.investments?.amount || 0) },
+    { id: 'card', description: 'Conta Cartão', tag: 'R$', value: formatCents(components.cardAccount?.amount || 0) },
+    { id: 'credit', description: 'Crédito', tag: 'R$', value: formatCents(components.credit?.amount || 0) },
   ];
 }

@@ -14,7 +14,7 @@ export default function PixReceiptScreen({ navigation, route }) {
   const saveFavorite = async () => { try { setSaving(true); await addFavorite({ name: transfer.beneficiary.name, key: transfer.key, bank: transfer.beneficiary.bank, type: transfer.keyType || 'chave' }); setSaved(true); } catch { Alert.alert('Serviço indisponível', 'Não foi possível salvar este favorito agora.'); } finally { setSaving(false); } };
 
   const receiptText = [
-    transfer.simulated ? 'COMPROVANTE PIX SANDBOX · OPERAÇÃO SIMULADA' : 'PIX realizado com sucesso!',
+    'PIX realizado com sucesso!',
     `Valor: R$ ${transfer.amount}`,
     `Para: ${transfer.beneficiary.name}`,
     `Chave: ${transfer.key}`,
@@ -25,7 +25,7 @@ export default function PixReceiptScreen({ navigation, route }) {
       <View style={styles.successArea}>
         <Icon color={PIX_COLORS.success} name="checkmark-circle" size={52} />
         <Text style={styles.successTitle}>{transfer.status === 'SCHEDULED' ? 'Pix agendado!' : 'Pix realizado com sucesso!'}</Text>
-        <Text style={styles.demo}>{transfer.simulated ? `${transfer.status === 'SCHEDULED' ? 'AGENDAMENTO SANDBOX' : 'COMPROVANTE PIX SANDBOX'} · OPERAÇÃO SIMULADA` : 'Ambiente de demonstração'}</Text>
+        
       </View>
       <View style={styles.receiptCard}>
         <InfoRow label="Valor" value={`R$ ${transfer.amount}`} />
@@ -34,14 +34,14 @@ export default function PixReceiptScreen({ navigation, route }) {
         <InfoRow label="Instituição" value={transfer.beneficiary.bank} />
         <InfoRow label="Chave" value={transfer.key} />
         <InfoRow label="Identificador" value={transfer.pixTransferId || transfer.id} />
-        {transfer.sandboxReference ? <InfoRow label="Referência SANDBOX" value={transfer.sandboxReference} /> : null}
+        {transfer.sandboxReference ? <InfoRow label="Referência" value={transfer.sandboxReference} /> : null}
         {transfer.scheduled ? <InfoRow label="Agendado para" value={transfer.scheduleDate} /> : null}
       </View>
       {transfer.key && !saved ? (
         <PixButton disabled={saving} loading={saving} onPress={saveFavorite} secondary>+ ADICIONAR AOS FAVORITOS</PixButton>
       ) : null}
       {saved ? <Text style={styles.savedNote}>Favorito salvo.</Text> : null}
-      <PixButton onPress={() => Alert.alert('Comprovante PIX SANDBOX', 'Não existe PDF bancário oficial para esta operação simulada.')} secondary>
+      <PixButton onPress={() => Alert.alert('Comprovante indisponível', 'O PDF deste comprovante ainda não está disponível.')} secondary>
         VISUALIZAR
       </PixButton>
       <PixButton confirmation onPress={() => Share.share({ message: receiptText })}>COMPARTILHAR</PixButton>

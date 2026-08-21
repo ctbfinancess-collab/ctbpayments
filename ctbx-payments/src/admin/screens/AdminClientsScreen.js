@@ -77,7 +77,6 @@ export default function AdminClientsScreen() {
               <DetailRow label="Status KYC" value={selected.kycStatus} />
               <DetailRow label="Saldo" value={selected.balance} />
             </DetailSection>
-            <Text style={styles.mockNote}>Dados estruturais SANDBOX — nenhum dado real de cliente.</Text>
           </DetailDrawer>
         ) : null}
       </View>

@@ -5,13 +5,13 @@ import { parseCurrency } from '../utils/pixValidation';
 import { getBalances } from './accountService';
 import { mapSandboxPixKeys, mapSandboxPixLookup, mapSandboxPixReceipt, mapSandboxPixTransfer, mapSandboxPixValidation, mapSandboxQrLookup, mapSandboxReceiveQr } from './mappers/pixMapper';
 
-const unavailable = () => { throw new ApiError('Operação PIX não disponível no ambiente sandbox.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
+const unavailable = () => { throw new ApiError('Operação PIX não disponível no momento.', { code: 'SANDBOX_OPERATION_UNAVAILABLE' }); };
 const notConfigured = () => { throw new ApiError('Backend not configured', { code: 'BACKEND_NOT_CONFIGURED' }); };
 // PixCreateKeyScreen manda o label em português (vindo de PIX_KEY_TYPES) —
 // o backend espera o enum CPF|CNPJ|EMAIL|PHONE|RANDOM.
 const SANDBOX_KEY_TYPE_MAP = { 'Chave aleatória': 'RANDOM', 'CPF/CNPJ': 'CPF', Celular: 'PHONE', 'E-mail': 'EMAIL' };
-const SANDBOX_FAVORITES = Object.freeze([{ id: 'sbx-favorite-1', name: 'Cliente Recebedor SANDBOX', key: 'recebedor@sandbox.invalid', bank: 'Banco SANDBOX', type: 'email' }]);
-const SANDBOX_RECENT = Object.freeze([{ id: 'sbx-recent-1', name: 'Cliente Recebedor SANDBOX', key: 'recebedor@sandbox.invalid', bank: 'Banco SANDBOX', type: 'email', lastAmount: '0,00', lastAt: '—' }]);
+const SANDBOX_FAVORITES = Object.freeze([{ id: 'sbx-favorite-1', name: 'Cliente Recebedor', key: 'recebedor@sandbox.invalid', bank: 'CTBX', type: 'email' }]);
+const SANDBOX_RECENT = Object.freeze([{ id: 'sbx-recent-1', name: 'Cliente Recebedor', key: 'recebedor@sandbox.invalid', bank: 'CTBX', type: 'email', lastAmount: '0,00', lastAt: '—' }]);
 const SANDBOX_LIMITS = Object.freeze({ day: { used: 0, total: 5000, window: '06h às 20h' }, night: { used: 0, total: 1000, window: '20h às 06h' } });
 const scheduleDateToIso = (value) => { const [day, month, year] = value.split('/').map(Number); return new Date(year, month - 1, day, 12).toISOString(); };
 

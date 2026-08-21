@@ -89,7 +89,7 @@ export default function VerifyEmailScreen() {
           </View>
         ) : (
           <View>
-            <FormField autoCapitalize="none" autoCorrect={false} keyboardType="email-address" label="E-mail" onChangeText={setResendEmail} placeholder="seu@email.com" value={resendEmail} />
+            <FormField autoCapitalize="none" autoComplete="off" autoCorrect={false} keyboardType="email-address" label="E-mail" onChangeText={setResendEmail} placeholder="seu@email.com" value={resendEmail} />
             <PrimaryButton backgroundColor={colors.orange500} disabled={!isValidEmail(resendEmail) || resendState === 'sending'} loading={resendState === 'sending'} onPress={handleResend} style={styles.action}>REENVIAR E-MAIL DE VERIFICAÇÃO</PrimaryButton>
           </View>
         )
