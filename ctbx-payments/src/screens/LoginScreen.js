@@ -23,7 +23,11 @@ export default function LoginScreen({ navigation }) {
     setSubmitting(true);
     try { await login({ email: email.trim(), password: senha }); }
     catch (error) {
-      const message = error.code === 'AUTH_INVALID_CREDENTIALS'
+      // AUTH_INVALID_CREDENTIALS vem do login SANDBOX (/v1/auth/login);
+      // CUSTOMER_LOGIN_INVALID vem do login real de cliente PF
+      // (/v1/customers/login, PRODUCTION) — mesmo tratamento de mensagem
+      // pros dois, cada modo só produz o seu próprio código.
+      const message = error.code === 'AUTH_INVALID_CREDENTIALS' || error.code === 'CUSTOMER_LOGIN_INVALID'
         ? 'E-mail ou senha inválidos.'
         : error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT'
           ? 'Não foi possível acessar o serviço. Verifique sua conexão.'
