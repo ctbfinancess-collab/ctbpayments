@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import AuthLayout from '../../components/auth/AuthLayout';
-import { Card, FormField, Icon, LoadingState, PrimaryButton } from '../../components/ui';
+import { Card, FormField, Icon, LoadingState, OutlineButton, PrimaryButton } from '../../components/ui';
 import { getKycPersonalInfo, saveKycPersonalInfo } from '../../services/customerKycClient';
 import { colors, spacing, typography } from '../../theme';
 import { parseBrazilianDate } from '../../utils/dateValidation';
@@ -152,6 +152,10 @@ export default function KycPersonalInfoScreen({ navigation }) {
       ) : null}
 
       <PrimaryButton backgroundColor={colors.orange500} disabled={!canSubmit} loading={saving} onPress={handleSubmit} style={styles.action}>SALVAR</PrimaryButton>
+      {/* Depois de salvar, a única saída visível antes era a setinha
+          pequena no topo (onBack) — fácil de não notar. Este botão dá um
+          caminho explícito de volta, sem depender dela. */}
+      {savedMessage ? <OutlineButton onPress={() => navigation.navigate('Home')} style={styles.action}>VOLTAR AO INÍCIO</OutlineButton> : null}
     </AuthLayout>
   );
 }
