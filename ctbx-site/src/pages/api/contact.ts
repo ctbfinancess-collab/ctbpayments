@@ -73,9 +73,21 @@ async function sendEmail(apiKey: string, payload: Record<string, unknown>) {
 }
 
 export const POST: APIRoute = async ({ request, clientAddress, url }) => {
-  // Bloqueia envios disparados por outros sites.
+  // Bloqueia envios disparados por outros sites. Atrás do proxy do Railway,
+  // url.host é o endereço interno; por isso também aceitamos o Host público
+  // (x-forwarded-host / host) e o domínio oficial do site (com e sem www).
   const origin = request.headers.get('origin');
-  if (origin && new URL(origin).host !== url.host) return json(403, { ok: false, error: 'forbidden' });
+  if (origin) {
+    const official = new URL(env('SITE_URL') ?? site.url).host.replace(/^www\./, '');
+    const allowed = new Set(
+      [url.host, request.headers.get('x-forwarded-host'), request.headers.get('host'), official, `www.${official}`]
+        .filter(Boolean)
+        .map((h) => String(h).split(',')[0].trim().toLowerCase()),
+    );
+    let originHost = '';
+    try { originHost = new URL(origin).host.toLowerCase(); } catch { /* origem inválida */ }
+    if (!allowed.has(originHost)) return json(403, { ok: false, error: 'forbidden' });
+  }
 
   let data: Record<string, unknown>;
   try {
