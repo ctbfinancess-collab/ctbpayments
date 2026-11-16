@@ -4,7 +4,9 @@
 FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm install (e não npm ci): o npm da imagem pode ser mais novo que o que
+# gerou o package-lock e o npm ci recusa diferenças mínimas de formato.
+RUN npm install --no-audit --no-fund
 COPY . .
 RUN npm run build
 RUN npm prune --omit=dev
