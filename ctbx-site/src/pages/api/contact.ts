@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { confirmationEmail } from '../../lib/confirmationEmail';
+import { site } from '../../config/site';
 
 /**
  * Envio do formulário de Contato (roda no servidor, nunca no navegador).
@@ -141,7 +142,8 @@ export const POST: APIRoute = async ({ request, clientAddress, url }) => {
   //    a mensagem já chegou à equipe.
   if (shouldConfirm(email)) {
     try {
-      const c = confirmationEmail(lang, url.origin);
+      // Imagens do e-mail sempre do domínio oficial (nunca localhost).
+      const c = confirmationEmail(lang, env('SITE_URL') ?? site.url);
       await sendEmail(apiKey, { from, to: [email], reply_to: toList[0], subject: c.subject, html: c.html, text: c.text });
     } catch (err) {
       console.error('[contact] Falha na confirmação automática', String(err));
