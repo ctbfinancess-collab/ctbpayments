@@ -1,0 +1,18 @@
+---
+// Moldura padrão de todas as páginas: cabeçalho, conteúdo e rodapé.
+import Base from './Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import type { Lang } from '../i18n/ui';
+import type { RouteKey } from '../i18n/routes';
+
+interface Props { lang: Lang; routeKey: RouteKey; title: string; description: string }
+const { lang, routeKey, title, description } = Astro.props;
+---
+<Base lang={lang} routeKey={routeKey} title={title} description={description}>
+  <Header lang={lang} routeKey={routeKey} />
+  <main>
+    <slot />
+  </main>
+  <Footer lang={lang} />
+</Base>

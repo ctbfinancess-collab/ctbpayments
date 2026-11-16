@@ -1,0 +1,51 @@
+---
+import Page from '../layouts/Page.astro';
+import PageHero from '../components/PageHero.astro';
+import CtaBand from '../components/CtaBand.astro';
+import heroImage from '../assets/hero-business.png';
+import { Image } from 'astro:assets';
+import imgAccount from '../assets/business-account.png';
+import imgRegistration from '../assets/business-registration.png';
+import imgPayments from '../assets/service-payments.png';
+import { t, type Lang } from '../i18n/ui';
+import { href } from '../i18n/routes';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang);
+const p = c.pages.business;
+// Imagem de cada card (mesma ordem de p.planned.items).
+const plannedImages = [imgAccount, imgRegistration, imgPayments];
+---
+<Page lang={lang} routeKey="business" title={p.meta.title} description={p.meta.description}>
+  <PageHero {...p.hero} image={heroImage} primary={{ label: c.nav.contact, href: href(lang, 'contact') }} />
+
+  <section class="border-b border-line bg-navy-800/60">
+    <div class="container-site grid gap-10 py-20 md:py-24 lg:grid-cols-[1fr_1fr] lg:items-center">
+      <h2 class="section-title">{p.intro.title}</h2>
+      <p class="text-lg leading-relaxed text-slate-brand">{p.intro.text}</p>
+    </div>
+  </section>
+
+  <section class="border-b border-line">
+    <div class="container-site py-20 md:py-24">
+      <h2 class="section-title mb-12">{p.planned.title}</h2>
+      <ul class="grid gap-6 md:grid-cols-3">
+        {p.planned.items.map((item, i) => (
+          <li class="card group">
+            <div class="media relative aspect-[16/10] overflow-hidden">
+              <Image src={plannedImages[i]} alt="" widths={[400, 640, 900]} sizes="(min-width: 768px) 33vw, 100vw" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
+              <span class="pill pill-soon absolute right-4 top-4 !bg-navy-950/70 backdrop-blur">{c.services.status}</span>
+            </div>
+            <div class="flex flex-col gap-2 p-6">
+              <h3 class="text-lg font-semibold">{item.title}</h3>
+              <p class="text-[15px] leading-relaxed text-slate-brand">{item.text}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <CtaBand lang={lang} />
+</Page>

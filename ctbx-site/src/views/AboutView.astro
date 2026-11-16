@@ -1,0 +1,49 @@
+---
+import Page from '../layouts/Page.astro';
+import PageHero from '../components/PageHero.astro';
+import GroupSection from '../components/GroupSection.astro';
+import heroImage from '../assets/about-globe.png';
+import { Image } from 'astro:assets';
+import iconSeguranca from '../assets/icon-value-seguranca.png';
+import iconTransparencia from '../assets/icon-value-transparencia.png';
+import iconSimplicidade from '../assets/icon-value-simplicidade.png';
+import iconResponsabilidade from '../assets/icon-value-responsabilidade.png';
+import { t, type Lang } from '../i18n/ui';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang);
+const p = c.pages.about;
+// Ícone de cada valor (mesma ordem de p.values).
+const valueIcons = [iconSeguranca, iconTransparencia, iconSimplicidade, iconResponsabilidade];
+---
+<Page lang={lang} routeKey="about" title={p.meta.title} description={p.meta.description}>
+  <PageHero {...p.hero} image={heroImage} imageTone="light" />
+
+  <section class="border-b border-line bg-navy-800/60">
+    <div class="container-site py-20 md:py-24">
+      <div class="mx-auto flex max-w-3xl flex-col gap-4 text-center">
+        <span class="eyebrow">{c.about.eyebrow}</span>
+        <h2 class="section-title">{c.about.title}</h2>
+        <p class="text-lg leading-relaxed text-slate-brand">{c.about.text}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="border-b border-line">
+    <div class="container-site py-20 md:py-24">
+      <h2 class="section-title mb-12">{p.valuesTitle}</h2>
+      <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {p.values.map((v, i) => (
+          <li class="flex flex-col gap-4 rounded-2xl border border-line bg-navy-900 p-7">
+            <Image src={valueIcons[i]} alt="" width={64} densities={[1, 2]} class="h-16 w-16 rounded-2xl" />
+            <h3 class="text-lg font-semibold">{v.title}</h3>
+            <p class="text-[15px] leading-relaxed text-slate-brand">{v.text}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <GroupSection lang={lang} />
+</Page>

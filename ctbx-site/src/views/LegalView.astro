@@ -1,0 +1,67 @@
+---
+// Páginas legais: Privacidade, Termos de Uso e Cookies (mesmo layout).
+import Page from '../layouts/Page.astro';
+import PageHero from '../components/PageHero.astro';
+import heroImage from '../assets/hero-legal.png';
+import { t, type Lang } from '../i18n/ui';
+import { href, legalOrder } from '../i18n/routes';
+import { site } from '../config/site';
+import { legalDocs } from '../content/legal';
+
+interface Props { lang: Lang; doc: 'privacy' | 'terms' | 'cookies' }
+const { lang, doc } = Astro.props;
+const c = t(lang);
+const L = c.legal;
+const d = legalDocs(lang)[doc];
+const [titleTop, titleAccent] = L.heroes[doc];
+const updated = new Date(`${site.legalUpdatedAt}T12:00:00`).toLocaleDateString(lang === 'en' ? 'en-US' : 'pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+const slug = (i: number) => `s${i + 1}`;
+---
+<Page lang={lang} routeKey={doc} title={`${d.title} — CTBX Payments`} description={d.intro.slice(0, 155)}>
+  <PageHero eyebrow={L.eyebrow} titleTop={titleTop} titleAccent={titleAccent} subtitle={L.subtitle} image={heroImage} />
+
+  <section class="bg-navy-800/60">
+    <div class="container-site grid gap-10 py-16 md:py-20 lg:grid-cols-[260px_1fr] lg:gap-16">
+      <aside class="lg:sticky lg:top-28 lg:self-start">
+        <nav class="flex flex-col gap-8" aria-label={L.docs}>
+          <div>
+            <p class="eyebrow mb-3">{L.docs}</p>
+            <ul class="flex flex-wrap gap-2 lg:flex-col">
+              {legalOrder.map((key) => (
+                <li>
+                  <a href={href(lang, key)} aria-current={key === doc ? 'page' : undefined}
+                    class:list={['block rounded-xl border px-4 py-2.5 text-sm transition-colors', key === doc ? 'border-orange-brand/50 bg-orange-brand/10 text-ice' : 'border-line text-slate-brand hover:border-ice/30 hover:text-ice']}>
+                    {c.footer[key as 'privacy' | 'terms' | 'cookies']}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div class="hidden lg:block">
+            <p class="eyebrow mb-3">{L.contents}</p>
+            <ol class="flex flex-col gap-2 text-[13px] text-slate-brand">
+              {d.sections.map((s, i) => <li><a href={`#${slug(i)}`} class="hover:text-orange-300">{s.title}</a></li>)}
+            </ol>
+          </div>
+        </nav>
+      </aside>
+
+      <article class="legal min-w-0 rounded-2xl border border-line bg-navy-900 p-6 sm:p-10">
+        {site.legalDraft && (
+          <p class="mb-6 rounded-xl border border-orange-brand/40 bg-orange-brand/10 px-4 py-3 text-[14px] text-orange-300">{L.draft}</p>
+        )}
+        <h2 class="section-title !text-3xl">{d.title}</h2>
+        <p class="mt-2 text-sm text-muted">{L.updated}: {updated}</p>
+        <p class="mt-6 text-[16px] leading-relaxed text-slate-brand">{d.intro}</p>
+        {d.sections.map((s, i) => (
+          <section id={slug(i)} class="scroll-mt-28 border-t border-line pt-8 mt-8">
+            <h3 class="mb-3 text-xl font-semibold">{i + 1}. {s.title}</h3>
+            {s.body.map((b) => typeof b === 'string'
+              ? <p class="mb-3 text-[15px] leading-relaxed text-slate-brand">{b}</p>
+              : <ul class="mb-3 flex flex-col gap-2 pl-5 text-[15px] leading-relaxed text-slate-brand">{b.list.map((li) => <li class="list-disc marker:text-orange-brand">{li}</li>)}</ul>)}
+          </section>
+        ))}
+      </article>
+    </div>
+  </section>
+</Page>

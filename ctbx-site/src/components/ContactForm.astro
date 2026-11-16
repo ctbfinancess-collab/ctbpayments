@@ -1,0 +1,155 @@
+---
+// Formulário de contato. Envia JSON para site.contactFormEndpoint.
+// Sem endpoint configurado, não envia nada e mostra um aviso honesto.
+// Anti-spam: campo "website" escondido (robôs preenchem, pessoas não).
+import { t, type Lang } from '../i18n/ui';
+import { site } from '../config/site';
+import { href } from '../i18n/routes';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const f = t(lang).pages.contact.form;
+const messages = {
+  required: f.required, invalidEmail: f.invalidEmail, consentRequired: f.consentRequired,
+  sending: f.sending, submit: f.submit, success: f.success, error: f.error, notConfigured: f.notConfigured,
+};
+---
+<form id="contact-form" class="flex flex-col gap-5" novalidate data-endpoint={site.contactFormEndpoint ?? ''} data-messages={JSON.stringify(messages)}>
+  <div class="grid gap-5 sm:grid-cols-2">
+    <div class="field sm:col-span-2">
+      <label for="cf-name">{f.name}</label>
+      <input id="cf-name" name="name" type="text" autocomplete="name" required maxlength="120" />
+      <p class="field-error" aria-live="polite"></p>
+    </div>
+    <div class="field">
+      <label for="cf-email">{f.email}</label>
+      <input id="cf-email" name="email" type="email" autocomplete="email" required maxlength="160" />
+      <p class="field-error" aria-live="polite"></p>
+    </div>
+    <div class="field">
+      <label for="cf-phone">{f.phone}</label>
+      <input id="cf-phone" name="phone" type="tel" autocomplete="tel" maxlength="30" />
+      <p class="field-error" aria-live="polite"></p>
+    </div>
+    <div class="field sm:col-span-2">
+      <label for="cf-subject">{f.subject}</label>
+      <select id="cf-subject" name="subject" required>
+        <option value="" selected disabled>{f.subjectPlaceholder}</option>
+        {f.subjects.map((s) => <option value={s}>{s}</option>)}
+      </select>
+      <p class="field-error" aria-live="polite"></p>
+    </div>
+    <div class="field sm:col-span-2">
+      <label for="cf-message">{f.message}</label>
+      <textarea id="cf-message" name="message" rows="5" required maxlength="3000"></textarea>
+      <p class="field-error" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <div class="hp" aria-hidden="true">
+    <label for="cf-website">Website</label>
+    <input id="cf-website" name="website" type="text" tabindex="-1" autocomplete="off" />
+  </div>
+
+  <div class="field">
+    <label class="flex cursor-pointer items-start gap-3 text-[14px] !font-normal leading-relaxed text-slate-brand">
+      <input id="cf-consent" name="consent" type="checkbox" required class="mt-1 h-4 w-4 shrink-0 accent-[#D9773F]" />
+      <span>{f.consent} <a href={href(lang, 'privacy')} target="_blank" class="text-orange-300 underline underline-offset-2 hover:text-ice">{t(lang).footer.privacy}</a>.</span>
+    </label>
+    <p class="field-error" aria-live="polite"></p>
+  </div>
+
+  <div class="flex flex-col items-start gap-4">
+    <button type="submit" class="btn btn-primary uppercase tracking-[0.06em] !px-7 !py-3 !text-[13px] disabled:opacity-60">{f.submit}</button>
+    <p id="cf-status" class="hidden rounded-xl border px-4 py-3 text-[14px]" role="status" aria-live="polite"></p>
+  </div>
+</form>
+
+<style>
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .field > label { font-size: 13px; font-weight: 500; color: var(--color-slate-brand); }
+  .field input:not([type="checkbox"]), .field select, .field textarea {
+    width: 100%; border-radius: 12px; border: 1px solid rgba(184, 194, 209, 0.18);
+    background: rgba(5, 15, 29, 0.6); color: var(--color-ice);
+    padding: 12px 14px; font-size: 15px; transition: border-color .2s, box-shadow .2s;
+  }
+  .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #B8C2D1 50%), linear-gradient(135deg, #B8C2D1 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 40px; }
+  .field select option { background: #0B1C33; color: #F5F7FA; }
+  .field textarea { resize: vertical; min-height: 130px; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    outline: none; border-color: var(--color-orange-300); box-shadow: 0 0 0 3px rgba(217, 119, 63, 0.18);
+  }
+  .field.has-error input, .field.has-error select, .field.has-error textarea { border-color: #E05260; }
+  .field-error { min-height: 0; font-size: 13px; color: #F08A94; }
+  .field-error:empty { display: none; }
+  .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  #cf-status.is-ok { border-color: rgba(143, 227, 176, 0.4); background: rgba(143, 227, 176, 0.08); color: #BDEFD0; }
+  #cf-status.is-warn { border-color: rgba(227, 154, 110, 0.45); background: rgba(217, 119, 63, 0.1); color: #F2C3A4; }
+  #cf-status.is-error { border-color: rgba(224, 82, 96, 0.45); background: rgba(224, 82, 96, 0.1); color: #F5B3BA; }
+</style>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('#contact-form');
+  if (form) {
+    const msg = JSON.parse(form.dataset.messages || '{}');
+    const endpoint = form.dataset.endpoint || '';
+    const status = form.querySelector<HTMLElement>('#cf-status')!;
+    const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+    const setError = (el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement, text: string) => {
+      const field = el.closest('.field')!;
+      field.classList.toggle('has-error', !!text);
+      field.querySelector('.field-error')!.textContent = text;
+      el.setAttribute('aria-invalid', text ? 'true' : 'false');
+    };
+    const validate = () => {
+      let first: HTMLElement | null = null;
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input:not(#cf-website), select, textarea').forEach((el) => {
+        let text = '';
+        if (el instanceof HTMLInputElement && el.type === 'checkbox') text = el.checked ? '' : msg.consentRequired;
+        else if (el.required && !el.value.trim()) text = msg.required;
+        else if (el.name === 'email' && el.value && !emailRe.test(el.value.trim())) text = msg.invalidEmail;
+        setError(el, text);
+        if (text && !first) first = el;
+      });
+      (first as HTMLElement | null)?.focus();
+      return !first;
+    };
+    const showStatus = (text: string, kind: 'ok' | 'warn' | 'error') => {
+      status.textContent = text;
+      status.className = `rounded-xl border px-4 py-3 text-[14px] is-${kind}`;
+    };
+
+    form.addEventListener('input', (e) => {
+      const el = e.target as HTMLInputElement;
+      if (el.closest('.field')?.classList.contains('has-error')) setError(el, '');
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!validate()) return;
+      const data = Object.fromEntries(new FormData(form).entries());
+      if (data.website) return; // robô
+      delete data.website;
+
+      if (!endpoint) { showStatus(msg.notConfigured, 'warn'); return; }
+
+      button.disabled = true; button.textContent = msg.sending;
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ ...data, consent: true, page: location.pathname, lang: document.documentElement.lang }),
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        form.reset();
+        showStatus(msg.success, 'ok');
+      } catch {
+        showStatus(msg.error, 'error');
+      } finally {
+        button.disabled = false; button.textContent = msg.submit;
+      }
+    });
+  }
+</script>

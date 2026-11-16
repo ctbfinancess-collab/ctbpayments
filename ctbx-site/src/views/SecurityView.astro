@@ -1,0 +1,29 @@
+---
+import Page from '../layouts/Page.astro';
+import PageHero from '../components/PageHero.astro';
+import SecurityList from '../components/SecurityList.astro';
+import CtaBand from '../components/CtaBand.astro';
+import heroImage from '../assets/hero-security.png';
+import { Image } from 'astro:assets';
+import iconLayers from '../assets/icon-layers.png';
+import { t, type Lang } from '../i18n/ui';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang);
+const p = c.pages.security;
+---
+<Page lang={lang} routeKey="security" title={p.meta.title} description={p.meta.description}>
+  <PageHero {...p.hero} image={heroImage} />
+  <SecurityList lang={lang} />
+  <section class="border-b border-line">
+    <div class="container-site py-20 md:py-24">
+      <div class="mx-auto flex max-w-3xl flex-col items-center gap-5 text-center">
+        <Image src={iconLayers} alt="" width={96} densities={[1, 2]} class="h-24 w-24 rounded-3xl" />
+        <h2 class="section-title">{p.principle.title}</h2>
+        <p class="text-lg leading-relaxed text-slate-brand">{p.principle.text}</p>
+      </div>
+    </div>
+  </section>
+  <CtaBand lang={lang} />
+</Page>

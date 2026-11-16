@@ -1,0 +1,34 @@
+---
+// As 4 proteções do cadastro, com os ícones neon oficiais (mesma ordem
+// de t(lang).security.items: senha, e-mail, sessão, dados).
+import { Image } from 'astro:assets';
+import iconPassword from '../assets/icon-sec-password.png';
+import iconEmail from '../assets/icon-sec-email.png';
+import iconSession from '../assets/icon-sec-session.png';
+import iconData from '../assets/icon-sec-data.png';
+import { t, type Lang } from '../i18n/ui';
+
+interface Props { lang: Lang; tone?: 'plain' | 'tinted' }
+const { lang, tone = 'tinted' } = Astro.props;
+const c = t(lang).security;
+const icons = [iconPassword, iconEmail, iconSession, iconData];
+---
+<section class:list={['border-b border-line', tone === 'tinted' && 'bg-navy-800/60']}>
+  <div class="container-site grid gap-12 py-20 md:py-24 lg:grid-cols-[0.8fr_1.2fr]">
+    <div class="flex flex-col gap-3">
+      <span class="eyebrow">{c.eyebrow}</span>
+      <h2 class="section-title">{c.title}</h2>
+    </div>
+    <ul class="grid gap-x-10 gap-y-10 sm:grid-cols-2">
+      {c.items.map((item, i) => (
+        <li class="flex gap-5">
+          <Image src={icons[i]} alt="" width={80} densities={[1, 2]} class="h-20 w-20 shrink-0 rounded-2xl" />
+          <div class="flex flex-col gap-1 pt-1">
+            <h3 class="text-base font-semibold">{item.title}</h3>
+            <p class="text-[15px] leading-relaxed text-slate-brand">{item.text}</p>
+          </div>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>

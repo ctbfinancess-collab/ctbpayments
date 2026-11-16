@@ -1,0 +1,96 @@
+---
+// Banner principal das páginas internas. Mesmo tratamento do banner da
+// página inicial (imagem à direita, dissolvida no fundo navy), em altura
+// menor. Sem imagem, mostra um ícone grande com brilho, no mesmo lugar,
+// até a imagem definitiva ficar pronta.
+import { Image } from 'astro:assets';
+import Icon from './Icon.astro';
+
+interface Props {
+  eyebrow: string;
+  titleTop: string;
+  titleAccent: string;
+  subtitle: string;
+  image?: ImageMetadata;
+  icon?: Parameters<typeof Icon>[0]['name'];
+  // 'light' para imagens de fundo claro: escurece mais para combinar com o navy.
+  imageTone?: 'dark' | 'light';
+  primary?: { label: string; href: string };
+  secondary?: { label: string; href: string };
+}
+const { eyebrow, titleTop, titleAccent, subtitle, image, imageTone = 'dark', icon = 'shield', primary, secondary } = Astro.props;
+---
+<section class="page-hero relative isolate overflow-hidden">
+  <div class="absolute inset-0 -z-20" aria-hidden="true">
+    <div class="halo"></div>
+    {image ? (
+      <Image src={image} alt="" widths={[640, 1024, 1600].filter((w) => w <= image.width)} sizes="(min-width: 1024px) 60vw, 100vw" loading="eager" fetchpriority="high" class:list={['page-hero-img', imageTone === 'light' && 'is-light']} style={`--ratio:${(image.width / image.height).toFixed(4)}`} />
+    ) : (
+      <div class="page-hero-icon text-orange-brand/70"><Icon name={icon} size={220} /></div>
+    )}
+  </div>
+  <div class="page-hero-shade absolute inset-0 -z-10" aria-hidden="true"></div>
+
+  <div class="container-wide flex min-h-[460px] items-center pb-16 pt-[132px] lg:min-h-[600px] lg:pt-[150px]">
+    <div class="flex max-w-[680px] flex-col gap-5">
+      <span class="eyebrow">{eyebrow}</span>
+      <h1 class="font-serif leading-[1.2]">
+        <span class="block text-[clamp(20px,2.1vw,34px)] uppercase tracking-[0.04em] text-ice">{titleTop}</span>
+        <span class="block text-[clamp(22px,2.4vw,40px)] italic text-orange-brand">{titleAccent}</span>
+      </h1>
+      <span class="h-[2px] w-14 rounded-full bg-orange-brand/80" aria-hidden="true"></span>
+      <p class="max-w-[46ch] text-[clamp(14px,1.05vw,16px)] leading-relaxed text-ice/75">{subtitle}</p>
+      {(primary || secondary) && (
+        <div class="mt-1 flex flex-wrap gap-3">
+          {primary && <a href={primary.href} class="btn btn-primary !px-5 !py-2.5 !text-[13px] uppercase tracking-[0.06em]">{primary.label}</a>}
+          {secondary && <a href={secondary.href} class="btn btn-ghost !px-5 !py-2.5 !text-[13px]">{secondary.label}</a>}
+        </div>
+      )}
+    </div>
+  </div>
+</section>
+
+<style>
+  .page-hero { border-bottom: 1px solid var(--color-line); }
+  .halo {
+    position: absolute; right: 10%; top: 55%; width: 42vw; height: 42vw; transform: translateY(-50%);
+    border-radius: 50%; background: radial-gradient(circle, rgba(21, 89, 183, 0.25), transparent 65%);
+  }
+  .page-hero-img {
+    position: absolute; right: 0; top: 56%; translate: 0 -50%;
+    /* A caixa da imagem tem o mesmo formato da imagem, para o esmaecimento
+       das bordas cair sempre na borda real da figura (larga ou quadrada). */
+    width: min(60vw, 1000px, calc(500px * var(--ratio, 2))); height: auto; aspect-ratio: var(--ratio, 2);
+    object-fit: contain; object-position: right center;
+    filter: saturate(0.75) brightness(0.8) contrast(1.08);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(180deg, transparent 0%, #000 16%, #000 80%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(180deg, transparent 0%, #000 16%, #000 80%, transparent 100%);
+    mask-composite: intersect;
+  }
+  .page-hero-img.is-light {
+    filter: saturate(0.85) brightness(0.55) contrast(1.15);
+    -webkit-mask-image: radial-gradient(ellipse 62% 58% at 62% 52%, #000 45%, transparent 100%);
+    mask-image: radial-gradient(ellipse 62% 58% at 62% 52%, #000 45%, transparent 100%);
+  }
+  .page-hero-icon {
+    position: absolute; right: 14%; top: 56%; translate: 0 -50%;
+    filter: drop-shadow(0 0 40px rgba(217, 119, 63, 0.35));
+    opacity: 0.55;
+  }
+  .page-hero-icon :global(svg) { stroke-width: 0.6; }
+  .page-hero-shade {
+    background:
+      radial-gradient(110% 90% at 70% 50%, transparent 40%, rgba(4, 11, 22, 0.55) 80%, rgba(4, 11, 22, 0.85) 100%),
+      linear-gradient(180deg, rgba(5, 14, 28, 0.5) 0%, rgba(5, 14, 28, 0) 20%, rgba(5, 14, 28, 0) 75%, rgba(7, 20, 38, 0.9) 100%);
+  }
+  @media (max-width: 1023px) {
+    .halo { display: none; }
+    .page-hero-img {
+      right: 50%; top: 84px; translate: 50% 0; width: 100%; max-height: 60%; opacity: 0.4;
+      -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 15%, #000 55%, transparent 100%);
+      mask-image: linear-gradient(180deg, transparent 0%, #000 15%, #000 55%, transparent 100%);
+    }
+    .page-hero-icon { right: 6%; top: 40%; opacity: 0.25; }
+  }
+</style>

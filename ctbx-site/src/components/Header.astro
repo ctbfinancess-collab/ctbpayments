@@ -1,0 +1,76 @@
+---
+import { Image } from 'astro:assets';
+import logo from '../assets/ctbx-logo.png';
+import { t, type Lang } from '../i18n/ui';
+import { routes, href, navOrder, type RouteKey } from '../i18n/routes';
+import { openAccountHref } from '../config/site';
+
+interface Props { lang: Lang; routeKey: RouteKey }
+const { lang, routeKey } = Astro.props;
+const s = t(lang).nav;
+const links = navOrder.map((key) => ({ key, href: href(lang, key), label: s[key] }));
+const ptHref = routes[routeKey]['pt-br'];
+const enHref = routes[routeKey].en;
+---
+<!-- Transparente sobre o banner; ganha fundo sólido ao rolar a página. -->
+<header id="site-header" class="fixed inset-x-0 top-0 z-40 transition-[background-color,border-color,backdrop-filter] duration-300">
+  <div class="container-wide flex h-[84px] items-center justify-between gap-6 lg:h-[104px]">
+    <a href={href(lang, 'home')} class="flex shrink-0 items-center" aria-label="CTBX Payments">
+      <Image src={logo} alt="CTBX Payments" width={124} densities={[1, 2]} class="h-auto w-[92px] lg:w-[124px]" loading="eager" />
+    </a>
+
+    <nav class="hidden items-center gap-6 xl:flex 2xl:gap-8" aria-label="Principal">
+      <span class="mr-1 h-10 w-px bg-ice/30" aria-hidden="true"></span>
+      {links.map((l) => (
+        <a
+          href={l.href}
+          aria-current={l.key === routeKey ? 'page' : undefined}
+          class:list={[
+            'nav-link whitespace-nowrap text-[13px] font-medium uppercase tracking-[0.08em] transition-colors hover:text-orange-300',
+            l.key === routeKey ? 'is-current text-ice' : 'text-ice/80',
+          ]}
+        >{l.label}</a>
+      ))}
+    </nav>
+
+    <div class="flex items-center gap-3">
+      <div class="flex items-center rounded-full border border-ice/20 p-1 text-sm font-semibold" role="group" aria-label={s.langLabel}>
+        <a href={ptHref} lang="pt-BR" class:list={['rounded-full px-3.5 py-1.5', lang === 'pt-br' ? 'border border-orange-300/70 bg-navy-900/60 text-ice' : 'text-ice/70 hover:text-ice']} aria-current={lang === 'pt-br' ? 'true' : undefined}>PT</a>
+        <a href={enHref} lang="en" class:list={['rounded-full px-3.5 py-1.5', lang === 'en' ? 'border border-orange-300/70 bg-navy-900/60 text-ice' : 'text-ice/70 hover:text-ice']} aria-current={lang === 'en' ? 'true' : undefined}>EN</a>
+      </div>
+      <a href={openAccountHref(lang)} class="btn btn-primary hidden whitespace-nowrap !px-6 !py-3 !text-sm uppercase tracking-[0.06em] sm:inline-flex">{s.openAccount}</a>
+      <details class="relative xl:hidden">
+        <summary class="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-full border border-ice/20" aria-label={s.menu}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </summary>
+        <nav class="absolute right-0 mt-3 flex w-60 flex-col gap-1 rounded-2xl border border-line bg-navy-800 p-3 shadow-2xl" aria-label={s.menu}>
+          {links.map((l) => (
+            <a href={l.href} aria-current={l.key === routeKey ? 'page' : undefined} class:list={['rounded-lg px-3 py-2 text-sm uppercase tracking-[0.06em] hover:bg-navy-700 hover:text-ice', l.key === routeKey ? 'bg-navy-700 text-ice' : 'text-slate-brand']}>{l.label}</a>
+          ))}
+          <a href={openAccountHref(lang)} class="btn btn-primary mt-2 !py-2.5 !text-sm uppercase">{s.openAccount}</a>
+        </nav>
+      </details>
+    </div>
+  </div>
+</header>
+
+<style>
+  #site-header.is-scrolled {
+    background: rgba(7, 20, 38, 0.88);
+    border-bottom: 1px solid var(--color-line);
+    backdrop-filter: blur(12px);
+  }
+  #site-header.is-scrolled .container-wide { height: 76px; }
+  .nav-link { position: relative; padding-block: 6px; }
+  .nav-link.is-current::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; border-radius: 2px;
+    background: var(--color-orange-brand);
+  }
+</style>
+
+<script>
+  const header = document.getElementById('site-header');
+  const update = () => header?.classList.toggle('is-scrolled', window.scrollY > 24);
+  update();
+  window.addEventListener('scroll', update, { passive: true });
+</script>

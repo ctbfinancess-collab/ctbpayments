@@ -1,0 +1,58 @@
+---
+// Grade de serviços com o status de src/config/services.ts.
+// "only" restringe a lista (ex.: só serviços de pessoa física).
+import { Image } from 'astro:assets';
+import Icon from './Icon.astro';
+import servicePix from '../assets/service-pix.png';
+import serviceCards from '../assets/service-cards.png';
+import servicePayments from '../assets/service-payments.png';
+import serviceInvestments from '../assets/service-investments.png';
+import serviceCredit from '../assets/service-credit.png';
+import serviceBusiness from '../assets/service-business.png';
+import { t, type Lang } from '../i18n/ui';
+import { services } from '../config/services';
+
+interface Props { lang: Lang; only?: string[]; eyebrow?: string; title?: string; intro?: string; tone?: 'plain' | 'tinted' }
+const { lang, only, eyebrow, title, intro, tone = 'plain' } = Astro.props;
+const c = t(lang);
+const list = services.filter((s) => s.status !== 'hidden' && (!only || only.includes(s.id)));
+// Serviço sem imagem mostra o ícone no mesmo formato, até a imagem ficar pronta.
+const serviceImages: Record<string, ImageMetadata> = { pix: servicePix, cards: serviceCards, payments: servicePayments, investments: serviceInvestments, credit: serviceCredit, business: serviceBusiness };
+---
+<section class:list={['border-b border-line', tone === 'tinted' && 'bg-navy-800/60']}>
+  <div class="container-site py-20 md:py-24">
+    <div class="mb-12 grid gap-6 lg:grid-cols-[1fr_1fr] lg:items-end">
+      <div class="flex flex-col gap-3">
+        <span class="eyebrow">{eyebrow ?? c.services.eyebrow}</span>
+        <h2 class="section-title">{title ?? c.services.title}</h2>
+      </div>
+      <p class="max-w-[60ch] text-slate-brand">{intro ?? c.services.intro}</p>
+    </div>
+    <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {list.map((s) => {
+        const item = c.services.items[s.id as keyof typeof c.services.items];
+        const img = serviceImages[s.id];
+        return (
+          <li class="card group">
+            <div class="media relative aspect-[16/10] overflow-hidden">
+              {img ? (
+                <Image src={img} alt="" widths={[400, 640, 900].filter((w) => w <= img.width)} sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" class="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
+              ) : (
+                <div class="placeholder flex h-full w-full items-center justify-center text-orange-brand/80">
+                  <Icon name={s.icon} size={56} />
+                </div>
+              )}
+              <span class:list={['pill absolute right-4 top-4 backdrop-blur', s.status === 'available' ? 'pill-live' : 'pill-soon !bg-navy-950/70']}>
+                {s.status === 'available' ? c.onboarding.status : c.services.status}
+              </span>
+            </div>
+            <div class="flex flex-col gap-2 p-6">
+              <h3 class="text-lg font-semibold">{item.title}</h3>
+              <p class="text-[15px] text-slate-brand">{item.text}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+</section>

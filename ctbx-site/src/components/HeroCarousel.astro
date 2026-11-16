@@ -1,0 +1,253 @@
+---
+// Banner do topo em carrossel. Sem JavaScript, mostra só o primeiro slide.
+// Com JS: troca sozinho a cada 6s (pausa só no botão de pausa, ao navegar com teclado
+// e quando a aba está em segundo plano). Há botão de pausar/continuar.
+// Com "reduzir movimento" ativado, as transições ficam instantâneas e o
+// parallax fica desligado.
+import { Picture } from 'astro:assets';
+import Icon from './Icon.astro';
+import heroGlobe from '../assets/hero-globe.png';
+import heroMobileCard from '../assets/hero-mobile-card.png';
+import heroCards from '../assets/hero-cards.png';
+import heroBusiness from '../assets/hero-business.png';
+import { t, type Lang } from '../i18n/ui';
+import { href, type RouteKey } from '../i18n/routes';
+import { openAccountHref } from '../config/site';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const h = t(lang).hero;
+// "Abrir conta" (contact) respeita o destino configurado em site.ts.
+const hrefFor = (to: string) => (to === 'contact' ? openAccountHref(lang) : href(lang, to as RouteKey));
+
+// Imagem e enquadramento de cada slide (mesma ordem dos textos em ui.ts).
+// "pos" mantém o objeto principal (à direita) visível quando a tela corta.
+const images = [
+  // fit 'contain': banners muito largos (3:1) aparecem inteiros à direita
+  // no desktop, em vez de ampliados e cortados.
+  { src: heroGlobe, pos: '62% center', posMobile: '70% center', fit: 'cover' },
+  { src: heroMobileCard, pos: '100% center', posMobile: '78% center', fit: 'cover' },
+  { src: heroCards, pos: '100% 58%', posMobile: '80% center', fit: 'contain' },
+  { src: heroBusiness, pos: '100% 58%', posMobile: '82% center', fit: 'contain' },
+];
+const slides = h.slides.map((s, i) => ({ ...s, ...images[i] }));
+---
+<section class="hero relative isolate flex min-h-[620px] flex-col overflow-hidden lg:min-h-[min(100svh,980px)]" aria-roledescription="carousel" aria-label="CTBX Payments" data-carousel>
+  <!-- Fundos -->
+  <div class="absolute inset-0 -z-20" aria-hidden="true">
+    {slides.map((s, i) => (
+      <div class:list={['hero-layer absolute inset-0', i === 0 && 'is-active']} data-slide-bg={i} style={`--pos:${s.pos};--pos-m:${s.posMobile};--fit:${s.fit}`}>
+        <Picture
+          src={s.src}
+          alt=""
+          formats={['avif', 'webp']}
+          widths={[640, 1024, 1600, 2172].filter((w) => w <= s.src.width)}
+          sizes="100vw"
+          loading={i === 0 ? 'eager' : 'lazy'}
+          fetchpriority={i === 0 ? 'high' : 'auto'}
+          class="hero-bg h-full w-full"
+        />
+      </div>
+    ))}
+  </div>
+  <div class="hero-shade absolute inset-0 -z-10" aria-hidden="true"></div>
+
+  <!-- Textos (todos ocupam a mesma célula do grid; só o ativo aparece) -->
+  <div class="container-wide grid flex-1 items-center pb-6 pt-[124px] lg:pt-[140px]">
+    {slides.map((s, i) => {
+      const Heading = i === 0 ? 'h1' : 'h2';
+      return (
+        <div
+          class:list={['hero-slide flex max-w-[720px] flex-col gap-5 [grid-area:1/1]', i === 0 && 'is-active']}
+          data-slide={i}
+          role="group"
+          aria-roledescription="slide"
+          aria-label={`${i + 1} / ${slides.length}`}
+          aria-hidden={i === 0 ? undefined : 'true'}
+          inert={i === 0 ? undefined : true}
+        >
+          <Heading class="font-serif leading-[1.2]">
+            <span class="block text-[clamp(20px,2.1vw,34px)] uppercase tracking-[0.04em] text-ice lg:whitespace-nowrap">{s.titleTop}</span>
+            <span class="block text-[clamp(22px,2.4vw,40px)] italic text-orange-brand lg:whitespace-nowrap">{s.titleAccent}</span>
+          </Heading>
+          <span class="h-[2px] w-14 rounded-full bg-orange-brand/80" aria-hidden="true"></span>
+          <p class="max-w-[44ch] text-[clamp(14px,1.05vw,16px)] leading-relaxed text-ice/75">{s.subtitle}</p>
+          <div class="mt-2 flex flex-wrap gap-3">
+            <a href={hrefFor(s.primary.to)} class="btn btn-primary !px-5 !py-2.5 !text-[13px] uppercase tracking-[0.06em]">{s.primary.label}</a>
+            {s.secondary && <a href={hrefFor(s.secondary.to)} class="btn btn-ghost !px-5 !py-2.5 !text-[13px]">{s.secondary.label}</a>}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+
+  <!-- Controles -->
+  <div class="container-wide flex items-center gap-4 pb-6">
+    <button type="button" class="hero-arrow" data-prev aria-label={h.prev}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+    </button>
+    <div class="flex items-center gap-2">
+      {slides.map((_, i) => (
+        <button type="button" class:list={['hero-dot', i === 0 && 'is-active']} data-dot={i} aria-label={`${h.goTo} ${i + 1}`} aria-current={i === 0 ? 'true' : undefined}><span></span></button>
+      ))}
+    </div>
+    <button type="button" class="hero-arrow" data-next aria-label={h.next}>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg>
+    </button>
+    <button type="button" class="hero-arrow" data-toggle aria-label={h.pause} data-label-pause={h.pause} data-label-play={h.play}>
+      <svg class="icon-pause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+      <svg class="icon-play" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z" /></svg>
+    </button>
+  </div>
+
+  <!-- Barra de destaques (itens que ainda não operam levam "Em breve") -->
+  <div class="container-wide pb-10 lg:pb-14">
+    <ul class="grid grid-cols-2 gap-x-6 gap-y-6 border-t border-ice/10 pt-8 sm:grid-cols-3 lg:grid-cols-5 lg:gap-0 lg:divide-x lg:divide-ice/15">
+      {h.highlights.map((item) => (
+        <li class="flex items-center gap-3 lg:justify-center lg:px-4">
+          <span class="shrink-0 text-orange-brand/90"><Icon name={item.icon as any} size={28} /></span>
+          <span class="flex flex-col gap-1">
+            <span class="text-[14px] leading-snug text-ice/80">{item.label}</span>
+            {item.soon && <span class="text-[11px] font-semibold uppercase tracking-[0.1em] text-orange-300/80">{h.soon}</span>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style>
+  /* Troca: fundo em fade lento, texto entra subindo levemente. */
+  .hero-layer { opacity: 0; transition: opacity 1.2s ease; background: #071426; }
+  .hero-layer.is-active { opacity: 1; }
+  .hero-slide { opacity: 0; transform: translateY(14px); transition: opacity .7s ease, transform .7s ease; pointer-events: none; }
+  .hero-slide.is-active { opacity: 1; transform: none; transition-delay: .25s; pointer-events: auto; }
+
+  /* Profundidade: a imagem ocupa só o lado direito, menor, e se dissolve
+     no fundo navy (máscara nas bordas). Brilho e saturação reduzidos,
+     halo azul atrás e leve parallax no scroll. */
+  .hero-layer::before {
+    content: ""; position: absolute; right: 8%; top: 50%; width: 46vw; height: 46vw;
+    transform: translateY(-50%); border-radius: 50%;
+    background: radial-gradient(circle, rgba(21, 89, 183, 0.22), transparent 65%);
+  }
+  .hero-layer :global(.hero-bg) {
+    position: absolute; right: 0; top: 50%;
+    width: min(64vw, 1100px); height: auto; max-height: 82%;
+    object-fit: contain; object-position: right center;
+    translate: 0 -50%;
+    filter: saturate(0.75) brightness(0.8) contrast(1.08);
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 32%), linear-gradient(180deg, transparent 0%, #000 14%, #000 80%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(90deg, transparent 0%, #000 32%), linear-gradient(180deg, transparent 0%, #000 14%, #000 80%, transparent 100%);
+    mask-composite: intersect;
+    will-change: transform;
+  }
+  .hero-shade {
+    background:
+      radial-gradient(110% 90% at 70% 45%, transparent 40%, rgba(4, 11, 22, 0.6) 78%, rgba(4, 11, 22, 0.9) 100%),
+      linear-gradient(180deg, rgba(5, 14, 28, 0.5) 0%, rgba(5, 14, 28, 0) 16%, rgba(5, 14, 28, 0) 70%, rgba(7, 20, 38, 0.95) 100%);
+  }
+  @media (max-width: 1023px) {
+    .hero-layer::before { display: none; }
+    .hero-layer :global(.hero-bg) {
+      right: 50%; top: 96px; translate: 50% 0;
+      width: 100%; max-height: 46%;
+      -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 60%, transparent 100%);
+      mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 60%, transparent 100%);
+      opacity: 0.55;
+    }
+    .hero-shade { background: linear-gradient(180deg, rgba(5, 14, 28, 0.3) 0%, rgba(5, 14, 28, 0.75) 45%, rgba(7, 20, 38, 0.97) 100%); }
+  }
+
+  .hero-arrow {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; border-radius: 999px;
+    border: 1px solid rgba(245, 247, 250, 0.2); color: rgba(245, 247, 250, 0.8);
+    transition: border-color .2s, color .2s;
+  }
+  .hero-arrow:hover { border-color: var(--color-orange-300); color: var(--color-ice); }
+  .hero-dot { padding: 10px 2px; }
+  .hero-dot span { position: relative; display: block; overflow: hidden; width: 18px; height: 3px; border-radius: 3px; background: rgba(245, 247, 250, 0.3); transition: width .4s; }
+  .hero-dot.is-active span { width: 40px; background: rgba(217, 119, 63, 0.35); }
+  .hero-dot.is-active span::after {
+    content: ""; position: absolute; inset: 0; transform-origin: left; background: var(--color-orange-brand);
+    animation: hero-progress var(--hero-interval, 6s) linear forwards;
+  }
+  [data-carousel].is-paused .hero-dot.is-active span::after { animation-play-state: paused; }
+  @keyframes hero-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  [data-toggle] .icon-play { display: none; }
+  [data-carousel].is-paused [data-toggle] .icon-play { display: block; }
+  [data-carousel].is-paused [data-toggle] .icon-pause { display: none; }
+</style>
+
+<script>
+  const root = document.querySelector<HTMLElement>('[data-carousel]');
+  if (root) {
+    const slides = [...root.querySelectorAll<HTMLElement>('[data-slide]')];
+    const bgs = [...root.querySelectorAll<HTMLElement>('[data-slide-bg]')];
+    const dots = [...root.querySelectorAll<HTMLButtonElement>('[data-dot]')];
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const toggle = root.querySelector<HTMLButtonElement>('[data-toggle]')!;
+    const INTERVAL = 6000;
+    let index = 0;
+    let timer: number | undefined;
+    let paused = false;
+
+    const show = (next: number) => {
+      index = (next + slides.length) % slides.length;
+      slides.forEach((el, i) => {
+        const on = i === index;
+        el.classList.toggle('is-active', on);
+        el.toggleAttribute('inert', !on);
+        if (on) el.removeAttribute('aria-hidden'); else el.setAttribute('aria-hidden', 'true');
+      });
+      bgs.forEach((el, i) => el.classList.toggle('is-active', i === index));
+      dots.forEach((el, i) => {
+        el.classList.remove('is-active');
+        void el.offsetWidth; // reinicia a barra de progresso
+        el.classList.toggle('is-active', i === index);
+        if (i === index) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
+      });
+    };
+    // Troca sozinho a cada 6s. Para só quando o visitante pausa, quando a
+    // aba fica em segundo plano ou enquanto alguém navega pelo teclado.
+    const stop = () => { if (timer) window.clearInterval(timer); timer = undefined; };
+    const start = () => { stop(); if (paused) return; timer = window.setInterval(() => show(index + 1), INTERVAL); };
+    const setPaused = (value: boolean) => {
+      paused = value;
+      root.classList.toggle('is-paused', paused);
+      toggle.setAttribute('aria-label', (paused ? toggle.dataset.labelPlay : toggle.dataset.labelPause) || '');
+      if (paused) stop(); else { show(index); start(); }
+    };
+    toggle.addEventListener('click', () => setPaused(!paused));
+
+    root.querySelector('[data-prev]')?.addEventListener('click', () => { show(index - 1); start(); });
+    root.querySelector('[data-next]')?.addEventListener('click', () => { show(index + 1); start(); });
+    dots.forEach((d, i) => d.addEventListener('click', () => { show(i); start(); }));
+    root.addEventListener('keyup', (e) => { if (e.key === 'Tab') stop(); });
+    root.addEventListener('focusout', (e) => { if (!root.contains(e.relatedTarget as Node)) start(); });
+    document.addEventListener('visibilitychange', () => (document.hidden ? stop() : start()));
+
+    // Arrastar para o lado no celular.
+    let touchX: number | null = null;
+    root.addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+    root.addEventListener('touchend', (e) => {
+      if (touchX === null) return;
+      const dx = e.changedTouches[0].clientX - touchX;
+      if (Math.abs(dx) > 50) { show(index + (dx < 0 ? 1 : -1)); start(); }
+      touchX = null;
+    });
+
+    // Parallax sutil: o fundo desce mais devagar que o texto.
+    if (!reduce) {
+      const imgs = [...root.querySelectorAll<HTMLElement>('.hero-bg')];
+      window.addEventListener('scroll', () => {
+        const y = Math.min(window.scrollY, 900) * 0.25;
+        imgs.forEach((img) => { img.style.transform = `translateY(${y}px)`; });
+      }, { passive: true });
+    }
+
+    start();
+  }
+</script>

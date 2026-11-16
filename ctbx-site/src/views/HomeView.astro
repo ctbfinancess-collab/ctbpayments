@@ -1,0 +1,54 @@
+---
+// Página inicial: carrossel, apresentação curta e atalhos para as páginas internas.
+import Page from '../layouts/Page.astro';
+import HeroCarousel from '../components/HeroCarousel.astro';
+import Icon from '../components/Icon.astro';
+import CtaBand from '../components/CtaBand.astro';
+import { t, type Lang } from '../i18n/ui';
+import { href, navOrder } from '../i18n/routes';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang);
+const p = c.pages.home;
+const icons = { account: 'layers', business: 'building', solutions: 'card', security: 'shield', about: 'globe', contact: 'mail' } as const;
+---
+<Page lang={lang} routeKey="home" title={c.meta.title} description={c.meta.description}>
+  <HeroCarousel lang={lang} />
+
+  <section class="border-b border-line bg-navy-800/60">
+    <div class="container-site py-20 md:py-24">
+      <div class="mx-auto flex max-w-3xl flex-col gap-4 text-center">
+        <span class="eyebrow">{p.intro.eyebrow}</span>
+        <h2 class="section-title">{p.intro.title}</h2>
+        <p class="text-lg leading-relaxed text-slate-brand">{p.intro.text}</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="border-b border-line">
+    <div class="container-site py-20 md:py-24">
+      <div class="mb-12 flex flex-col gap-3">
+        <span class="eyebrow">{p.explore.eyebrow}</span>
+        <h2 class="section-title">{p.explore.title}</h2>
+      </div>
+      <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {navOrder.map((key) => (
+          <li>
+            <a href={href(lang, key)} class="explore group flex h-full flex-col gap-4 rounded-2xl border border-line bg-navy-900 p-7 transition-colors hover:border-orange-brand/50">
+              <span class="flex h-12 w-12 items-center justify-center rounded-xl border border-orange-brand/25 bg-orange-brand/10 text-orange-300"><Icon name={icons[key]} /></span>
+              <h3 class="text-xl font-semibold">{c.nav[key]}</h3>
+              <p class="flex-1 text-[15px] leading-relaxed text-slate-brand">{p.explore.cards[key]}</p>
+              <span class="inline-flex items-center gap-2 text-sm font-semibold text-orange-300">
+                {p.explore.more}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="transition-transform group-hover:translate-x-1" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <CtaBand lang={lang} />
+</Page>

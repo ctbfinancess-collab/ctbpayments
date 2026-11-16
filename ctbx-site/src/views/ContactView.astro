@@ -1,0 +1,58 @@
+---
+import Page from '../layouts/Page.astro';
+import PageHero from '../components/PageHero.astro';
+import Icon from '../components/Icon.astro';
+import ContactForm from '../components/ContactForm.astro';
+import heroImage from '../assets/hero-contact.png';
+import { t, type Lang } from '../i18n/ui';
+import { site } from '../config/site';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang);
+const p = c.pages.contact;
+const f = c.footer;
+const channels = [
+  { icon: 'mail', label: p.email, value: site.contact.email },
+  { icon: 'phone', label: p.phone, value: site.contact.phone },
+] as const;
+---
+<Page lang={lang} routeKey="contact" title={p.meta.title} description={p.meta.description}>
+  <PageHero {...p.hero} image={heroImage} />
+
+  <section class="border-b border-line bg-navy-800/60">
+    <div class="container-site grid gap-6 py-20 md:py-24 lg:grid-cols-[1.5fr_1fr]">
+      <div class="flex flex-col gap-6 rounded-2xl border border-line bg-navy-900 p-6 sm:p-9">
+        <div class="flex flex-col gap-2">
+          <h2 class="section-title !text-2xl">{p.form.title}</h2>
+          <p class="text-[15px] text-slate-brand">{p.form.intro}</p>
+        </div>
+        <ContactForm lang={lang} />
+      </div>
+
+      <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-5 rounded-2xl border border-line bg-navy-900 p-7">
+          <h2 class="text-lg font-semibold">{p.channelsTitle}</h2>
+          <ul class="grid gap-4">
+            {channels.map((ch) => (
+              <li class="flex items-center gap-4">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-orange-brand/25 bg-orange-brand/10 text-orange-300"><Icon name={ch.icon} /></span>
+                <div class="flex flex-col">
+                  <span class="text-sm text-muted">{ch.label}</span>
+                  {ch.value
+                    ? <span class="select-all font-semibold">{ch.value}</span>
+                    : <span class="italic text-orange-300/90">{f.pending}</span>}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div class="rounded-xl border border-line bg-navy-800/70 p-4">
+            <h3 class="text-[15px] font-semibold">{c.open.title}</h3>
+            <p class="mt-1 text-[14px] text-slate-brand">{c.open.text}</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+</Page>

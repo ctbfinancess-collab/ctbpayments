@@ -1,0 +1,71 @@
+---
+import { Image } from 'astro:assets';
+import logo from '../assets/ctbx-logo.png';
+import supernovaLogo from '../assets/supernova-logo.jpeg';
+import { site } from '../config/site';
+import { t, type Lang } from '../i18n/ui';
+import { href, navOrder, legalOrder } from '../i18n/routes';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const f = t(lang).footer;
+const nav = t(lang).nav;
+const legalRows = [
+  { label: f.companyName, value: site.legal.companyName },
+  { label: f.cnpj, value: site.legal.cnpj },
+  { label: f.address, value: site.legal.address },
+];
+const year = new Date().getFullYear();
+---
+<footer class="border-t border-line bg-navy-950">
+  <div class="container-site grid gap-10 py-14 md:grid-cols-[1fr_1fr_1.4fr]">
+    <div class="flex flex-col gap-4">
+      <a href={href(lang, 'home')} aria-label="CTBX Payments">
+        <Image src={logo} alt="CTBX Payments" width={140} densities={[1, 2]} class="h-auto w-[120px]" />
+      </a>
+      <p class="text-sm text-muted">© {year} CTBX Payments. {f.rights}</p>
+    </div>
+    <div>
+      <h2 class="mb-3 text-sm font-semibold text-ice">{f.navTitle}</h2>
+      <ul class="grid gap-2 text-sm">
+        {navOrder.map((key) => (
+          <li><a href={href(lang, key)} class="text-slate-brand transition-colors hover:text-orange-300">{nav[key]}</a></li>
+        ))}
+      </ul>
+    </div>
+    <div class="grid gap-8">
+      <div>
+        <h2 class="mb-3 text-sm font-semibold text-ice">{f.legalTitle}</h2>
+        <dl class="grid gap-2 text-sm">
+          {legalRows.map((r) => (
+            <div class="flex flex-wrap gap-x-2">
+              <dt class="text-muted">{r.label}:</dt>
+              <dd class:list={[r.value ? 'text-slate-brand' : 'italic text-orange-300/80']}>{r.value ?? f.pending}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <ul class="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        {legalOrder.map((key) => (
+          <li><a href={href(lang, key)} class="text-slate-brand transition-colors hover:text-orange-300">{f[key as 'privacy' | 'terms' | 'cookies']}</a></li>
+        ))}
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-line">
+    <div class="container-site flex flex-wrap items-center justify-center gap-3 py-5 text-[13px] text-muted">
+      <span>{f.madeBy}</span>
+      {site.credit.url ? (
+        <a href={site.credit.url} target="_blank" rel="noopener" class="inline-flex items-center gap-2 font-medium text-slate-brand transition-colors hover:text-orange-300">
+          <Image src={supernovaLogo} alt="" width={28} densities={[1, 2]} class="h-7 w-7 rounded-md" />
+          {site.credit.name}
+        </a>
+      ) : (
+        <span class="inline-flex items-center gap-2 font-medium text-slate-brand">
+          <Image src={supernovaLogo} alt="" width={28} densities={[1, 2]} class="h-7 w-7 rounded-md" />
+          {site.credit.name}
+        </span>
+      )}
+    </div>
+  </div>
+</footer>

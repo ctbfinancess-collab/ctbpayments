@@ -1,0 +1,67 @@
+---
+// "Nosso Grupo Empresarial" — mesma estrutura do site da CTB Venture,
+// no visual da CTBX Payments.
+import { Image } from 'astro:assets';
+import { t, type Lang } from '../i18n/ui';
+import { groupCompanies, institutionalPartner as partner } from '../content/group';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const g = t(lang).pages.about.group;
+const host = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '');
+---
+<section class="border-b border-line bg-navy-800/60">
+  <div class="container-site py-20 md:py-24">
+    <header class="mb-12 flex max-w-3xl flex-col gap-4">
+      <span class="eyebrow">{g.eyebrow}</span>
+      <h2 class="section-title">{g.title}</h2>
+      {g.paragraphs.map((p) => <p class="text-[17px] leading-relaxed text-slate-brand">{p}</p>)}
+    </header>
+
+    <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {groupCompanies.map((c) => (
+        <li class:list={['entity flex flex-col rounded-2xl border bg-navy-900 p-7', c.isSelf ? 'border-orange-brand/50' : 'border-line']}>
+          <div class="mb-5 flex h-[84px] items-center">
+            <Image
+              src={c.logo}
+              alt={`${c.name} — logo`}
+              height={84}
+              width={Math.round(84 * c.logo.width / c.logo.height)}
+              densities={[1, 2]}
+              class:list={[c.tile ? 'h-[72px] w-[72px] rounded-xl object-cover' : 'h-[84px] w-auto max-w-[150px] object-contain']}
+            />
+          </div>
+          <h3 class="text-xl font-semibold">{c.name}</h3>
+          <p class="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-300">
+            {c.location[lang]}{c.kind && <span class="text-slate-brand"> · {c.kind[lang]}</span>}
+          </p>
+          <p class="mt-4 flex-1 text-[15px] leading-relaxed text-slate-brand">{c.description[lang]}</p>
+          <div class="mt-5">
+            {c.isSelf ? (
+              <span class="pill pill-live">{g.current}</span>
+            ) : c.website ? (
+              <a href={c.website} target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 border-b border-orange-brand pb-0.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-ice transition-colors hover:text-orange-300">
+                {g.visit} <span aria-hidden="true">→</span><span class="sr-only"> ({host(c.website)})</span>
+              </a>
+            ) : null}
+          </div>
+        </li>
+      ))}
+    </ul>
+
+    <div class="mt-14 grid items-center gap-8 border-t border-line pt-12 sm:grid-cols-[auto_1fr]">
+      <Image src={partner.logo} alt={`${partner.name} — logo`} width={140} densities={[1, 2]} class="h-[120px] w-[120px] object-contain sm:h-[140px] sm:w-[140px]" />
+      <div class="flex flex-col gap-3">
+        <span class="eyebrow">{g.partnerEyebrow}</span>
+        <h3 class="text-2xl font-semibold">{partner.name}</h3>
+        <p class="max-w-2xl text-[15px] leading-relaxed text-slate-brand">{partner.description[lang]}</p>
+        {partner.website && (
+          <a href={partner.website} target="_blank" rel="noopener noreferrer" class="inline-flex w-fit items-center gap-2 border-b border-orange-brand pb-0.5 text-[12px] font-semibold uppercase tracking-[0.08em] text-ice transition-colors hover:text-orange-300">
+            {g.visit} <span aria-hidden="true">→</span><span class="sr-only"> ({host(partner.website)})</span>
+          </a>
+        )}
+        <p class="text-[13px] text-muted">{g.partnerNote}</p>
+      </div>
+    </div>
+  </div>
+</section>

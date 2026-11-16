@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+/* Paleta oficial CTBX Payments — mesmos valores de
+   ctbx-payments/src/theme/colors.js (copiados, não importados, para
+   manter o site 100% independente do app). */
+@theme {
+  --color-navy-950: #050F1D;
+  --color-navy-900: #071426;
+  --color-navy-800: #0B1C33;
+  --color-navy-700: #102A46;
+  --color-navy-600: #14365A;
+  --color-blue-brand: #1559B7;
+  --color-violet-brand: #5946C8;
+  --color-violet-300: #A79EF0;
+  --color-violet-400: #7769E8;
+  /* Laranja do site: versão menos saturada do #F26A21 do app. */
+  --color-orange-brand: #D9773F;
+  --color-orange-300: #E39A6E;
+  --color-ice: #F5F7FA;
+  --color-slate-brand: #B8C2D1;
+  --color-muted: #7E8DA3;
+  --color-line: rgba(184, 194, 209, 0.14);
+
+  --font-display: "Poppins", "Segoe UI", system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html {
+    background: var(--color-navy-900);
+    color: var(--color-ice);
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { font-family: var(--font-sans); }
+  h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; }
+  :focus-visible { outline: 2px solid var(--color-orange-300); outline-offset: 3px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+}
+
+@layer components {
+  .container-site { width: 100%; max-width: 1180px; margin-inline: auto; padding-inline: 20px; }
+  .container-wide { width: 100%; max-width: 1560px; margin-inline: auto; padding-inline: 20px; }
+  @media (min-width: 768px) { .container-site, .container-wide { padding-inline: 32px; } }
+  @media (min-width: 1280px) { .container-wide { padding-inline: 56px; } }
+
+  .eyebrow {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--color-orange-300);
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    font-family: var(--font-display); font-weight: 600; font-size: 15px;
+    border-radius: 999px; padding: 13px 26px; transition: background-color .2s, border-color .2s, transform .2s;
+  }
+  .btn-primary { background: var(--color-orange-brand); color: #fff; }
+  .btn-primary:hover { background: #C4672F; }
+  .btn-ghost { border: 1px solid rgba(245, 247, 250, 0.25); color: var(--color-ice); }
+  .btn-ghost:hover { border-color: rgba(245, 247, 250, 0.6); }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-display); font-weight: 600; font-size: 11px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    border-radius: 999px; padding: 4px 10px; white-space: nowrap;
+  }
+  .pill-live { background: rgba(89, 70, 200, 0.22); color: var(--color-violet-300); }
+  .pill-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #8FE3B0; }
+  .pill-soon { border: 1px solid rgba(111, 162, 234, 0.4); color: #9CC2F5; }
+
+  /* Fotos de cards: levemente escurecidas e com sombra na base. */
+  .media img { filter: saturate(0.85) brightness(0.9); }
+  .media::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(180deg, rgba(7, 20, 38, 0) 55%, rgba(7, 20, 38, 0.55) 100%);
+    box-shadow: inset 0 0 0 1px rgba(245, 247, 250, 0.04);
+  }
+  .placeholder {
+    background:
+      radial-gradient(60% 70% at 70% 30%, rgba(21, 89, 183, 0.35), transparent 70%),
+      radial-gradient(50% 60% at 20% 90%, rgba(217, 119, 63, 0.18), transparent 70%),
+      linear-gradient(150deg, #0E2A4E, #0A1A31);
+  }
+  .card {
+    display: flex; flex-direction: column; overflow: hidden;
+    border-radius: 1rem; border: 1px solid var(--color-line); background: var(--color-navy-900);
+  }
+  .section-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3vw, 36px); line-height: 1.2; }
+}

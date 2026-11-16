@@ -1,0 +1,45 @@
+---
+import '../styles/global.css';
+import { site } from '../config/site';
+import type { Lang } from '../i18n/ui';
+import { routes, type RouteKey } from '../i18n/routes';
+
+interface Props {
+  lang: Lang;
+  routeKey: RouteKey;
+  title: string;
+  description: string;
+}
+
+const { lang, routeKey, title, description } = Astro.props;
+const ptUrl = new URL(routes[routeKey]['pt-br'], site.url).href;
+const enUrl = new URL(routes[routeKey].en, site.url).href;
+const canonical = lang === 'en' ? enUrl : ptUrl;
+---
+<!doctype html>
+<html lang={lang === 'en' ? 'en' : 'pt-BR'}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="pt-BR" href={ptUrl} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="x-default" href={ptUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={site.name} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={lang === 'en' ? 'en_US' : 'pt_BR'} />
+    <meta name="theme-color" content="#071426" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;1,500&family=Poppins:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" />
+  </head>
+  <body class="min-h-screen bg-navy-900 text-ice">
+    <slot />
+  </body>
+</html>

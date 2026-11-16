@@ -1,0 +1,18 @@
+---
+import Page from '../layouts/Page.astro';
+import PageHero from '../components/PageHero.astro';
+import ServicesGrid from '../components/ServicesGrid.astro';
+import CtaBand from '../components/CtaBand.astro';
+import heroImage from '../assets/hero-cards.png';
+import { t, type Lang } from '../i18n/ui';
+
+interface Props { lang: Lang }
+const { lang } = Astro.props;
+const c = t(lang);
+const p = c.pages.solutions;
+---
+<Page lang={lang} routeKey="solutions" title={p.meta.title} description={p.meta.description}>
+  <PageHero {...p.hero} image={heroImage} />
+  <ServicesGrid lang={lang} />
+  <CtaBand lang={lang} />
+</Page>
