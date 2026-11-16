@@ -20,9 +20,9 @@ export const site = {
     address: null as string | null,
   },
   // Para onde o formulário de Contato envia as mensagens (POST em JSON).
-  // Enquanto for null, o formulário NÃO envia nada e avisa o visitante
-  // que o envio ainda está sendo configurado.
-  contactFormEndpoint: null as string | null,
+  // /api/contact roda no servidor do próprio site e envia pelo Resend
+  // (configurar RESEND_API_KEY, CONTACT_FROM_EMAIL e CONTACT_TO_EMAIL).
+  contactFormEndpoint: '/api/contact' as string | null,
 
   // Políticas legais. Enquanto legalDraft for true, as páginas de
   // Privacidade, Termos e Cookies mostram o aviso "versão preliminar".

@@ -11,7 +11,7 @@ const { lang } = Astro.props;
 const f = t(lang).pages.contact.form;
 const messages = {
   required: f.required, invalidEmail: f.invalidEmail, consentRequired: f.consentRequired,
-  sending: f.sending, submit: f.submit, success: f.success, error: f.error, notConfigured: f.notConfigured,
+  sending: f.sending, submit: f.submit, success: f.success, error: f.error, notConfigured: f.notConfigured, tooMany: f.tooMany,
 };
 ---
 <form id="contact-form" class="flex flex-col gap-5" novalidate data-endpoint={site.contactFormEndpoint ?? ''} data-messages={JSON.stringify(messages)}>
@@ -140,8 +140,10 @@ const messages = {
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ ...data, consent: true, page: location.pathname, lang: document.documentElement.lang }),
+          body: JSON.stringify({ ...data, consent: true, website: '', lang: document.documentElement.lang.startsWith('en') ? 'en' : 'pt' }),
         });
+        if (res.status === 503) { showStatus(msg.notConfigured, 'warn'); return; }
+        if (res.status === 429) { showStatus(msg.tooMany, 'warn'); return; }
         if (!res.ok) throw new Error(String(res.status));
         form.reset();
         showStatus(msg.success, 'ok');

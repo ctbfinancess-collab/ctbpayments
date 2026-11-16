@@ -39,7 +39,28 @@ Banner de cada página: componente `PageHero` (prop `image`; sem imagem mostra u
 Regra: só marcar um serviço como disponível quando ele funcionar para clientes reais.
 Nunca publicar taxas, rendimentos, limites ou parcerias não confirmadas.
 
+## Formulário de contato (Resend)
+
+O formulário envia para `/api/contact` (`src/pages/api/contact.ts`), que roda
+**no servidor** do site: a chave do Resend nunca vai para o navegador.
+Cada mensagem chega à equipe com "responder para" o visitante, e o visitante
+recebe uma confirmação automática (`src/lib/confirmationEmail.ts`).
+Proteções: validação no servidor, honeypot, limite de 5 envios a cada 10 min
+por IP, escape de HTML e bloqueio de envios vindos de outros sites.
+
+Variáveis de ambiente (veja `.env.example`):
+
+| Variável | Uso |
+|---|---|
+| `RESEND_API_KEY` | Chave do Resend ("Sending access") |
+| `CONTACT_FROM_EMAIL` | Remetente em domínio verificado no Resend |
+| `CONTACT_TO_EMAIL` | Caixa(s) que recebem as mensagens |
+
+Sem elas, o formulário avisa que o envio "ainda está sendo configurado".
+
 ## Publicação (ainda NÃO configurada)
+
+Build: `npm run build` · Start: `npm start` (Node 22+, escuta em `PORT`).
 
 Plano: serviço novo no Railway, com Root Directory `ctbx-site` e Watch Paths
 `ctbx-site/**`, para não interferir no app nem na API. `railway.json` já está
