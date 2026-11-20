@@ -24,6 +24,9 @@ RUN npm prune --omit=dev
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# Railway entrega o tráfego por um proxy e exige escutar em 0.0.0.0.
+ENV HOST=0.0.0.0
+ENV TRUST_PROXY=1
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./

@@ -56,7 +56,9 @@ export class CustomerEmailVerificationService {
       throw new ApiError('CUSTOMER_EMAIL_VERIFICATION_INVALID', 'Link de verificação inválido ou expirado.', { statusCode: 400 });
     }
     const consumedAt = this.now();
-    await this.verifications.markConsumed(record.tokenHash, consumedAt);
+    if (!(await this.verifications.markConsumed(record.tokenHash, consumedAt))) {
+      throw new ApiError('CUSTOMER_EMAIL_VERIFICATION_INVALID', 'Link de verificação inválido ou expirado.', { statusCode: 400 });
+    }
     await this.customers.markEmailVerified(record.customerId, consumedAt);
   }
 
@@ -70,6 +72,8 @@ export class CustomerEmailVerificationService {
     if (!customer || customer.emailVerifiedAt) return;
     const latest = await this.verifications.findLatestByCustomer(customer.id);
     if (latest && this.now().getTime() - latest.createdAt.getTime() < RESEND_COOLDOWN_MS) return;
-    await this.sendVerification(customer.id);
+    // Falha de envio nunca vira erro aqui (a resposta tem que ser a mesma
+    // exista ou não o e-mail).
+    await this.sendVerification(customer.id).catch(() => undefined);
   }
 }

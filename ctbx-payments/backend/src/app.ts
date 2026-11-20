@@ -78,6 +78,7 @@ import { CustomerKycService } from './services/customerKycService.js';
 import { CustomerEmailChangeService } from './services/customerEmailChangeService.js';
 import { CustomerEmailVerificationService } from './services/customerEmailVerificationService.js';
 import { CustomerPasswordResetService } from './services/customerPasswordResetService.js';
+import { InMemoryEmailProvider } from './providers/InMemoryEmailProvider.js';
 import { createEmailProvider } from './providers/createEmailProvider.js';
 
 export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean }
@@ -129,6 +130,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const app = Fastify({
     logger: loggerOptions(config.logLevel, options.logger ?? config.nodeEnv !== 'test'),
     genReqId: requestIdFactory,
+    trustProxy: config.trustProxy ?? false,
   });
 
   // Cartão virtual sandbox e sessão do cliente sandbox são os dois
@@ -201,7 +203,17 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     customerKycRepository = new PostgresCustomerKycRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
-  const customerAuthService = new CustomerAuthService(customerRepository, customerSessionRepository);
+  // E-mail (Resend real em produção, memória em dev/test). Em produção só
+  // existe com RESEND_API_KEY, EMAIL_FROM e CUSTOMER_APP_BASE_URL — sem a
+  // URL do app, os links dos e-mails apontariam para localhost.
+  const emailConfigured = config.nodeEnv !== 'production' || Boolean(config.resendApiKey && config.emailFrom && config.customerAppBaseUrl);
+  const emailProvider = emailConfigured
+    ? createEmailProvider({ nodeEnv: config.nodeEnv, resendApiKey: config.resendApiKey, emailFrom: config.emailFrom })
+    : undefined;
+  // Só em testes: expõe a caixa de saída simulada, para os testes lerem o
+  // link de confirmação como um usuário real faria.
+  if (config.nodeEnv === 'test' && emailProvider instanceof InMemoryEmailProvider) app.decorate('testEmailOutbox', emailProvider);
+  const customerAuthService = new CustomerAuthService(customerRepository, customerSessionRepository, undefined, emailProvider);
   // Estrutura PJ — nunca fail-closed sem DATABASE_URL, mesmo par real+
   // fallback de tudo em Customer Identity. Sem EmailProvider nenhum
   // (empresa nunca recebe e-mail própria — quem recebe é sempre um
@@ -227,11 +239,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   let emailVerificationService: CustomerEmailVerificationService | undefined;
   let passwordResetService: CustomerPasswordResetService | undefined;
   let emailChangeService: CustomerEmailChangeService | undefined;
-  if (config.nodeEnv !== 'production' || (config.resendApiKey && config.emailFrom)) {
-    const emailProvider = createEmailProvider({ nodeEnv: config.nodeEnv, resendApiKey: config.resendApiKey, emailFrom: config.emailFrom });
+  if (emailProvider) {
     emailVerificationService = new CustomerEmailVerificationService(customerRepository, customerEmailVerificationRepository, emailProvider, config.customerAppBaseUrl);
     passwordResetService = new CustomerPasswordResetService(customerRepository, customerPasswordResetRepository, customerSessionRepository, emailProvider, config.customerAppBaseUrl);
-    emailChangeService = new CustomerEmailChangeService(customerRepository, customerEmailChangeRepository, emailProvider, config.customerAppBaseUrl);
+    emailChangeService = new CustomerEmailChangeService(customerRepository, customerEmailChangeRepository, emailProvider, config.customerAppBaseUrl, undefined, customerSessionRepository);
   }
 
   await app.register(helmet, { contentSecurityPolicy: false });

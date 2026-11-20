@@ -14,9 +14,11 @@ export class InMemoryCustomerEmailChangeRepository implements CustomerEmailChang
     return this.byTokenHash.get(tokenHash);
   }
 
-  async markConsumed(tokenHash: string, consumedAt: Date): Promise<void> {
+  async markConsumed(tokenHash: string, consumedAt: Date): Promise<boolean> {
     const existing = this.byTokenHash.get(tokenHash);
-    if (existing) this.byTokenHash.set(tokenHash, { ...existing, consumedAt });
+    if (!existing || existing.consumedAt) return false;
+    this.byTokenHash.set(tokenHash, { ...existing, consumedAt });
+    return true;
   }
 
   async findLatestByCustomer(customerId: string): Promise<CustomerEmailChangeRecord | undefined> {

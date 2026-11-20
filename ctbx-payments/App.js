@@ -8,7 +8,6 @@ import { useFonts, Poppins_400Regular, Poppins_500Medium, Poppins_600SemiBold, P
 // qualquer tela renderizar.
 import './src/utils/webAlertPolyfill';
 
-import AdminApp from './src/admin/AdminApp';
 
 import LoginScreen from './src/screens/LoginScreen';
 import ForgotPasswordScreen from './src/screens/auth/ForgotPasswordScreen';
@@ -97,8 +96,13 @@ import ProfileBiometricsScreen from './src/screens/profile/ProfileBiometricsScre
 import ProfileDevicesScreen from './src/screens/profile/ProfileDevicesScreen';
 import ProfileTokenScreen from './src/screens/profile/ProfileTokenScreen';
 import ProfileTermsScreen from './src/screens/profile/ProfileTermsScreen';
-import { LoadingState } from './src/components/ui';
-import { isProductionMode } from './src/config';
+import { DemoEnvironmentBadge, LoadingState } from './src/components/ui';
+import ConfigErrorScreen from './src/screens/ConfigErrorScreen';
+import { configError, env, isProductionMode } from './src/config';
+
+// Painel admin embutido: só carregado quando EXPO_PUBLIC_ENABLE_ADMIN=true
+// (uso interno). A Área do Cliente publicada nunca serve /admin.
+const AdminApp = env.adminEnabled ? require('./src/admin/AdminApp').default : null;
 import { SessionProvider, useSession } from './src/session';
 import { colors, layout, shadows } from './src/theme';
 
@@ -247,7 +251,10 @@ export default function App() {
   // Painel Administrativo: árvore totalmente separada da área do cliente,
   // sem WebFrame (precisa da largura cheia do desktop, não da moldura de
   // celular) e sem a sessão/navegação do app cliente. Só existe no Web.
-  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+  // Build sem configuração válida: nunca abre um modo inseguro ou de
+  // demonstração — só a tela de serviço indisponível.
+  if (configError) return <ConfigErrorScreen />;
+  if (AdminApp && Platform.OS === 'web' && typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
     return <AdminApp />;
   }
   // Verificação de e-mail (Customer Identity, Etapa 3): destino do botão
@@ -278,6 +285,8 @@ export default function App() {
       <SessionProvider>
         <View style={styles.appRoot}>
           <AppNavigator />
+          {/* Aviso sempre visível fora de PRODUCTION (DEMO/SANDBOX). */}
+          <DemoEnvironmentBadge />
         </View>
       </SessionProvider>
     </WebFrame>

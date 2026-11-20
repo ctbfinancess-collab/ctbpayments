@@ -6,6 +6,7 @@ import { InMemoryCustomerSessionRepository } from '../src/repositories/InMemoryC
 import { InMemoryEmailProvider } from '../src/providers/InMemoryEmailProvider.js';
 import { CustomerAuthService } from '../src/services/customerAuthService.js';
 import { CustomerEmailVerificationService } from '../src/services/customerEmailVerificationService.js';
+import { registered } from './helpers/verifyEmail.js';
 
 // Customer Identity — Etapa 3 (verificação real de e-mail). Usa sempre o
 // InMemoryEmailProvider — nenhum e-mail real é enviado por nenhum teste
@@ -23,7 +24,7 @@ function setup(now: () => Date = () => new Date()) {
 
 test('sendVerification sends exactly one e-mail (via the InMemory provider), with a working link and no sensitive data', async () => {
   const { customers, auth, verificationService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await verificationService.sendVerification(customer.id);
 
   assert.equal(emailProvider.sent.length, 1);
@@ -46,7 +47,7 @@ test('sendVerification sends exactly one e-mail (via the InMemory provider), wit
 
 test('confirm with a valid token marks the customer e-mail as verified', async () => {
   const { customers, auth, verificationService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await verificationService.sendVerification(customer.id);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -71,7 +72,7 @@ test('confirm rejects a token once it has already expired (using an injectable c
   const emailProvider = new InMemoryEmailProvider();
   const auth = new CustomerAuthService(customers, new InMemoryCustomerSessionRepository(), () => new Date(realNow));
   const sendService = new CustomerEmailVerificationService(customers, verifications, emailProvider, 'https://app.ctbxpayments.test', () => new Date(realNow));
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await sendService.sendVerification(customer.id);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -85,7 +86,7 @@ test('confirm rejects a token once it has already expired (using an injectable c
 
 test('confirm rejects reusing an already-consumed token (single use)', async () => {
   const { auth, verificationService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await verificationService.sendVerification(customer.id);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -99,7 +100,7 @@ test('confirm rejects reusing an already-consumed token (single use)', async () 
 
 test('resend sends a new e-mail for an existing, unverified customer', async () => {
   const { auth, verificationService, emailProvider } = setup();
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await verificationService.resend(PAYLOAD.email);
   assert.equal(emailProvider.sent.length, 1);
 });
@@ -112,7 +113,7 @@ test('resend never sends anything (and never throws) for a non-existent e-mail �
 
 test('resend never sends anything for an already-verified e-mail', async () => {
   const { customers, auth, verificationService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await customers.markEmailVerified(customer.id, new Date());
   await verificationService.resend(PAYLOAD.email);
   assert.equal(emailProvider.sent.length, 0);
@@ -120,7 +121,7 @@ test('resend never sends anything for an already-verified e-mail', async () => {
 
 test('resend respects the per-account cooldown — a second immediate resend sends nothing', async () => {
   const { auth, verificationService, emailProvider } = setup();
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await verificationService.resend(PAYLOAD.email);
   await verificationService.resend(PAYLOAD.email);
   assert.equal(emailProvider.sent.length, 1); // só o primeiro, o segundo caiu no cooldown
@@ -133,7 +134,7 @@ test('resend works again after the cooldown window passes (injectable clock)', a
   const emailProvider = new InMemoryEmailProvider();
   const auth = new CustomerAuthService(customers, new InMemoryCustomerSessionRepository(), () => new Date(realNow));
   const serviceAtT0 = new CustomerEmailVerificationService(customers, verifications, emailProvider, 'https://app.ctbxpayments.test', () => new Date(realNow));
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await serviceAtT0.resend(PAYLOAD.email);
 
   // 61 segundos depois — passou do cooldown de 60s.
@@ -148,7 +149,7 @@ test('resend works again after the cooldown window passes (injectable clock)', a
 // cooldown) lança erro nem se distingue de fora.
 test('resend never throws for any of the three silent cases (unknown e-mail, already verified, cooldown)', async () => {
   const { customers, auth, verificationService } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await assert.doesNotReject(verificationService.resend('nunca-existiu@sandbox.invalid'));
   await customers.markEmailVerified(customer.id, new Date());
   await assert.doesNotReject(verificationService.resend(PAYLOAD.email));

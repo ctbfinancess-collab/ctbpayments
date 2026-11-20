@@ -6,6 +6,7 @@ import { InMemoryCustomerRepository } from '../src/repositories/InMemoryCustomer
 import { InMemoryCustomerSessionRepository } from '../src/repositories/InMemoryCustomerSessionRepository.js';
 import { CompanyService } from '../src/services/companyService.js';
 import { CustomerAuthService } from '../src/services/customerAuthService.js';
+import { registered } from './helpers/verifyEmail.js';
 
 // Customer Identity — estrutura PJ (aditiva). CNPJs válidos usados nos
 // testes (dígito verificador correto, mesmo algoritmo de src/utils/cnpj.ts).
@@ -20,7 +21,7 @@ function setup() {
 }
 
 async function registerCustomer(customerAuth: CustomerAuthService, suffix: string) {
-  return customerAuth.register({ name: `Cliente ${suffix}`, document: suffix === 'A' ? '111.444.777-35' : '529.982.247-25', email: `${suffix}@sandbox.invalid`, phone: '11999990000', password: 'senha-forte-123' });
+  return registered(customerAuth.register({ name: `Cliente ${suffix}`, document: suffix === 'A' ? '111.444.777-35' : '529.982.247-25', email: `${suffix}@sandbox.invalid`, phone: '11999990000', password: 'senha-forte-123' }));
 }
 
 test('registerCompany creates the company and links the registering customer as ADMIN representative', async () => {
@@ -136,6 +137,6 @@ test('getRepresentativeRole returns the role for an existing representative, and
   assert.equal(await service.getRepresentativeRole(company.id, customerB.id), 'MEMBER');
   // Terceiro CPF sintético válido, diferente dos dois já usados por
   // registerCustomer() acima (só cobre os sufixos 'A' e demais).
-  const customerC = await customerAuth.register({ name: 'Cliente C', document: '734.912.658-19', email: 'C@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' });
+  const customerC = await registered(customerAuth.register({ name: 'Cliente C', document: '734.912.658-19', email: 'C@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }));
   assert.equal(await service.getRepresentativeRole(company.id, customerC.id), null);
 });

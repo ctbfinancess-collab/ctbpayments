@@ -51,7 +51,9 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   await app.register(rateLimit, {
     global: false,
     errorResponseBuilder: (request, context) => {
-      const code = request.url.includes('/verify-email')
+      const code = request.url.includes('/register')
+        ? 'CUSTOMER_REGISTER_RATE_LIMITED'
+        : request.url.includes('/verify-email')
         ? 'CUSTOMER_VERIFY_EMAIL_RATE_LIMITED'
         : request.url.includes('/password/change')
           ? 'CUSTOMER_PASSWORD_CHANGE_RATE_LIMITED'
@@ -64,7 +66,11 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
     },
   });
 
+  // Cadastro: 3 por minuto e 20 por hora por IP (dificulta testar CPFs em
+  // massa). A resposta é SEMPRE a mesma (202), tenha ou não sido criada uma
+  // conta nova — nunca revela se o e-mail ou o CPF já estão cadastrados.
   app.post('/register', {
+    config: { rateLimit: { max: 3, timeWindow: '1 minute' } },
     schema: {
       body: objectSchema(['name', 'document', 'email', 'phone', 'password'], {
         name: nameSchema, document: documentSchema, email: emailSchema, phone: phoneSchema, password: passwordSchema,
@@ -73,12 +79,13 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   }, async (request, reply) => {
     if (!customerAuthService) throw providerNotConfigured('de cadastro de clientes');
     const input = request.body as { name: string; document: string; email: string; phone: string; password: string };
-    const customer = await customerAuthService.register(input);
-    // Etapa 3 — dispara a verificação de e-mail logo após o cadastro.
-    // Nunca bloqueia/derruba o cadastro se o envio falhar (o cliente já
-    // foi criado; o reenvio cobre o caso de falha de entrega).
-    if (emailVerificationService) await emailVerificationService.sendVerification(customer.id).catch(() => undefined);
-    return reply.status(201).send(envelope(request, { customer }));
+    const { customer } = await customerAuthService.register(input);
+    // Conta nova: dispara a verificação de e-mail. Falha de envio nunca
+    // derruba o cadastro (o reenvio cobre esse caso).
+    if (customer && emailVerificationService) await emailVerificationService.sendVerification(customer.id).catch(() => undefined);
+    return reply.status(202).send(envelope(request, {
+      message: 'Se os dados estiverem corretos, enviamos um link de confirmação para o seu e-mail. Se você já tem conta, entre ou use "Esqueci minha senha".',
+    }));
   });
 
   // Item 1 — 5 tentativas por minuto por IP, mesmo teto já usado no login

@@ -1,10 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { renderChangeEmailTemplate } from '../emails/changeEmailTemplate.js';
+import { renderSecurityNoticeTemplate } from '../emails/securityNoticeTemplate.js';
 import { ApiError } from '../errors/ApiError.js';
 import type { EmailProvider } from '../providers/EmailProvider.js';
 import type { CustomerEmailChangeRepository } from '../repositories/CustomerEmailChangeRepository.js';
 import type { CustomerRepository } from '../repositories/CustomerRepository.js';
+import type { CustomerSessionRepository } from '../repositories/CustomerSessionRepository.js';
 
 const CHANGE_TTL_MS = 30 * 60_000; // 30 minutos — mesma janela das outras confirmações por e-mail
 const RESEND_COOLDOWN_MS = 60_000; // 1 minuto entre pedidos pra mesma conta
@@ -26,6 +28,8 @@ export class CustomerEmailChangeService {
     private readonly emailProvider: EmailProvider,
     private readonly appBaseUrl: string | undefined,
     private readonly now: () => Date = () => new Date(),
+    // Opcional: com ele, a confirmação da troca encerra todas as sessões.
+    private readonly sessions?: CustomerSessionRepository,
   ) {}
 
   // Exige a senha ATUAL como reautenticação (mesma exigência de
@@ -67,7 +71,17 @@ export class CustomerEmailChangeService {
       throw new ApiError('CUSTOMER_EMAIL_ALREADY_REGISTERED', 'Este e-mail já está cadastrado.', { statusCode: 409 });
     }
     const consumedAt = this.now();
-    await this.changes.markConsumed(record.tokenHash, consumedAt);
+    if (!(await this.changes.markConsumed(record.tokenHash, consumedAt))) {
+      throw new ApiError('CUSTOMER_EMAIL_CHANGE_TOKEN_INVALID', 'Link de confirmação inválido ou expirado.', { statusCode: 400 });
+    }
+    const previous = await this.customers.findById(record.customerId);
     await this.customers.updateEmail(record.customerId, record.newEmail, consumedAt);
+    // Encerra as sessões antigas e avisa o endereço ANTERIOR (se a troca
+    // não foi do titular, é por ali que ele fica sabendo).
+    await this.sessions?.revokeAllForCustomer(record.customerId);
+    if (previous && previous.email !== record.newEmail) {
+      const notice = renderSecurityNoticeTemplate('EMAIL_CHANGED');
+      await this.emailProvider.send({ to: previous.email, ...notice }).catch(() => undefined);
+    }
   }
 }

@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerEmailChanges } from '../db/schema/index.js';
 
@@ -22,7 +22,9 @@ export interface CreateCustomerEmailChangeInput {
 export interface CustomerEmailChangeRepository {
   create(input: CreateCustomerEmailChangeInput): Promise<CustomerEmailChangeRecord>;
   findByTokenHash(tokenHash: string): Promise<CustomerEmailChangeRecord | undefined>;
-  markConsumed(tokenHash: string, consumedAt: Date): Promise<void>;
+  // Atômico: só marca se ainda não foi usado. Devolve true se ESTA
+  // chamada consumiu o token (false = já usado, mesmo em pedidos simultâneos).
+  markConsumed(tokenHash: string, consumedAt: Date): Promise<boolean>;
   // Usado pelo cooldown do pedido — o mais recente emitido pra essa
   // conta, consumido ou não.
   findLatestByCustomer(customerId: string): Promise<CustomerEmailChangeRecord | undefined>;
@@ -42,8 +44,11 @@ export class PostgresCustomerEmailChangeRepository implements CustomerEmailChang
     return row as CustomerEmailChangeRecord | undefined;
   }
 
-  async markConsumed(tokenHash: string, consumedAt: Date): Promise<void> {
-    await this.db.update(customerEmailChanges).set({ consumedAt }).where(eq(customerEmailChanges.tokenHash, tokenHash));
+  async markConsumed(tokenHash: string, consumedAt: Date): Promise<boolean> {
+    const rows = await this.db.update(customerEmailChanges).set({ consumedAt })
+      .where(and(eq(customerEmailChanges.tokenHash, tokenHash), isNull(customerEmailChanges.consumedAt)))
+      .returning({ id: customerEmailChanges.id });
+    return rows.length > 0;
   }
 
   async findLatestByCustomer(customerId: string): Promise<CustomerEmailChangeRecord | undefined> {

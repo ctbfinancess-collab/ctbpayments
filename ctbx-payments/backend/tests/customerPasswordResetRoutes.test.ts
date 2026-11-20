@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../src/app.js';
+import { verifyEmail } from './helpers/verifyEmail.js';
 import type { AppConfig } from '../src/config/env.js';
 
 const baseConfig: AppConfig = {
@@ -74,6 +75,7 @@ test('the password-reset rate limit is tracked independently from login and veri
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: PAYLOAD });
+  await verifyEmail(app, PAYLOAD.email);
 
   // 3 chamadas de forgot não devem consumir o teto de 5/min do login.
   for (let i = 0; i < 3; i += 1) await app.inject({ method: 'POST', url: '/v1/customers/password/forgot', payload: { email: PAYLOAD.email } });

@@ -1,6 +1,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import * as argon2 from 'argon2';
+import { renderSecurityNoticeTemplate } from '../emails/securityNoticeTemplate.js';
 import { ApiError } from '../errors/ApiError.js';
+import type { EmailProvider } from '../providers/EmailProvider.js';
 import type { CustomerRecord, CustomerRepository } from '../repositories/CustomerRepository.js';
 import type { CustomerSessionRepository } from '../repositories/CustomerSessionRepository.js';
 import { isValidCpf, onlyDigits } from '../utils/cpf.js';
@@ -37,6 +39,14 @@ export interface AuthenticatedCustomer {
   status: string;
 }
 
+// Resultado do cadastro. `customer` só existe quando uma conta nova foi
+// criada; quando o e-mail ou o CPF já existem, a rota responde exatamente
+// igual (sem revelar se o dado está cadastrado) e, se o e-mail já tem
+// conta, o titular recebe um aviso.
+export interface RegisterCustomerResult {
+  customer: RegisteredCustomer | null;
+}
+
 export interface CustomerLoginResult {
   token: string;
   expiresAt: Date;
@@ -67,9 +77,18 @@ export class CustomerAuthService {
     private readonly customers: CustomerRepository,
     private readonly sessions: CustomerSessionRepository,
     private readonly now: () => Date = () => new Date(),
+    // Avisos de segurança (senha alterada, tentativa de cadastro com e-mail
+    // existente). Opcional: sem e-mail configurado, nada é enviado.
+    private readonly notifier?: EmailProvider,
   ) {}
 
-  async register(input: RegisterCustomerInput): Promise<RegisteredCustomer> {
+  private async notify(to: string, kind: Parameters<typeof renderSecurityNoticeTemplate>[0]): Promise<void> {
+    if (!this.notifier) return;
+    const { subject, html, text } = renderSecurityNoticeTemplate(kind);
+    await this.notifier.send({ to, subject, html, text }).catch(() => undefined);
+  }
+
+  async register(input: RegisterCustomerInput): Promise<RegisterCustomerResult> {
     const email = input.email.trim().toLowerCase();
     const document = onlyDigits(input.document);
     const name = input.name.trim();
@@ -79,15 +98,27 @@ export class CustomerAuthService {
     if (!name) throw new ApiError('CUSTOMER_NAME_INVALID', 'Nome inválido.', { statusCode: 422 });
     if (!phone) throw new ApiError('CUSTOMER_PHONE_INVALID', 'Telefone inválido.', { statusCode: 422 });
 
-    // Mesma lógica de "não vazar qual campo já existe primeiro" não se
-    // aplica aqui (diferente do login) — cadastro precisa dizer
-    // exatamente qual dado está duplicado pro cliente poder corrigir.
-    if (await this.customers.findByEmail(email)) throw new ApiError('CUSTOMER_EMAIL_ALREADY_REGISTERED', 'Este e-mail já está cadastrado.', { statusCode: 409 });
-    if (await this.customers.findByDocument(document)) throw new ApiError('CUSTOMER_DOCUMENT_ALREADY_REGISTERED', 'Este CPF já está cadastrado.', { statusCode: 409 });
-
+    // Nunca revela se o e-mail ou o CPF já existem (evita descobrir quem é
+    // cliente a partir de um CPF). Sempre calcula o hash da senha, para o
+    // tempo de resposta ser o mesmo nos dois casos.
     const passwordHash = await argon2.hash(input.password);
-    const row = await this.customers.create({ type: 'PF', name, document, email, phone, passwordHash });
-    return { id: row.id, type: 'PF', name: row.name, email: row.email, documentMasked: maskCpf(row.document), status: row.status, createdAt: row.createdAt.toISOString() };
+    const existingByEmail = await this.customers.findByEmail(email);
+    if (existingByEmail) {
+      await this.notify(existingByEmail.email, 'ACCOUNT_EXISTS');
+      return { customer: null };
+    }
+    if (await this.customers.findByDocument(document)) return { customer: null };
+
+    let row: CustomerRecord;
+    try {
+      row = await this.customers.create({ type: 'PF', name, document, email, phone, passwordHash });
+    } catch (error) {
+      // Dois cadastros simultâneos com o mesmo e-mail/CPF: a restrição de
+      // unicidade do banco barra o segundo — tratado como duplicado, nunca 500.
+      if (isUniqueViolation(error)) return { customer: null };
+      throw error;
+    }
+    return { customer: { id: row.id, type: 'PF', name: row.name, email: row.email, documentMasked: maskCpf(row.document), status: row.status, createdAt: row.createdAt.toISOString() } };
   }
 
   // Retorna null tanto pra e-mail inexistente quanto pra senha errada —
@@ -103,6 +134,11 @@ export class CustomerAuthService {
     }
     const valid = await argon2.verify(customer.passwordHash, password).catch(() => false);
     if (!valid) return null;
+    // Só entra quem confirmou o e-mail. Este erro só aparece para quem
+    // acertou a senha, então não revela a existência da conta a terceiros.
+    if (!customer.emailVerifiedAt) {
+      throw new ApiError('CUSTOMER_EMAIL_NOT_VERIFIED', 'Confirme seu e-mail para entrar. Enviamos um link no cadastro.', { statusCode: 403 });
+    }
 
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(this.now().getTime() + SESSION_TTL_MS);
@@ -143,6 +179,13 @@ export class CustomerAuthService {
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(now.getTime() + SESSION_TTL_MS);
     await this.sessions.create({ customerId: customer.id, tokenHash: hashToken(token), expiresAt });
+    await this.notify(customer.email, 'PASSWORD_CHANGED');
     return { token, expiresAt, customer: toAuthenticatedCustomer(customer) };
   }
+}
+
+// Código 23505 do PostgreSQL = violação de restrição UNIQUE.
+function isUniqueViolation(error: unknown): boolean {
+  const e = error as { code?: string; cause?: { code?: string } } | undefined;
+  return e?.code === '23505' || e?.cause?.code === '23505';
 }

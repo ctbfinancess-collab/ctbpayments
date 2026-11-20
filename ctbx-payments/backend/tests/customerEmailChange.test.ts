@@ -6,6 +6,7 @@ import { InMemoryCustomerSessionRepository } from '../src/repositories/InMemoryC
 import { InMemoryEmailProvider } from '../src/providers/InMemoryEmailProvider.js';
 import { CustomerAuthService } from '../src/services/customerAuthService.js';
 import { CustomerEmailChangeService } from '../src/services/customerEmailChangeService.js';
+import { registered } from './helpers/verifyEmail.js';
 
 // Troca de e-mail autenticada — mesmo espírito de customerPasswordReset.test.ts,
 // mas com erros EXPLÍCITOS (é ação sobre a própria conta já logada, não
@@ -25,7 +26,7 @@ function setup(now: () => Date = () => new Date()) {
 
 test('requestChange sends exactly one e-mail to the NEW address (never the old one), with a working link', async () => {
   const { customers, auth, changeService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await changeService.requestChange(customer.id, 'novo@sandbox.invalid', PAYLOAD.password);
 
   assert.equal(emailProvider.sent.length, 1);
@@ -41,7 +42,7 @@ test('requestChange sends exactly one e-mail to the NEW address (never the old o
 
 test('requestChange rejects an incorrect current password (no e-mail sent, nothing changed)', async () => {
   const { auth, changeService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await assert.rejects(
     changeService.requestChange(customer.id, 'novo@sandbox.invalid', 'senha-errada-999'),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_EMAIL_CHANGE_INVALID',
@@ -51,7 +52,7 @@ test('requestChange rejects an incorrect current password (no e-mail sent, nothi
 
 test('requestChange rejects a new e-mail that is the same as the current one', async () => {
   const { auth, changeService } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await assert.rejects(
     changeService.requestChange(customer.id, PAYLOAD.email, PAYLOAD.password),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_EMAIL_CHANGE_SAME_EMAIL',
@@ -60,8 +61,8 @@ test('requestChange rejects a new e-mail that is the same as the current one', a
 
 test('requestChange rejects a new e-mail already registered by another customer', async () => {
   const { auth, changeService } = setup();
-  const customer = await auth.register(PAYLOAD);
-  await auth.register({ name: 'Outro Cliente', document: '529.982.247-25', email: 'ja-existe@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' });
+  const customer = await registered(auth.register(PAYLOAD));
+  await registered(auth.register({ name: 'Outro Cliente', document: '529.982.247-25', email: 'ja-existe@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' }));
   await assert.rejects(
     changeService.requestChange(customer.id, 'ja-existe@sandbox.invalid', PAYLOAD.password),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_EMAIL_ALREADY_REGISTERED',
@@ -70,7 +71,7 @@ test('requestChange rejects a new e-mail already registered by another customer'
 
 test('confirmChange with a valid token actually changes the e-mail (and marks it verified)', async () => {
   const { customers, auth, changeService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await changeService.requestChange(customer.id, 'novo@sandbox.invalid', PAYLOAD.password);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -94,7 +95,7 @@ test('confirmChange rejects an invalid/unknown token', async () => {
 
 test('confirmChange rejects reusing an already-consumed token (single use)', async () => {
   const { auth, changeService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await changeService.requestChange(customer.id, 'novo@sandbox.invalid', PAYLOAD.password);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -114,7 +115,7 @@ test('confirmChange rejects a token once it has already expired (using an inject
   const emailProvider = new InMemoryEmailProvider();
   const auth = new CustomerAuthService(customers, sessions, () => new Date(realNow));
   const sendService = new CustomerEmailChangeService(customers, changes, emailProvider, 'https://app.ctbxpayments.test', () => new Date(realNow));
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await sendService.requestChange(customer.id, 'novo@sandbox.invalid', PAYLOAD.password);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -128,7 +129,7 @@ test('confirmChange rejects a token once it has already expired (using an inject
 
 test('requestChange respects the per-account cooldown — a second immediate request is rejected', async () => {
   const { auth, changeService } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await changeService.requestChange(customer.id, 'novo@sandbox.invalid', PAYLOAD.password);
   await assert.rejects(
     changeService.requestChange(customer.id, 'outro-novo@sandbox.invalid', PAYLOAD.password),

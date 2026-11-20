@@ -14,6 +14,10 @@ export interface AppConfig {
   resendApiKey: string | undefined;
   emailFrom: string | undefined;
   customerAppBaseUrl: string | undefined;
+  // Quantos proxies confiáveis existem na frente da API (Railway = 1).
+  // Sem isso, atrás de um proxy todo cliente parece ter o mesmo IP e o
+  // limite de tentativas por IP vira um bloqueio coletivo.
+  trustProxy?: boolean | number;
 }
 
 const environments = new Set<Environment>(['development', 'test', 'staging', 'production']);
@@ -61,8 +65,14 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   // services/customerEmailVerificationService.ts). Nunca inventado aqui.
   const customerAppBaseUrl = source.CUSTOMER_APP_BASE_URL?.trim() || undefined;
 
+  const rawTrustProxy = source.TRUST_PROXY?.trim().toLowerCase();
+  const trustProxy: boolean | number = !rawTrustProxy || rawTrustProxy === 'false' || rawTrustProxy === '0'
+    ? false
+    : rawTrustProxy === 'true' ? true : Number(rawTrustProxy);
+  if (typeof trustProxy === 'number' && (!Number.isInteger(trustProxy) || trustProxy < 1)) throw new Error('TRUST_PROXY must be true, false or a positive integer');
+
   return {
     nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins,
-    adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl,
+    adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl, trustProxy,
   };
 }

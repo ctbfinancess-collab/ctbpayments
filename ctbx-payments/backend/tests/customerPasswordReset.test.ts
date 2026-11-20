@@ -7,6 +7,7 @@ import { InMemoryCustomerSessionRepository } from '../src/repositories/InMemoryC
 import { InMemoryEmailProvider } from '../src/providers/InMemoryEmailProvider.js';
 import { CustomerAuthService } from '../src/services/customerAuthService.js';
 import { CustomerPasswordResetService } from '../src/services/customerPasswordResetService.js';
+import { registered } from './helpers/verifyEmail.js';
 
 // Recuperação de senha — mesmo espírito do teste de verificação de
 // e-mail (customerEmailVerification.test.ts). Usa sempre o
@@ -26,7 +27,7 @@ function setup(now: () => Date = () => new Date()) {
 
 test('requestReset sends exactly one e-mail (via the InMemory provider), with a working link and no sensitive data', async () => {
   const { auth, resetService, emailProvider } = setup();
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await resetService.requestReset(PAYLOAD.email);
 
   assert.equal(emailProvider.sent.length, 1);
@@ -46,7 +47,7 @@ test('requestReset sends exactly one e-mail (via the InMemory provider), with a 
 
 test('confirmReset with a valid token changes the password (old password stops working, new one works)', async () => {
   const { customers, auth, resetService, emailProvider } = setup();
-  const customer = await auth.register(PAYLOAD);
+  const customer = await registered(auth.register(PAYLOAD));
   await resetService.requestReset(PAYLOAD.email);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -59,8 +60,9 @@ test('confirmReset with a valid token changes the password (old password stops w
 });
 
 test('confirmReset revokes every active session for that customer (a reset invalidates old logins)', async () => {
-  const { auth, resetService, sessions, emailProvider } = setup();
-  await auth.register(PAYLOAD);
+  const { auth, resetService, sessions, emailProvider, customers } = setup();
+  const created = await registered(auth.register(PAYLOAD));
+  await customers.markEmailVerified(created.id, new Date());
   const login1 = (await auth.login(PAYLOAD.email, PAYLOAD.password))!;
   const login2 = (await auth.login(PAYLOAD.email, PAYLOAD.password))!;
   assert.ok(await auth.validateSession(login1.token));
@@ -92,7 +94,7 @@ test('confirmReset rejects a token once it has already expired (using an injecta
   const emailProvider = new InMemoryEmailProvider();
   const auth = new CustomerAuthService(customers, sessions, () => new Date(realNow));
   const sendService = new CustomerPasswordResetService(customers, resets, sessions, emailProvider, 'https://app.ctbxpayments.test', () => new Date(realNow));
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await sendService.requestReset(PAYLOAD.email);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -106,7 +108,7 @@ test('confirmReset rejects a token once it has already expired (using an injecta
 
 test('confirmReset rejects reusing an already-consumed token (single use)', async () => {
   const { auth, resetService, emailProvider } = setup();
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await resetService.requestReset(PAYLOAD.email);
   const link = emailProvider.sent[0]!.text!;
   const token = new URL(link.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
@@ -126,7 +128,7 @@ test('requestReset never sends anything (and never throws) for a non-existent e-
 
 test('requestReset respects the per-account cooldown — a second immediate request sends nothing', async () => {
   const { auth, resetService, emailProvider } = setup();
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await resetService.requestReset(PAYLOAD.email);
   await resetService.requestReset(PAYLOAD.email);
   assert.equal(emailProvider.sent.length, 1); // só o primeiro, o segundo caiu no cooldown
@@ -140,7 +142,7 @@ test('requestReset works again after the cooldown window passes (injectable cloc
   const emailProvider = new InMemoryEmailProvider();
   const auth = new CustomerAuthService(customers, sessions, () => new Date(realNow));
   const serviceAtT0 = new CustomerPasswordResetService(customers, resets, sessions, emailProvider, 'https://app.ctbxpayments.test', () => new Date(realNow));
-  await auth.register(PAYLOAD);
+  await registered(auth.register(PAYLOAD));
   await serviceAtT0.requestReset(PAYLOAD.email);
 
   // 61 segundos depois — passou do cooldown de 60s.

@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerEmailVerifications } from '../db/schema/index.js';
 
@@ -20,7 +20,9 @@ export interface CreateCustomerEmailVerificationInput {
 export interface CustomerEmailVerificationRepository {
   create(input: CreateCustomerEmailVerificationInput): Promise<CustomerEmailVerificationRecord>;
   findByTokenHash(tokenHash: string): Promise<CustomerEmailVerificationRecord | undefined>;
-  markConsumed(tokenHash: string, consumedAt: Date): Promise<void>;
+  // Atômico: só marca se ainda não foi usado. Devolve true se ESTA
+  // chamada consumiu o token (false = já usado, mesmo em pedidos simultâneos).
+  markConsumed(tokenHash: string, consumedAt: Date): Promise<boolean>;
   // Usado pelo cooldown do reenvio — o mais recente emitido pra essa
   // conta, consumido ou não.
   findLatestByCustomer(customerId: string): Promise<CustomerEmailVerificationRecord | undefined>;
@@ -40,8 +42,11 @@ export class PostgresCustomerEmailVerificationRepository implements CustomerEmai
     return row as CustomerEmailVerificationRecord | undefined;
   }
 
-  async markConsumed(tokenHash: string, consumedAt: Date): Promise<void> {
-    await this.db.update(customerEmailVerifications).set({ consumedAt }).where(eq(customerEmailVerifications.tokenHash, tokenHash));
+  async markConsumed(tokenHash: string, consumedAt: Date): Promise<boolean> {
+    const rows = await this.db.update(customerEmailVerifications).set({ consumedAt })
+      .where(and(eq(customerEmailVerifications.tokenHash, tokenHash), isNull(customerEmailVerifications.consumedAt)))
+      .returning({ id: customerEmailVerifications.id });
+    return rows.length > 0;
   }
 
   async findLatestByCustomer(customerId: string): Promise<CustomerEmailVerificationRecord | undefined> {
