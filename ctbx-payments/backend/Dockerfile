@@ -30,6 +30,8 @@ ENV TRUST_PROXY=1
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+# Migrações SQL (Fase 2): aplicadas pelo pre-deploy (dist/scripts/migrate.js).
+COPY --from=build /app/drizzle ./drizzle
 # Mesmo caminho que o Railway já usa hoje via RAILPACK — dist/src/server.js
 # (tsconfig.json tem rootDir ".", então src/server.ts vira dist/src/server.js,
 # nunca dist/server.js — foi exatamente o que o "Diagnose" do Railway

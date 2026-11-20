@@ -58,7 +58,8 @@ export class CustomerPasswordResetService {
 
   // Token inválido, expirado OU já usado devolvem o MESMO erro genérico —
   // mesmo espírito de CustomerEmailVerificationService.confirm.
-  async confirmReset(token: string, newPassword: string): Promise<void> {
+  // Devolve o id do titular (só para o registro de auditoria).
+  async confirmReset(token: string, newPassword: string): Promise<string> {
     const record = await this.resets.findByTokenHash(hashToken(token));
     if (!record || record.consumedAt || record.expiresAt.getTime() < this.now().getTime()) {
       throw new ApiError('CUSTOMER_PASSWORD_RESET_INVALID', 'Link de redefinição inválido ou expirado.', { statusCode: 400 });
@@ -76,5 +77,6 @@ export class CustomerPasswordResetService {
       const notice = renderSecurityNoticeTemplate('PASSWORD_CHANGED');
       await this.emailProvider.send({ to: customer.email, ...notice }).catch(() => undefined);
     }
+    return record.customerId;
   }
 }

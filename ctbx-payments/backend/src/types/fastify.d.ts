@@ -8,5 +8,8 @@ declare module 'fastify' {
     auth?: AuthContext;
     adminAuth?: AuthenticatedAdmin;
     customerAuth?: AuthenticatedCustomer;
+    // Preenchidos pelas rotas de cliente só para o registro de auditoria.
+    auditCustomerId?: string;
+    auditDetails?: Record<string, string | number | boolean>;
   }
 }

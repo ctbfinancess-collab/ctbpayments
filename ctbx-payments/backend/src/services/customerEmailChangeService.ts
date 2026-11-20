@@ -62,7 +62,8 @@ export class CustomerEmailChangeService {
   // sessão nem senha, é só o token de posse do e-mail que autoriza).
   // Revalida que o e-mail não foi registrado por outra conta ENTRE o
   // pedido e a confirmação (corrida improvável, mas barata de checar).
-  async confirmChange(token: string): Promise<void> {
+  // Devolve o id do titular (só para o registro de auditoria).
+  async confirmChange(token: string): Promise<string> {
     const record = await this.changes.findByTokenHash(hashToken(token));
     if (!record || record.consumedAt || record.expiresAt.getTime() < this.now().getTime()) {
       throw new ApiError('CUSTOMER_EMAIL_CHANGE_TOKEN_INVALID', 'Link de confirmação inválido ou expirado.', { statusCode: 400 });
@@ -83,5 +84,6 @@ export class CustomerEmailChangeService {
       const notice = renderSecurityNoticeTemplate('EMAIL_CHANGED');
       await this.emailProvider.send({ to: previous.email, ...notice }).catch(() => undefined);
     }
+    return record.customerId;
   }
 }

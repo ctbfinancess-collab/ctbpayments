@@ -127,6 +127,13 @@
       "when": 1787342903049,
       "tag": "0017_little_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795218605396,
+      "tag": "0018_security_audit_events",
+      "breakpoints": true
     }
   ]
 }

@@ -8,6 +8,7 @@ import type { CustomerEmailChangeService } from '../services/customerEmailChange
 import type { CustomerEmailVerificationService } from '../services/customerEmailVerificationService.js';
 import type { CustomerKycService } from '../services/customerKycService.js';
 import type { CustomerPasswordResetService } from '../services/customerPasswordResetService.js';
+import type { SecurityAuditOutcome, SecurityAuditRepository } from '../repositories/SecurityAuditRepository.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
 
@@ -18,6 +19,7 @@ export interface CustomerRoutesOptions {
   emailChangeService: CustomerEmailChangeService | undefined;
   companyService: CompanyService | undefined;
   kycService: CustomerKycService | undefined;
+  audit?: SecurityAuditRepository | undefined;
 }
 
 const nameSchema = { type: 'string', minLength: 1, maxLength: 160 } as const;
@@ -32,12 +34,63 @@ const companyIdParams = { type: 'object', additionalProperties: false, required:
 const birthDateSchema = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const; // YYYY-MM-DD
 const kycFreeTextSchema = { type: 'string', minLength: 2, maxLength: 160 } as const;
 
+// Registro de auditoria (Fase 2): quais ações deste escopo são gravadas.
+// GETs (só leitura) ficam de fora. A chave é "MÉTODO rota".
+const AUDITED_ROUTES: Record<string, string> = {
+  'POST /register': 'CUSTOMER_REGISTER',
+  'POST /login': 'CUSTOMER_LOGIN',
+  'POST /logout': 'CUSTOMER_LOGOUT',
+  'POST /password/change': 'CUSTOMER_PASSWORD_CHANGE',
+  'POST /verify-email': 'CUSTOMER_EMAIL_VERIFY',
+  'POST /verify-email/resend': 'CUSTOMER_EMAIL_VERIFY_RESEND_REQUEST',
+  'POST /password/forgot': 'CUSTOMER_PASSWORD_RESET_REQUEST',
+  'POST /password/reset': 'CUSTOMER_PASSWORD_RESET',
+  'POST /email/change': 'CUSTOMER_EMAIL_CHANGE_REQUEST',
+  'POST /email/change/confirm': 'CUSTOMER_EMAIL_CHANGE',
+  'PUT /kyc/personal-info': 'CUSTOMER_KYC_PERSONAL_INFO_UPDATE',
+  'POST /companies': 'COMPANY_REGISTER',
+  'POST /companies/:companyId/representatives': 'COMPANY_REPRESENTATIVE_ADD',
+};
+
+function auditOutcome(statusCode: number, event: string): SecurityAuditOutcome {
+  if (statusCode === 429) return 'BLOCKED';
+  if (statusCode === 403 && event === 'CUSTOMER_LOGIN') return 'BLOCKED'; // e-mail não confirmado
+  return statusCode < 400 ? 'SUCCESS' : 'FAILURE';
+}
+
 // Cadastro + login + verificação de e-mail reais de cliente PF — Customer
 // Identity, Etapas 1, 2, 2.5 e 3. Rotas novas e isoladas (/v1/customers/*),
 // não tocam em /v1/auth/login (SandboxAuthProvider, credencial fixa
 // DEMO_ONLY) nem em nenhuma outra rota existente.
 export async function customerRoutes(app: FastifyInstance, options: CustomerRoutesOptions): Promise<void> {
   const { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService } = options;
+  // Auditoria: grava DEPOIS da resposta enviada, então uma falha aqui
+  // nunca afeta o cliente. Nunca grava corpo, senha, token, e-mail nem CPF.
+  if (options.audit) {
+    const audit = options.audit;
+    const prefix = app.prefix;
+    app.addHook('onResponse', async (request, reply) => {
+      const routeUrl = request.routeOptions.url ?? '';
+      const route = routeUrl.startsWith(prefix) ? routeUrl.slice(prefix.length) || '/' : routeUrl;
+      const event = AUDITED_ROUTES[`${request.method} ${route}`];
+      if (!event) return;
+      const userAgent = request.headers['user-agent'];
+      try {
+        await audit.record({
+          event,
+          outcome: auditOutcome(reply.statusCode, event),
+          customerId: request.customerAuth?.id ?? request.auditCustomerId ?? null,
+          ip: request.ip,
+          userAgent: typeof userAgent === 'string' ? userAgent.slice(0, 200) : null,
+          requestId: request.id,
+          details: { statusCode: reply.statusCode, ...(request.auditDetails ?? {}) },
+        });
+      } catch (error) {
+        request.log.error({ event, err: (error as Error).message }, 'falha ao gravar o registro de auditoria');
+      }
+    });
+  }
+
   const sessionGuard = customerAuthService ? requireCustomerSession(customerAuthService) : async () => { throw providerNotConfigured('de autenticação de clientes'); };
 
   // Etapa 2.5, item 1 — rate limiting só neste escopo (/v1/customers),
@@ -80,6 +133,9 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
     if (!customerAuthService) throw providerNotConfigured('de cadastro de clientes');
     const input = request.body as { name: string; document: string; email: string; phone: string; password: string };
     const { customer } = await customerAuthService.register(input);
+    // Só para auditoria interna — a resposta continua idêntica nos dois casos.
+    request.auditDetails = { accountCreated: Boolean(customer) };
+    if (customer) request.auditCustomerId = customer.id;
     // Conta nova: dispara a verificação de e-mail. Falha de envio nunca
     // derruba o cadastro (o reenvio cobre esse caso).
     if (customer && emailVerificationService) await emailVerificationService.sendVerification(customer.id).catch(() => undefined);
@@ -102,6 +158,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
     // Mesma mensagem/código pra e-mail inexistente e senha errada — nunca
     // revela qual dos dois falhou.
     if (!result) throw new ApiError('CUSTOMER_LOGIN_INVALID', 'E-mail ou senha inválidos.', { statusCode: 401 });
+    request.auditCustomerId = result.customer.id;
     return envelope(request, { token: result.token, expiresAt: result.expiresAt.toISOString(), customer: result.customer });
   });
 
@@ -140,7 +197,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   }, async (request, reply) => {
     if (!emailVerificationService) throw providerNotConfigured('de verificação de e-mail');
     const { token } = request.body as { token: string };
-    await emailVerificationService.confirm(token);
+    request.auditCustomerId = await emailVerificationService.confirm(token);
     return reply.status(204).send();
   });
 
@@ -182,7 +239,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   }, async (request, reply) => {
     if (!passwordResetService) throw providerNotConfigured('de recuperação de senha');
     const { token, password } = request.body as { token: string; password: string };
-    await passwordResetService.confirmReset(token, password);
+    request.auditCustomerId = await passwordResetService.confirmReset(token, password);
     return reply.status(204).send();
   });
 
@@ -213,7 +270,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   }, async (request, reply) => {
     if (!emailChangeService) throw providerNotConfigured('de troca de e-mail');
     const { token } = request.body as { token: string };
-    await emailChangeService.confirmChange(token);
+    request.auditCustomerId = await emailChangeService.confirmChange(token);
     return reply.status(204).send();
   });
 
@@ -238,6 +295,8 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   }, async (request) => {
     if (!kycService) throw providerNotConfigured('de KYC');
     const input = request.body as { birthDate?: string; motherName?: string; nationality?: string };
+    // Auditoria: só QUAIS campos mudaram, nunca os valores.
+    request.auditDetails = { fields: Object.keys(input).sort().join(',') };
     const personalInfo = await kycService.savePersonalInfo(request.customerAuth!.id, input);
     return envelope(request, { personalInfo });
   });

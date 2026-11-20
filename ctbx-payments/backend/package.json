@@ -16,6 +16,7 @@
     "validate:openapi": "node --import tsx scripts/validate-openapi.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:deploy": "node dist/scripts/migrate.js",
     "db:seed-admin": "node --import tsx scripts/seedAdminUser.ts",
     "db:seed-banners": "node --import tsx scripts/seedBanners.ts",
     "db:seed-services": "node --import tsx scripts/seedServices.ts",

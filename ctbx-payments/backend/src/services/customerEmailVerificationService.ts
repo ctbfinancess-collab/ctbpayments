@@ -50,7 +50,8 @@ export class CustomerEmailVerificationService {
   // não precisa (nem ajuda) diferenciar pro cliente qual dos três
   // aconteceu; internamente cada caso já é auditável pela linha em
   // customer_email_verifications (consumedAt/expiresAt).
-  async confirm(token: string): Promise<void> {
+  // Devolve o id do titular (só para o registro de auditoria).
+  async confirm(token: string): Promise<string> {
     const record = await this.verifications.findByTokenHash(hashToken(token));
     if (!record || record.consumedAt || record.expiresAt.getTime() < this.now().getTime()) {
       throw new ApiError('CUSTOMER_EMAIL_VERIFICATION_INVALID', 'Link de verificação inválido ou expirado.', { statusCode: 400 });
@@ -60,6 +61,7 @@ export class CustomerEmailVerificationService {
       throw new ApiError('CUSTOMER_EMAIL_VERIFICATION_INVALID', 'Link de verificação inválido ou expirado.', { statusCode: 400 });
     }
     await this.customers.markEmailVerified(record.customerId, consumedAt);
+    return record.customerId;
   }
 
   // Sempre "silencioso": nunca lança, nunca diferencia e-mail inexistente

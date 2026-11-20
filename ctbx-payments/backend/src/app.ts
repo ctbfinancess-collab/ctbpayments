@@ -49,6 +49,7 @@ import { InMemoryCustomerPasswordResetRepository } from './repositories/InMemory
 import { InMemoryCustomerRepository } from './repositories/InMemoryCustomerRepository.js';
 import { InMemoryCustomerSessionRepository } from './repositories/InMemoryCustomerSessionRepository.js';
 import { MediaRepository } from './repositories/MediaRepository.js';
+import { InMemorySecurityAuditRepository, PostgresSecurityAuditRepository, type SecurityAuditRepository } from './repositories/SecurityAuditRepository.js';
 import { PostgresPhysicalCardRepository, type PhysicalCardRepository } from './repositories/PhysicalCardRepository.js';
 import { PostgresSandboxAccountRepository, type SandboxAccountRepository } from './repositories/SandboxAccountRepository.js';
 import { PostgresSandboxBillingRepository, type SandboxBillingRepository } from './repositories/SandboxBillingRepository.js';
@@ -179,6 +180,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // KYC (Etapa 1 — dados pessoais complementares) — mesmo par real+
   // fallback dos demais domínios de Customer Identity.
   let customerKycRepository: CustomerKycRepository = new InMemoryCustomerKycRepository();
+  // Registro de auditoria de segurança (Fase 2) — mesmo par real+fallback.
+  let auditRepository: SecurityAuditRepository = new InMemorySecurityAuditRepository();
   if (!options.providers && config.databaseUrl) {
     const { db, close } = createDbConnection(config.databaseUrl);
     app.addHook('onClose', async () => { await close(); });
@@ -201,6 +204,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     companyRepository = new PostgresCompanyRepository(db);
     companyRepresentativeRepository = new PostgresCompanyRepresentativeRepository(db);
     customerKycRepository = new PostgresCustomerKycRepository(db);
+    auditRepository = new PostgresSecurityAuditRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
   // E-mail (Resend real em produção, memória em dev/test). Em produção só
@@ -213,6 +217,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Só em testes: expõe a caixa de saída simulada, para os testes lerem o
   // link de confirmação como um usuário real faria.
   if (config.nodeEnv === 'test' && emailProvider instanceof InMemoryEmailProvider) app.decorate('testEmailOutbox', emailProvider);
+  if (config.nodeEnv === 'test' && auditRepository instanceof InMemorySecurityAuditRepository) app.decorate('testAuditLog', auditRepository);
   const customerAuthService = new CustomerAuthService(customerRepository, customerSessionRepository, undefined, emailProvider);
   // Estrutura PJ — nunca fail-closed sem DATABASE_URL, mesmo par real+
   // fallback de tudo em Customer Identity. Sem EmailProvider nenhum
@@ -276,7 +281,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Customer Identity — rota isolada, fora do ProviderRegistry sandbox
   // (não implementa nenhuma das interfaces de ports.ts). Etapa 1: só
   // cadastro PF, sem sessão/login próprios ainda.
-  await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService }), { prefix: `/${config.apiVersion}/customers` });
+  await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService, audit: auditRepository }), { prefix: `/${config.apiVersion}/customers` });
 
   await app.register(async (adminApi) => {
     // Persistência real do CMS (Etapa 1 — fundação). Fail closed: sem
