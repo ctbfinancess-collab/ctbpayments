@@ -12,38 +12,57 @@ interface Props {
   titleAccent: string;
   subtitle: string;
   image?: ImageMetadata;
+  // Vídeo de fundo (em public/media/), no lugar da imagem. Toca mudo, em
+  // ciclo, com as cores originais. "poster" é a imagem fixa de espera.
+  video?: { src: string; poster: string };
   icon?: Parameters<typeof Icon>[0]['name'];
   // 'light' para imagens de fundo claro: escurece mais para combinar com o navy.
   imageTone?: 'dark' | 'light';
   primary?: { label: string; href: string };
   secondary?: { label: string; href: string };
+  // 'cinematic': imagem/vídeo em largura total (cerca de 80% da altura da
+  // tela), texto sobre ela à esquerda e degradê grafite só do lado do texto.
+  variant?: 'default' | 'cinematic';
+  // Enquadramento do vídeo/imagem no modo cinematográfico (object-position).
+  focus?: string;
+  focusMobile?: string;
+  // 'contain': mostra o vídeo/imagem inteiro (sem cortar nada), ancorado à
+  // direita no desktop e no alto no celular. 'cover' (padrão) preenche tudo.
+  fit?: 'cover' | 'contain';
+  // 'tall': banner grande, com 75% da altura da tela ABAIXO do cabeçalho
+  // (no desktop). Sem isso, o cinematográfico usa ~80% da tela no total.
+  size?: 'default' | 'tall';
+  // Altura extra do banner (ex.: 1.05 = 5% mais alto que o padrão de 75%).
+  heightScale?: number;
 }
-const { eyebrow, titleTop, titleAccent, subtitle, image, imageTone = 'dark', icon = 'shield', primary, secondary } = Astro.props;
+const { eyebrow, titleTop, titleAccent, subtitle, image, video, imageTone = 'dark', icon = 'shield', primary, secondary, variant = 'default', focus = 'center', focusMobile = 'center', fit = 'cover', size = 'default', heightScale } = Astro.props;
+const cinematic = variant === 'cinematic';
 ---
-<section class="page-hero relative isolate overflow-hidden">
-  <div class="absolute inset-0 -z-20" aria-hidden="true">
+<section class:list={['page-hero relative isolate overflow-hidden', cinematic && 'is-cinematic', cinematic && fit === 'contain' && 'is-contain', cinematic && size === 'tall' && 'is-tall']} style={cinematic ? `--focus:${focus};--focus-m:${focusMobile}${heightScale ? `;--hero-scale:${heightScale}` : ''}` : undefined}>
+  <div class="page-hero-media absolute inset-0 -z-20" aria-hidden="true">
     <div class="halo"></div>
-    {image ? (
-      <Image src={image} alt="" widths={[640, 1024, 1600].filter((w) => w <= image.width)} sizes="(min-width: 1024px) 60vw, 100vw" loading="eager" fetchpriority="high" class:list={['page-hero-img', imageTone === 'light' && 'is-light']} style={`--ratio:${(image.width / image.height).toFixed(4)}`} />
+    {video ? (
+      <video class="page-hero-img" style="--ratio:1.7778" src={video.src} poster={video.poster} autoplay muted loop playsinline disablepictureinpicture preload="auto" data-page-video></video>
+    ) : image ? (
+      <Image src={image} alt="" widths={(cinematic ? [800, 1280, 1920, 2560] : [640, 1024, 1600]).filter((w) => w <= image.width)} sizes={cinematic ? '100vw' : '(min-width: 1024px) 60vw, 100vw'} loading="eager" fetchpriority="high" class:list={['page-hero-img', imageTone === 'light' && 'is-light']} style={`--ratio:${(image.width / image.height).toFixed(4)}`} />
     ) : (
       <div class="page-hero-icon text-orange-brand/70"><Icon name={icon} size={220} /></div>
     )}
   </div>
   <div class="page-hero-shade absolute inset-0 -z-10" aria-hidden="true"></div>
 
-  <div class="container-wide flex min-h-[460px] items-center pb-16 pt-[132px] lg:min-h-[600px] lg:pt-[150px]">
-    <div class="flex max-w-[680px] flex-col gap-5">
+  <div class:list={['container-wide flex', cinematic ? 'cine-content' : 'min-h-[430px] items-center pb-10 pt-[112px] lg:min-h-[510px] lg:pt-[128px]']}>
+    <div class="flex max-w-[680px] flex-col gap-4">
       <span class="eyebrow">{eyebrow}</span>
-      <h1 class="font-serif leading-[1.2]">
-        <span class="block text-[clamp(20px,2.1vw,34px)] uppercase tracking-[0.04em] text-ice">{titleTop}</span>
-        <span class="block text-[clamp(22px,2.4vw,40px)] italic text-orange-brand">{titleAccent}</span>
+      <h1 class="title-gold text-[clamp(32px,3.3vw,56px)]">
+        <span class="block">{titleTop}</span>
+        <span class="block">{titleAccent}</span>
       </h1>
-      <span class="h-[2px] w-14 rounded-full bg-orange-brand/80" aria-hidden="true"></span>
-      <p class="max-w-[46ch] text-[clamp(14px,1.05vw,16px)] leading-relaxed text-ice/75">{subtitle}</p>
+      <p class="max-w-[34ch] text-[clamp(15px,1.3vw,21px)] font-light leading-snug text-ice/90">{subtitle}</p>
       {(primary || secondary) && (
         <div class="mt-1 flex flex-wrap gap-3">
-          {primary && <a href={primary.href} class="btn btn-primary !px-5 !py-2.5 !text-[13px] uppercase tracking-[0.06em]">{primary.label}</a>}
-          {secondary && <a href={secondary.href} class="btn btn-ghost !px-5 !py-2.5 !text-[13px]">{secondary.label}</a>}
+          {primary && <a href={primary.href} class="btn btn-primary !px-8 !py-4 !text-[clamp(15px,1.1vw,18px)]">{primary.label}<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></a>}
+          {secondary && <a href={secondary.href} class="btn btn-ghost !px-7 !py-4 !text-[clamp(15px,1.1vw,18px)]">{secondary.label}</a>}
         </div>
       )}
     </div>
@@ -52,37 +71,93 @@ const { eyebrow, titleTop, titleAccent, subtitle, image, imageTone = 'dark', ico
 
 <style>
   .page-hero { border-bottom: 1px solid var(--color-line); }
+
+  /* ===== Modo cinematográfico ===== */
+  /* Altura: ~80% da tela no desktop (entre 75 e 85vh), com limites. */
+  .is-cinematic .cine-content {
+    /* 75% da altura da tela ABAIXO do cabeçalho (104 px no desktop). */
+    min-height: max(600px, calc(104px + 75svh * var(--hero-scale, 1)));
+    align-items: center; padding-top: 128px; padding-bottom: 64px;
+  }
+  /* A mídia começa abaixo do cabeçalho (que é opaco), para nada ficar
+     escondido atrás dele. */
+  .is-cinematic .page-hero-media { top: 84px; }
+  @media (min-width: 1024px) { .is-cinematic .page-hero-media { top: 104px; } }
+  /* Vídeo/imagem cobrindo todo o banner, sem máscara e sem filtro. */
+  .is-cinematic .halo { display: none; }
+  .is-cinematic :global(.page-hero-img) {
+    position: absolute; inset: 0; translate: none; top: 0; right: 0;
+    width: 100%; height: 100%; max-height: none; aspect-ratio: auto; opacity: 1;
+    object-fit: cover; object-position: var(--focus, center);
+    -webkit-mask-image: none; mask-image: none;
+  }
+  /* Degradê grafite só do lado do texto, abrindo suave para a imagem, e um
+     leve esmaecimento na base para emendar com a seção seguinte. */
+  .is-cinematic .page-hero-shade {
+    background:
+      linear-gradient(90deg, rgba(20, 22, 25, 0.9) 0%, rgba(20, 22, 25, 0.74) 28%, rgba(20, 22, 25, 0.3) 42%, rgba(20, 22, 25, 0) 56%),
+      linear-gradient(180deg, rgba(20, 22, 25, 0) 0%, rgba(20, 22, 25, 0) 88%, rgba(28, 30, 33, 0.5) 100%);
+  }
+  /* Modo "inteiro": o vídeo aparece completo, ancorado à direita; a borda
+     esquerda some suavemente no degradê grafite do texto. */
+  .is-contain :global(.page-hero-img) {
+    object-fit: contain; object-position: right center;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 16%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 16%);
+  }
+  /* Título dourado sempre destacado sobre qualquer vídeo. */
+  .is-cinematic :global(.title-gold) { filter: drop-shadow(0 2px 14px rgba(0, 0, 0, 0.7)); }
+  .is-cinematic p { text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6); }
+  @media (min-width: 1024px) {
+    .is-contain :global(.page-hero-img) { left: auto; width: auto; max-width: 100%; aspect-ratio: 16 / 9; }
+  }
+  @media (max-width: 1023px) {
+    .is-contain :global(.page-hero-img) {
+      object-position: center top; height: auto; aspect-ratio: 16 / 9; bottom: auto;
+      -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent 100%);
+      mask-image: linear-gradient(180deg, #000 80%, transparent 100%);
+    }
+    /* Vídeo inteiro no alto e o texto logo abaixo, sem vão. */
+    .is-cinematic.is-contain .cine-content { min-height: 0; align-items: flex-start; padding-top: calc(84px + 56.25vw + 12px); }
+    .is-contain .page-hero-shade { background: none; }
+  }
+  @media (max-width: 1023px) {
+    .is-cinematic .cine-content { min-height: clamp(520px, 78svh, 760px); align-items: flex-end; padding-top: 112px; padding-bottom: 44px; }
+    .is-cinematic :global(.page-hero-img) { object-position: var(--focus-m, center); }
+    /* No celular o texto fica embaixo: o degradê vem de baixo para cima. */
+    .is-cinematic .page-hero-shade {
+      background: linear-gradient(180deg, rgba(20, 22, 25, 0.35) 0%, rgba(20, 22, 25, 0) 22%, rgba(20, 22, 25, 0.25) 45%, rgba(20, 22, 25, 0.88) 72%, rgba(20, 22, 25, 0.95) 100%);
+    }
+  }
   .halo {
     position: absolute; right: 10%; top: 55%; width: 42vw; height: 42vw; transform: translateY(-50%);
-    border-radius: 50%; background: radial-gradient(circle, rgba(21, 89, 183, 0.25), transparent 65%);
+    border-radius: 50%; background: radial-gradient(circle, rgba(197, 164, 108, 0.1), transparent 65%);
   }
   .page-hero-img {
     position: absolute; right: 0; top: 56%; translate: 0 -50%;
     /* A caixa da imagem tem o mesmo formato da imagem, para o esmaecimento
        das bordas cair sempre na borda real da figura (larga ou quadrada). */
-    width: min(60vw, 1000px, calc(500px * var(--ratio, 2))); height: auto; aspect-ratio: var(--ratio, 2);
+    width: min(60vw, 860px, calc(430px * var(--ratio, 2))); height: auto; aspect-ratio: var(--ratio, 2);
     object-fit: contain; object-position: right center;
-    filter: saturate(0.75) brightness(0.8) contrast(1.08);
     -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(180deg, transparent 0%, #000 16%, #000 80%, transparent 100%);
     -webkit-mask-composite: source-in;
     mask-image: linear-gradient(90deg, transparent 0%, #000 34%), linear-gradient(180deg, transparent 0%, #000 16%, #000 80%, transparent 100%);
     mask-composite: intersect;
   }
   .page-hero-img.is-light {
-    filter: saturate(0.85) brightness(0.55) contrast(1.15);
     -webkit-mask-image: radial-gradient(ellipse 62% 58% at 62% 52%, #000 45%, transparent 100%);
     mask-image: radial-gradient(ellipse 62% 58% at 62% 52%, #000 45%, transparent 100%);
   }
   .page-hero-icon {
     position: absolute; right: 14%; top: 56%; translate: 0 -50%;
-    filter: drop-shadow(0 0 40px rgba(217, 119, 63, 0.35));
+    filter: drop-shadow(0 0 40px rgba(197, 164, 108, 0.35));
     opacity: 0.55;
   }
   .page-hero-icon :global(svg) { stroke-width: 0.6; }
   .page-hero-shade {
     background:
-      radial-gradient(110% 90% at 70% 50%, transparent 40%, rgba(4, 11, 22, 0.55) 80%, rgba(4, 11, 22, 0.85) 100%),
-      linear-gradient(180deg, rgba(5, 14, 28, 0.5) 0%, rgba(5, 14, 28, 0) 20%, rgba(5, 14, 28, 0) 75%, rgba(7, 20, 38, 0.9) 100%);
+      radial-gradient(110% 90% at 70% 50%, transparent 40%, rgba(20, 22, 25, 0.55) 80%, rgba(20, 22, 25, 0.85) 100%),
+      linear-gradient(180deg, rgba(20, 22, 25, 0.5) 0%, rgba(20, 22, 25, 0) 20%, rgba(20, 22, 25, 0) 75%, rgba(28, 30, 33, 0.9) 100%);
   }
   @media (max-width: 1023px) {
     .halo { display: none; }
@@ -94,3 +169,10 @@ const { eyebrow, titleTop, titleAccent, subtitle, image, imageTone = 'dark', ico
     .page-hero-icon { right: 6%; top: 40%; opacity: 0.25; }
   }
 </style>
+
+<script>
+  // Com "reduzir movimento", o vídeo fica parado na imagem fixa.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll<HTMLVideoElement>('[data-page-video]').forEach((v) => { v.removeAttribute('autoplay'); v.pause(); });
+  }
+</script>

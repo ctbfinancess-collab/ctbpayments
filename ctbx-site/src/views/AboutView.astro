@@ -2,12 +2,18 @@
 import Page from '../layouts/Page.astro';
 import PageHero from '../components/PageHero.astro';
 import GroupSection from '../components/GroupSection.astro';
-import heroImage from '../assets/about-globe.png';
 import { Image } from 'astro:assets';
-import iconSeguranca from '../assets/icon-value-seguranca.png';
-import iconTransparencia from '../assets/icon-value-transparencia.png';
-import iconSimplicidade from '../assets/icon-value-simplicidade.png';
-import iconResponsabilidade from '../assets/icon-value-responsabilidade.png';
+import iconSeguranca from '../assets/icons/security-shield.png';
+import iconTransparencia from '../assets/icons/value-transparency.png';
+import iconSimplicidade from '../assets/icons/value-simplicity.png';
+import iconResponsabilidade from '../assets/icons/value-responsibility.png';
+import govEthics from '../assets/icons/handshake.png';
+import govTransparency from '../assets/icons/layers.png';
+import govData from '../assets/icons/hl-security.png';
+import govCompliance from '../assets/icons/hl-business.png';
+// Ícones metálicos da seção Governança e Compliance (mesma ordem de p.governance.items).
+const govIcons = [govEthics, govTransparency, govData, govCompliance];
+import photoTarik from '../assets/tarik-muhamad-ali.jpg';
 import { t, type Lang } from '../i18n/ui';
 
 interface Props { lang: Lang }
@@ -18,7 +24,7 @@ const p = c.pages.about;
 const valueIcons = [iconSeguranca, iconTransparencia, iconSimplicidade, iconResponsabilidade];
 ---
 <Page lang={lang} routeKey="about" title={p.meta.title} description={p.meta.description}>
-  <PageHero {...p.hero} image={heroImage} imageTone="light" />
+  <PageHero {...p.hero} variant="cinematic" focus="62% center" focusMobile="62% center" video={{ src: '/media/executivo-cidade.mp4', poster: '/media/executivo-cidade.jpg' }} />
 
   <section class="border-b border-line bg-navy-800/60">
     <div class="container-site py-20 md:py-24">
@@ -36,12 +42,47 @@ const valueIcons = [iconSeguranca, iconTransparencia, iconSimplicidade, iconResp
       <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {p.values.map((v, i) => (
           <li class="flex flex-col gap-4 rounded-2xl border border-line bg-navy-900 p-7">
-            <Image src={valueIcons[i]} alt="" width={64} densities={[1, 2]} class="h-16 w-16 rounded-2xl" />
-            <h3 class="text-lg font-semibold">{v.title}</h3>
+            <Image src={valueIcons[i]} alt="" width={88} densities={[1, 2]} class="h-[88px] w-[88px] object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]" />
+            <h3 class="card-title">{v.title}</h3>
             <p class="text-[15px] leading-relaxed text-slate-brand">{v.text}</p>
           </li>
         ))}
       </ul>
+    </div>
+  </section>
+
+  <!-- Governança e Compliance (link do rodapé aponta para #governanca) -->
+  <section id={lang === 'en' ? 'governance' : 'governanca'} class="scroll-mt-28 border-b border-line bg-navy-800/60">
+    <div class="container-site py-20 md:py-24">
+      <div class="mb-12 flex max-w-3xl flex-col gap-3">
+        <span class="eyebrow">{p.governance.eyebrow}</span>
+        <h2 class="section-title">{p.governance.title}</h2>
+        <p class="text-lg leading-relaxed text-slate-brand">{p.governance.intro}</p>
+      </div>
+      <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {p.governance.items.map((g, i) => (
+          <li class="flex flex-col gap-4 rounded-2xl border border-line bg-navy-900 p-7">
+            <Image src={govIcons[i]} alt="" width={88} densities={[1, 2]} class="h-[88px] w-[88px] object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]" />
+            <h3 class="card-title">{g.title}</h3>
+            <p class="text-[15px] leading-relaxed text-slate-brand">{g.text}</p>
+          </li>
+        ))}
+      </ul>
+
+    </div>
+  </section>
+
+  <!-- Nossa Liderança: foto oficial com as cores originais + texto -->
+  <section class="border-b border-line">
+    <div class="container-site grid items-center gap-10 py-20 md:py-24 lg:grid-cols-[minmax(0,380px)_1fr] lg:gap-16">
+      <Image src={photoTarik} alt={p.leadership.name} widths={[380, 600, 760]} sizes="(min-width: 1024px) 380px, 90vw" class="aspect-square w-full max-w-[380px] rounded-3xl object-cover shadow-[0_24px_60px_rgba(0,0,0,0.45)] ring-1 ring-orange-brand/40" />
+      <div class="flex flex-col gap-4">
+        <span class="eyebrow">{p.leadership.eyebrow}</span>
+        <h2 class="section-title">{p.leadership.name}</h2>
+        <p class="text-[13px] font-semibold uppercase tracking-[0.14em] text-orange-300">{p.leadership.role}</p>
+        <span class="h-px w-16 bg-orange-brand/60" aria-hidden="true"></span>
+        {p.leadership.paragraphs.map((t) => <p class="text-[16px] leading-relaxed text-slate-brand">{t}</p>)}
+      </div>
     </div>
   </section>
 

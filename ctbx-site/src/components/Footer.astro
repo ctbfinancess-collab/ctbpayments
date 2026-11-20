@@ -10,20 +10,20 @@ interface Props { lang: Lang }
 const { lang } = Astro.props;
 const f = t(lang).footer;
 const nav = t(lang).nav;
+// Linhas sem dado ainda ficam ocultas (sem "a informar" no site).
 const legalRows = [
   { label: f.companyName, value: site.legal.companyName },
   { label: f.cnpj, value: site.legal.cnpj },
   { label: f.address, value: site.legal.address },
-];
+].filter((r) => r.value);
 const year = new Date().getFullYear();
 ---
 <footer class="border-t border-line bg-navy-950">
   <div class="container-site grid gap-10 py-14 md:grid-cols-[1fr_1fr_1.4fr]">
     <div class="flex flex-col gap-4">
       <a href={href(lang, 'home')} aria-label="CTBX Payments">
-        <Image src={logo} alt="CTBX Payments" width={140} densities={[1, 2]} class="h-auto w-[120px]" />
+        <Image src={logo} alt="CTBX Payments" width={110} densities={[1, 2]} class="h-auto w-[110px]" />
       </a>
-      <p class="text-sm text-muted">© {year} CTBX Payments. {f.rights}</p>
     </div>
     <div>
       <h2 class="mb-3 text-sm font-semibold text-ice">{f.navTitle}</h2>
@@ -49,11 +49,15 @@ const year = new Date().getFullYear();
         {legalOrder.map((key) => (
           <li><a href={href(lang, key)} class="text-slate-brand transition-colors hover:text-orange-300">{f[key as 'privacy' | 'terms' | 'cookies']}</a></li>
         ))}
+        <li><a href={`${href(lang, 'about')}#${lang === 'en' ? 'governance' : 'governanca'}`} class="text-slate-brand transition-colors hover:text-orange-300">{f.governance}</a></li>
       </ul>
     </div>
   </div>
   <div class="border-t border-line">
-    <div class="container-site flex flex-wrap items-center justify-center gap-3 py-5 text-[13px] text-muted">
+    <!-- Barra final: direitos reservados à esquerda, crédito do site à direita -->
+    <div class="container-site flex flex-col items-center gap-3 py-5 text-[13px] text-muted md:flex-row md:justify-between">
+      <p class="text-center md:text-left">© {year} {site.legal.companyName ?? 'CTBX Payments'}. {f.rights}</p>
+      <div class="flex flex-wrap items-center justify-center gap-3">
       <span>{f.madeBy}</span>
       {site.credit.url ? (
         <a href={site.credit.url} target="_blank" rel="noopener" class="inline-flex items-center gap-2 font-medium text-slate-brand transition-colors hover:text-orange-300">
@@ -66,6 +70,7 @@ const year = new Date().getFullYear();
           {site.credit.name}
         </span>
       )}
+      </div>
     </div>
   </div>
 </footer>

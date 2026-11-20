@@ -10,13 +10,13 @@ export const ui = {
       description: 'CTBX Payments: conta digital com cadastro 100% online, confirmação de e-mail e proteção em cada etapa.',
     },
     nav: {
-      account: 'Conta digital',
+      account: 'Conta Digital',
       business: 'Empresas',
       security: 'Segurança',
       solutions: 'Soluções',
-      about: 'Quem somos',
+      about: 'Quem Somos',
       contact: 'Contato',
-      openAccount: 'Abrir conta',
+      openAccount: 'Abrir Conta',
       langLabel: 'Idioma',
       menu: 'Menu',
     },
@@ -44,15 +44,15 @@ export const ui = {
         },
         {
           titleTop: 'Cartões CTBX',
-          titleAccent: 'em preparação',
-          subtitle: 'Cartão físico e cartões virtuais para compras online estão sendo preparados. Eles chegam quando estiverem prontos para você.',
+          titleAccent: 'para o seu dia a dia',
+          subtitle: 'Cartão físico e cartões virtuais para compras online, com a segurança da CTBX Payments.',
           primary: { label: 'Ver serviços', to: 'solutions' },
           secondary: null,
         },
         {
           titleTop: 'Soluções para',
           titleAccent: 'a sua empresa',
-          subtitle: 'Uma conta digital pensada para a rotina de empresas está em preparação. Fale com a nossa equipe para saber mais.',
+          subtitle: 'Uma conta digital pensada para a rotina de empresas. Fale com a nossa equipe para saber mais.',
           primary: { label: 'Fale conosco', to: 'contact' },
           secondary: { label: 'Ver serviços', to: 'solutions' },
         },
@@ -66,9 +66,9 @@ export const ui = {
       ],
     },
     onboarding: {
-      eyebrow: 'Disponível hoje',
+      eyebrow: '',
       title: 'Seu cadastro, passo a passo',
-      intro: 'Estas etapas já funcionam para clientes reais.',
+      intro: '',
       steps: [
         { title: 'Crie sua conta', text: 'Cadastro online com seus dados básicos e uma senha forte.' },
         { title: 'Confirme seu e-mail', text: 'Enviamos um link de confirmação para garantir que o e-mail é seu.' },
@@ -77,9 +77,9 @@ export const ui = {
       status: 'Disponível',
     },
     services: {
-      eyebrow: 'O que vem por aí',
-      title: 'Serviços em preparação',
-      intro: 'Estamos construindo cada serviço com calma e testes. Eles aparecem aqui como disponíveis só quando estiverem funcionando para clientes reais.',
+      eyebrow: 'Serviços',
+      title: 'Soluções CTBX Payments',
+      intro: 'Serviços financeiros pensados para o seu dia a dia, com segurança em cada etapa.',
       status: 'Em breve',
       items: {
         pix: { title: 'Pix', text: 'Envie e receba transferências instantâneas.' },
@@ -102,28 +102,28 @@ export const ui = {
     },
     about: {
       eyebrow: 'Quem somos',
-      title: 'Tecnologia financeira construída com cuidado',
-      text: 'A CTBX Payments desenvolve uma conta digital para pessoas e empresas, com foco em segurança, transparência e uma experiência simples. Lançamos cada serviço só quando ele está pronto.',
+      title: 'Tecnologia financeira para um mundo conectado',
+      text: 'A CTBX Payments reúne tecnologia, segurança e inovação em uma conta digital para pessoas e empresas, com transparência e uma experiência simples.',
     },
     open: {
       eyebrow: 'Abrir conta',
-      title: 'A abertura de conta estará disponível em breve.',
-      text: 'Estamos finalizando o aplicativo para o público. Enquanto isso, fale com a nossa equipe.',
+      title: 'Abra sua conta CTBX Payments.',
+      text: 'Fale com a nossa equipe e saiba como abrir a sua conta.',
       contactPending: 'Canais de atendimento a informar',
     },
     pages: {
       home: {
         intro: {
           eyebrow: 'CTBX Payments',
-          title: 'Uma conta digital construída com cuidado',
-          text: 'Estamos desenvolvendo uma conta digital para pessoas e empresas, com foco em segurança, transparência e uma experiência simples. O cadastro já está disponível; os demais serviços chegam aos poucos, sempre testados antes.',
+          title: 'Tecnologia financeira para um mundo conectado',
+          text: 'A CTBX Payments reúne tecnologia, segurança e inovação em uma experiência digital moderna e intuitiva. Soluções pensadas para conectar pessoas, empresas e oportunidades com eficiência, transparência e confiança.',
         },
         explore: {
           eyebrow: 'Explore',
           title: 'Conheça a CTBX Payments',
           more: 'Saiba mais',
           cards: {
-            account: 'Cadastro 100% online e os serviços que vêm para a sua conta.',
+            account: 'Cadastro 100% online e serviços financeiros para o seu dia a dia.',
             business: 'Uma conta digital pensada para a rotina da sua empresa.',
             solutions: 'Pix, cartões, pagamentos, investimentos e crédito.',
             security: 'Como protegemos seus dados desde o primeiro acesso.',
@@ -135,15 +135,15 @@ export const ui = {
       account: {
         meta: { title: 'Conta digital — CTBX Payments', description: 'Abra sua conta digital CTBX Payments com cadastro 100% online e confirmação de e-mail.' },
         hero: { eyebrow: 'Conta digital', titleTop: 'Sua conta digital', titleAccent: 'na palma da mão', subtitle: 'Cadastro 100% online, com confirmação de e-mail e proteção dos seus dados desde o primeiro acesso.' },
-        comingTitle: 'O que vem para a sua conta',
-        comingIntro: 'Estes serviços estão em preparação e serão liberados aos poucos, depois de testados.',
+        comingTitle: 'Serviços da sua conta',
+        comingIntro: 'Serviços financeiros pensados para o seu dia a dia.',
       },
       business: {
-        meta: { title: 'Empresas — CTBX Payments', description: 'Conta digital CTBX Payments para empresas: em preparação.' },
-        hero: { eyebrow: 'Empresas', titleTop: 'Soluções para', titleAccent: 'a sua empresa', subtitle: 'Uma conta digital pensada para a rotina de empresas está em preparação. Fale com a nossa equipe para saber mais.' },
-        intro: { title: 'Feita para a rotina da sua empresa', text: 'Estamos preparando uma conta digital para pessoa jurídica, com cadastro da empresa e dos seus representantes, pagamentos e transferências. Ela será liberada quando estiver pronta e testada.' },
+        meta: { title: 'Empresas — CTBX Payments', description: 'Conta digital CTBX Payments para empresas.' },
+        hero: { eyebrow: 'Empresas', titleTop: 'Soluções para', titleAccent: 'a sua empresa', subtitle: 'Uma conta digital pensada para a rotina de empresas. Fale com a nossa equipe para saber mais.' },
+        intro: { title: 'Feita para a rotina da sua empresa', text: 'Uma conta digital para pessoa jurídica, com cadastro da empresa e dos seus representantes, pagamentos e transferências.' },
         planned: {
-          title: 'O que estamos preparando',
+          title: 'Soluções para empresas',
           items: [
             { icon: 'building', title: 'Conta digital para empresas', text: 'Uma conta para movimentar os recursos da sua empresa.' },
             { icon: 'layers', title: 'Cadastro da empresa e representantes', text: 'Cadastro online da empresa e das pessoas autorizadas a representá-la.' },
@@ -152,17 +152,17 @@ export const ui = {
         },
       },
       solutions: {
-        meta: { title: 'Soluções — CTBX Payments', description: 'Pix, cartões, pagamentos, investimentos e crédito: serviços CTBX Payments em preparação.' },
-        hero: { eyebrow: 'Soluções', titleTop: 'Serviços pensados', titleAccent: 'para o seu dia a dia', subtitle: 'Pix, cartões, pagamentos, investimentos e crédito estão em preparação. Cada um é liberado só quando estiver pronto.' },
+        meta: { title: 'Soluções — CTBX Payments', description: 'Pix, cartões, pagamentos, investimentos e crédito: serviços CTBX Payments.' },
+        hero: { eyebrow: 'Soluções', titleTop: 'Serviços pensados', titleAccent: 'para o seu dia a dia', subtitle: 'Pix, cartões, pagamentos, investimentos e crédito em um só lugar.' },
       },
       security: {
         meta: { title: 'Segurança — CTBX Payments', description: 'Como a CTBX Payments protege sua senha, seu e-mail, sua sessão e seus dados.' },
         hero: { eyebrow: 'Segurança', titleTop: 'Segurança', titleAccent: 'em cada etapa', subtitle: 'Segurança não é um recurso extra: ela está presente em cada etapa do seu cadastro.' },
-        principle: { title: 'Lançamento responsável', text: 'Nenhum serviço é anunciado como disponível antes de estar funcionando e testado. É por isso que boa parte do site mostra o selo "Em breve".' },
+        principle: { title: 'Segurança em primeiro lugar', text: 'Cada serviço passa por testes de segurança antes de chegar aos nossos clientes.' },
       },
       about: {
         meta: { title: 'Quem somos — CTBX Payments', description: 'Conheça a CTBX Payments e como trabalhamos.' },
-        hero: { eyebrow: 'Quem somos', titleTop: 'Conheça a', titleAccent: 'CTBX Payments', subtitle: 'Desenvolvemos uma conta digital para pessoas e empresas, com foco em segurança, transparência e simplicidade.' },
+        hero: { eyebrow: 'Quem somos', titleTop: 'Conheça a', titleAccent: 'CTBX Payments', subtitle: 'Tecnologia financeira para pessoas e empresas, com foco em segurança, transparência e simplicidade.' },
         group: {
           eyebrow: 'Nosso Grupo Empresarial',
           title: 'Um grupo empresarial, diferentes áreas de atuação.',
@@ -175,17 +175,38 @@ export const ui = {
           visit: 'Visitar site',
           current: 'Você está aqui',
         },
+        leadership: {
+          eyebrow: 'Nossa Liderança',
+          name: 'Tarik Muhamad Ali',
+          role: 'Presidente | CTBX Payments',
+          paragraphs: [
+            'Integrante do grupo empresarial CTB Holdings, a CTBX Payments atua no desenvolvimento de soluções tecnológicas e iniciativas voltadas ao setor financeiro digital.',
+            'Sob a presidência de Tarik Muhamad Ali, a empresa tem sua orientação estratégica pautada pela inovação, governança corporativa, integridade e desenvolvimento de relações empresariais sólidas.',
+            'Sua liderança está direcionada ao fortalecimento institucional da CTBX Payments, à valorização da transparência e à construção de uma visão empresarial de longo prazo, alinhada aos princípios e objetivos estratégicos do grupo.',
+          ],
+        },
+        governance: {
+          eyebrow: 'Governança e Compliance',
+          title: 'Ética e conformidade em cada decisão',
+          intro: 'A CTBX Payments conduz suas atividades com base em princípios claros, que orientam a relação com clientes, parceiros e autoridades.',
+          items: [
+            { title: 'Ética e integridade', text: 'Conduta íntegra, honesta e respeitosa em todas as relações com clientes, parceiros e colaboradores.' },
+            { title: 'Transparência', text: 'Informações claras e acessíveis sobre a empresa, seus serviços e suas condições.' },
+            { title: 'Proteção de dados', text: 'Tratamento de dados pessoais com segurança e em conformidade com a Lei Geral de Proteção de Dados (LGPD).' },
+            { title: 'Conformidade e responsabilidade', text: 'Atuação de acordo com a legislação aplicável e compromisso com uma gestão empresarial responsável.' },
+          ],
+        },
         valuesTitle: 'Como trabalhamos',
         values: [
           { icon: 'shield', title: 'Segurança', text: 'Proteção dos seus dados em cada etapa.' },
-          { icon: 'layers', title: 'Transparência', text: 'Mostramos com clareza o que já funciona e o que ainda está em preparação.' },
+          { icon: 'layers', title: 'Transparência', text: 'Informações claras sobre cada serviço e cada etapa.' },
           { icon: 'phone', title: 'Simplicidade', text: 'Uma experiência direta, do cadastro ao uso da conta.' },
-          { icon: 'globe', title: 'Responsabilidade', text: 'Cada serviço é lançado só quando está pronto.' },
+          { icon: 'globe', title: 'Responsabilidade', text: 'Compromisso com a segurança e a confiança em cada relação.' },
         ],
       },
       contact: {
         meta: { title: 'Contato — CTBX Payments', description: 'Fale com a equipe CTBX Payments.' },
-        hero: { eyebrow: 'Contato', titleTop: 'Fale com', titleAccent: 'a nossa equipe', subtitle: 'Tire suas dúvidas sobre a CTBX Payments e acompanhe a abertura de contas.' },
+        hero: { eyebrow: 'Contato', titleTop: 'Fale com', titleAccent: 'a nossa equipe', subtitle: 'Tire suas dúvidas e saiba como abrir a sua conta CTBX Payments.' },
         form: {
           title: 'Envie uma mensagem',
           intro: 'Preencha o formulário e nossa equipe responde pelo e-mail informado.',
@@ -238,6 +259,7 @@ export const ui = {
       legalNav: 'Políticas',
       rights: 'Todos os direitos reservados.',
       madeBy: 'Site desenvolvido por',
+      governance: 'Governança e Compliance',
     },
   },
 
@@ -247,13 +269,13 @@ export const ui = {
       description: 'CTBX Payments: a digital account with fully online sign-up, email confirmation and protection at every step.',
     },
     nav: {
-      account: 'Digital account',
+      account: 'Digital Account',
       business: 'Business',
       security: 'Security',
       solutions: 'Solutions',
-      about: 'About us',
+      about: 'About Us',
       contact: 'Contact',
-      openAccount: 'Open account',
+      openAccount: 'Open Account',
       langLabel: 'Language',
       menu: 'Menu',
     },
@@ -281,15 +303,15 @@ export const ui = {
         },
         {
           titleTop: 'CTBX cards',
-          titleAccent: 'in preparation',
-          subtitle: 'A physical card and virtual cards for online shopping are being prepared. They will arrive when they are ready for you.',
+          titleAccent: 'for your everyday life',
+          subtitle: 'A physical card and virtual cards for online shopping, with CTBX Payments security.',
           primary: { label: 'See services', to: 'solutions' },
           secondary: null,
         },
         {
           titleTop: 'Solutions for',
           titleAccent: 'your business',
-          subtitle: 'A digital account designed for the way companies work is in preparation. Talk to our team to learn more.',
+          subtitle: 'A digital account designed for the way companies work. Talk to our team to learn more.',
           primary: { label: 'Contact us', to: 'contact' },
           secondary: { label: 'See services', to: 'solutions' },
         },
@@ -303,9 +325,9 @@ export const ui = {
       ],
     },
     onboarding: {
-      eyebrow: 'Available today',
+      eyebrow: '',
       title: 'Your sign-up, step by step',
-      intro: 'These steps already work for real customers.',
+      intro: '',
       steps: [
         { title: 'Create your account', text: 'Sign up online with your basic details and a strong password.' },
         { title: 'Confirm your email', text: 'We send you a confirmation link to make sure the email is yours.' },
@@ -314,9 +336,9 @@ export const ui = {
       status: 'Available',
     },
     services: {
-      eyebrow: 'What is coming',
-      title: 'Services in preparation',
-      intro: 'We build each service carefully and test it thoroughly. It only shows here as available once it works for real customers.',
+      eyebrow: 'Services',
+      title: 'CTBX Payments solutions',
+      intro: 'Financial services designed for your everyday life, with security at every step.',
       status: 'Coming soon',
       items: {
         pix: { title: 'Pix', text: 'Send and receive instant transfers.' },
@@ -339,28 +361,28 @@ export const ui = {
     },
     about: {
       eyebrow: 'About us',
-      title: 'Financial technology built with care',
-      text: 'CTBX Payments is building a digital account for individuals and businesses, focused on security, transparency and a simple experience. We only launch each service when it is ready.',
+      title: 'Financial technology for a connected world',
+      text: 'CTBX Payments brings together technology, security and innovation in a digital account for individuals and businesses, with transparency and a simple experience.',
     },
     open: {
       eyebrow: 'Open account',
-      title: 'Account opening will be available soon.',
-      text: 'We are getting the app ready for the public. In the meantime, talk to our team.',
+      title: 'Open your CTBX Payments account.',
+      text: 'Talk to our team and find out how to open your account.',
       contactPending: 'Support channels to be announced',
     },
     pages: {
       home: {
         intro: {
           eyebrow: 'CTBX Payments',
-          title: 'A digital account built with care',
-          text: 'We are building a digital account for individuals and businesses, focused on security, transparency and a simple experience. Sign-up is already available; other services arrive gradually, always tested first.',
+          title: 'Financial technology for a connected world',
+          text: 'CTBX Payments brings together technology, security and innovation in a modern, intuitive digital experience. Solutions designed to connect people, businesses and opportunities with efficiency, transparency and trust.',
         },
         explore: {
           eyebrow: 'Explore',
           title: 'Get to know CTBX Payments',
           more: 'Learn more',
           cards: {
-            account: 'Fully online sign-up and the services coming to your account.',
+            account: 'Fully online sign-up and financial services for your everyday life.',
             business: 'A digital account designed for the way your company works.',
             solutions: 'Pix, cards, payments, investments and credit.',
             security: 'How we protect your data from your first login.',
@@ -372,15 +394,15 @@ export const ui = {
       account: {
         meta: { title: 'Digital account — CTBX Payments', description: 'Open your CTBX Payments digital account with fully online sign-up and email confirmation.' },
         hero: { eyebrow: 'Digital account', titleTop: 'Your digital account', titleAccent: 'in the palm of your hand', subtitle: 'Fully online sign-up, with email confirmation and protection of your data from your first login.' },
-        comingTitle: 'What is coming to your account',
-        comingIntro: 'These services are in preparation and will be released gradually, after testing.',
+        comingTitle: 'Your account services',
+        comingIntro: 'Financial services designed for your everyday life.',
       },
       business: {
-        meta: { title: 'Business — CTBX Payments', description: 'CTBX Payments digital account for businesses: in preparation.' },
-        hero: { eyebrow: 'Business', titleTop: 'Solutions for', titleAccent: 'your business', subtitle: 'A digital account designed for the way companies work is in preparation. Talk to our team to learn more.' },
-        intro: { title: 'Built for the way your company works', text: 'We are preparing a digital account for companies, with registration of the company and its representatives, payments and transfers. It will be released when it is ready and tested.' },
+        meta: { title: 'Business — CTBX Payments', description: 'CTBX Payments digital account for businesses.' },
+        hero: { eyebrow: 'Business', titleTop: 'Solutions for', titleAccent: 'your business', subtitle: 'A digital account designed for the way companies work. Talk to our team to learn more.' },
+        intro: { title: 'Built for the way your company works', text: 'A digital account for companies, with registration of the company and its representatives, payments and transfers.' },
         planned: {
-          title: 'What we are preparing',
+          title: 'Business solutions',
           items: [
             { icon: 'building', title: 'Business digital account', text: 'An account to manage your company’s funds.' },
             { icon: 'layers', title: 'Company and representatives', text: 'Online registration of the company and the people authorized to represent it.' },
@@ -389,17 +411,17 @@ export const ui = {
         },
       },
       solutions: {
-        meta: { title: 'Solutions — CTBX Payments', description: 'Pix, cards, payments, investments and credit: CTBX Payments services in preparation.' },
-        hero: { eyebrow: 'Solutions', titleTop: 'Services designed', titleAccent: 'for your everyday life', subtitle: 'Pix, cards, payments, investments and credit are in preparation. Each one is released only when it is ready.' },
+        meta: { title: 'Solutions — CTBX Payments', description: 'Pix, cards, payments, investments and credit: CTBX Payments services.' },
+        hero: { eyebrow: 'Solutions', titleTop: 'Services designed', titleAccent: 'for your everyday life', subtitle: 'Pix, cards, payments, investments and credit in one place.' },
       },
       security: {
         meta: { title: 'Security — CTBX Payments', description: 'How CTBX Payments protects your password, email, session and data.' },
         hero: { eyebrow: 'Security', titleTop: 'Security', titleAccent: 'at every step', subtitle: 'Security is not an extra feature: it is part of every step of your sign-up.' },
-        principle: { title: 'Responsible launches', text: 'No service is announced as available before it works and has been tested. That is why much of this site shows a "Coming soon" label.' },
+        principle: { title: 'Security first', text: 'Every service goes through security testing before it reaches our customers.' },
       },
       about: {
         meta: { title: 'About us — CTBX Payments', description: 'Get to know CTBX Payments and how we work.' },
-        hero: { eyebrow: 'About us', titleTop: 'Meet', titleAccent: 'CTBX Payments', subtitle: 'We are building a digital account for individuals and businesses, focused on security, transparency and simplicity.' },
+        hero: { eyebrow: 'About us', titleTop: 'Meet', titleAccent: 'CTBX Payments', subtitle: 'Financial technology for individuals and businesses, focused on security, transparency and simplicity.' },
         group: {
           eyebrow: 'Our Business Group',
           title: 'One business group, different areas of activity.',
@@ -412,17 +434,38 @@ export const ui = {
           visit: 'Visit website',
           current: 'You are here',
         },
+        leadership: {
+          eyebrow: 'Our Leadership',
+          name: 'Tarik Muhamad Ali',
+          role: 'President | CTBX Payments',
+          paragraphs: [
+            'Part of the CTB Holdings business group, CTBX Payments develops technology solutions and initiatives for the digital financial sector.',
+            'Under the presidency of Tarik Muhamad Ali, the company’s strategic direction is guided by innovation, corporate governance, integrity and the development of solid business relationships.',
+            'His leadership is focused on strengthening CTBX Payments institutionally, valuing transparency and building a long-term business vision aligned with the group’s principles and strategic objectives.',
+          ],
+        },
+        governance: {
+          eyebrow: 'Governance and Compliance',
+          title: 'Ethics and compliance in every decision',
+          intro: 'CTBX Payments conducts its activities based on clear principles that guide its relationships with customers, partners and authorities.',
+          items: [
+            { title: 'Ethics and integrity', text: 'Honest, upright and respectful conduct in every relationship with customers, partners and employees.' },
+            { title: 'Transparency', text: 'Clear and accessible information about the company, its services and its terms.' },
+            { title: 'Data protection', text: 'Personal data handled securely and in compliance with Brazil’s General Data Protection Law (LGPD).' },
+            { title: 'Compliance and responsibility', text: 'Operating in accordance with applicable law and committed to responsible business management.' },
+          ],
+        },
         valuesTitle: 'How we work',
         values: [
           { icon: 'shield', title: 'Security', text: 'Your data is protected at every step.' },
-          { icon: 'layers', title: 'Transparency', text: 'We show clearly what already works and what is still in preparation.' },
+          { icon: 'layers', title: 'Transparency', text: 'Clear information about every service and every step.' },
           { icon: 'phone', title: 'Simplicity', text: 'A straightforward experience, from sign-up to everyday use.' },
-          { icon: 'globe', title: 'Responsibility', text: 'Each service is launched only when it is ready.' },
+          { icon: 'globe', title: 'Responsibility', text: 'A commitment to security and trust in every relationship.' },
         ],
       },
       contact: {
         meta: { title: 'Contact — CTBX Payments', description: 'Talk to the CTBX Payments team.' },
-        hero: { eyebrow: 'Contact', titleTop: 'Talk to', titleAccent: 'our team', subtitle: 'Ask your questions about CTBX Payments and follow the launch of account opening.' },
+        hero: { eyebrow: 'Contact', titleTop: 'Talk to', titleAccent: 'our team', subtitle: 'Ask your questions and find out how to open your CTBX Payments account.' },
         form: {
           title: 'Send us a message',
           intro: 'Fill in the form and our team will reply to the email you provide.',
@@ -475,6 +518,7 @@ export const ui = {
       legalNav: 'Policies',
       rights: 'All rights reserved.',
       madeBy: 'Website by',
+      governance: 'Governance and Compliance',
     },
   },
 } as const;

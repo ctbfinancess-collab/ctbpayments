@@ -14,9 +14,9 @@ const stepImages = [stepSignup, stepEmail, stepKyc];
 <section class="border-b border-line bg-navy-800/60">
   <div class="container-site py-20 md:py-24">
     <div class="mb-12 flex flex-col gap-3">
-      <span class="eyebrow">{c.eyebrow}</span>
+      {c.eyebrow && <span class="eyebrow">{c.eyebrow}</span>}
       <h2 class="section-title">{c.title}</h2>
-      <p class="text-slate-brand">{c.intro}</p>
+      {c.intro && <p class="text-slate-brand">{c.intro}</p>}
     </div>
     <ol class="grid gap-6 md:grid-cols-3">
       {c.steps.map((step, i) => (
@@ -26,8 +26,7 @@ const stepImages = [stepSignup, stepEmail, stepKyc];
             <span class="absolute left-4 top-4 rounded-full bg-navy-950/70 px-2.5 py-1 font-display text-xs font-semibold text-ice backdrop-blur tabular-nums">0{i + 1}</span>
           </div>
           <div class="flex flex-1 flex-col gap-3 p-6">
-            <span class="pill pill-live self-start">{c.status}</span>
-            <h3 class="text-xl font-semibold">{step.title}</h3>
+            <h3 class="card-title">{step.title}</h3>
             <p class="text-[15px] leading-relaxed text-slate-brand">{step.text}</p>
           </div>
         </li>

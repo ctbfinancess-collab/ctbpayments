@@ -21,17 +21,18 @@ const host = (url: string) => url.replace(/^https?:\/\//, '').replace(/\/$/, '')
     <ul class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {groupCompanies.map((c) => (
         <li class:list={['entity flex flex-col rounded-2xl border bg-navy-900 p-7', c.isSelf ? 'border-orange-brand/50' : 'border-line']}>
-          <div class="mb-5 flex h-[84px] items-center">
+          <div class="mb-5 flex h-[120px] items-end">
             <Image
               src={c.logo}
               alt={`${c.name} — logo`}
-              height={84}
-              width={Math.round(84 * c.logo.width / c.logo.height)}
+              height={c.logoHeight ?? 84}
+              width={Math.round((c.logoHeight ?? 84) * c.logo.width / c.logo.height)}
               densities={[1, 2]}
-              class:list={[c.tile ? 'h-[72px] w-[72px] rounded-xl object-cover' : 'h-[84px] w-auto max-w-[150px] object-contain']}
+              class:list={[c.tile ? 'h-[72px] w-[72px] rounded-xl object-cover' : 'w-auto max-w-[170px] object-contain']}
+              style={c.tile ? undefined : `height:${c.logoHeight ?? 84}px`}
             />
           </div>
-          <h3 class="text-xl font-semibold">{c.name}</h3>
+          <h3 class="card-title">{c.name}</h3>
           <p class="mt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-300">
             {c.location[lang]}{c.kind && <span class="text-slate-brand"> · {c.kind[lang]}</span>}
           </p>

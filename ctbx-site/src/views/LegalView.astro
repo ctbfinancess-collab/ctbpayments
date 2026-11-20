@@ -2,7 +2,6 @@
 // Páginas legais: Privacidade, Termos de Uso e Cookies (mesmo layout).
 import Page from '../layouts/Page.astro';
 import PageHero from '../components/PageHero.astro';
-import heroImage from '../assets/hero-legal.png';
 import { t, type Lang } from '../i18n/ui';
 import { href, legalOrder } from '../i18n/routes';
 import { site } from '../config/site';
@@ -18,7 +17,7 @@ const updated = new Date(`${site.legalUpdatedAt}T12:00:00`).toLocaleDateString(l
 const slug = (i: number) => `s${i + 1}`;
 ---
 <Page lang={lang} routeKey={doc} title={`${d.title} — CTBX Payments`} description={d.intro.slice(0, 155)}>
-  <PageHero eyebrow={L.eyebrow} titleTop={titleTop} titleAccent={titleAccent} subtitle={L.subtitle} image={heroImage} />
+  <PageHero eyebrow={L.eyebrow} titleTop={titleTop} titleAccent={titleAccent} subtitle={L.subtitle} video={{ src: '/media/politicas-balanca.mp4', poster: '/media/politicas-balanca.jpg' }} variant="cinematic" fit="contain" />
 
   <section class="bg-navy-800/60">
     <div class="container-site grid gap-10 py-16 md:py-20 lg:grid-cols-[260px_1fr] lg:gap-16">

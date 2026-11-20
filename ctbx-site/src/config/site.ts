@@ -15,9 +15,10 @@ export const site = {
   // confirmados pela empresa. Enquanto forem null, o rodapé mostra
   // "a informar" (e o site não deve ir para produção assim).
   legal: {
-    companyName: null as string | null, // razão social
-    cnpj: null as string | null,
-    address: null as string | null,
+    companyName: 'CTBX Payments Representações Ltda' as string | null, // razão social (informada pela empresa em 2026-11-19)
+    cnpj: '39.575.846/0001-95' as string | null,
+    // Endereço da sede conforme o carnê de IPTU 2024 enviado pela empresa.
+    address: 'Rua Dr. Orlando Feirabend Filho, 230, Torre A, Sala 506 – Parque Residencial Aquarius, São José dos Campos – SP, CEP 12246-190' as string | null,
   },
   // Para onde o formulário de Contato envia as mensagens (POST em JSON).
   // /api/contact roda no servidor do próprio site e envia pelo Resend
@@ -27,11 +28,12 @@ export const site = {
   // Políticas legais. Enquanto legalDraft for true, as páginas de
   // Privacidade, Termos e Cookies mostram o aviso "versão preliminar".
   // Só mude para false depois da revisão jurídica.
-  legalDraft: true,
+  legalDraft: false,
   legalUpdatedAt: '2026-11-16',
   // Encarregado de dados (DPO), exigido pela LGPD. NÃO INVENTAR.
   dpo: {
-    name: null as string | null,
+    // Encarregado de dados (LGPD): o presidente, informado pela empresa em 2026-11-19.
+    name: 'Tarik Muhamad Ali' as string | null,
     email: null as string | null,
   },
 
@@ -42,7 +44,7 @@ export const site = {
   },
 
   contact: {
-    email: null as string | null,
+    email: 'contato@ctbxpayments.com' as string | null,
     phone: null as string | null,
   },
 };

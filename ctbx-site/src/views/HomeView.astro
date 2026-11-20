@@ -11,7 +11,15 @@ interface Props { lang: Lang }
 const { lang } = Astro.props;
 const c = t(lang);
 const p = c.pages.home;
-const icons = { account: 'layers', business: 'building', solutions: 'card', security: 'shield', about: 'globe', contact: 'mail' } as const;
+import { Image } from 'astro:assets';
+import icChip from '../assets/icons/tech-chip.png';
+import icBusiness from '../assets/icons/business-globe.png';
+import icWallet from '../assets/icons/wallet-card.png';
+import icShield from '../assets/icons/security-shield.png';
+import icGlobe from '../assets/icons/about-globe.png';
+import icHandshake from '../assets/icons/handshake.png';
+// Ícones metálicos (prata e dourado) de cada atalho.
+const iconImages = { account: icChip, business: icBusiness, solutions: icWallet, security: icShield, about: icGlobe, contact: icHandshake } as const;
 ---
 <Page lang={lang} routeKey="home" title={c.meta.title} description={c.meta.description}>
   <HeroCarousel lang={lang} />
@@ -36,8 +44,8 @@ const icons = { account: 'layers', business: 'building', solutions: 'card', secu
         {navOrder.map((key) => (
           <li>
             <a href={href(lang, key)} class="explore group flex h-full flex-col gap-4 rounded-2xl border border-line bg-navy-900 p-7 transition-colors hover:border-orange-brand/50">
-              <span class="flex h-12 w-12 items-center justify-center rounded-xl border border-orange-brand/25 bg-orange-brand/10 text-orange-300"><Icon name={icons[key]} /></span>
-              <h3 class="text-xl font-semibold">{c.nav[key]}</h3>
+              <Image src={iconImages[key]} alt="" width={88} densities={[1, 2]} class="h-[88px] w-[88px] object-contain drop-shadow-[0_8px_18px_rgba(0,0,0,0.45)]" />
+              <h3 class="card-title">{c.nav[key]}</h3>
               <p class="flex-1 text-[15px] leading-relaxed text-slate-brand">{p.explore.cards[key]}</p>
               <span class="inline-flex items-center gap-2 text-sm font-semibold text-orange-300">
                 {p.explore.more}

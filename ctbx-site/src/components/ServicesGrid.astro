@@ -42,13 +42,10 @@ const serviceImages: Record<string, ImageMetadata> = { pix: servicePix, cards: s
                   <Icon name={s.icon} size={56} />
                 </div>
               )}
-              <span class:list={['pill absolute right-4 top-4 backdrop-blur', s.status === 'available' ? 'pill-live' : 'pill-soon !bg-navy-950/70']}>
-                {s.status === 'available' ? c.onboarding.status : c.services.status}
-              </span>
             </div>
             <div class="flex flex-col gap-2 p-6">
-              <h3 class="text-lg font-semibold">{item.title}</h3>
-              <p class="text-[15px] text-slate-brand">{item.text}</p>
+              <h3 class="card-title">{item.title}</h3>
+              <p class="text-[15px] leading-relaxed text-slate-brand">{item.text}</p>
             </div>
           </li>
         );

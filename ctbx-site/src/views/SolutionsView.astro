@@ -3,7 +3,6 @@ import Page from '../layouts/Page.astro';
 import PageHero from '../components/PageHero.astro';
 import ServicesGrid from '../components/ServicesGrid.astro';
 import CtaBand from '../components/CtaBand.astro';
-import heroImage from '../assets/hero-cards.png';
 import { t, type Lang } from '../i18n/ui';
 
 interface Props { lang: Lang }
@@ -12,7 +11,7 @@ const c = t(lang);
 const p = c.pages.solutions;
 ---
 <Page lang={lang} routeKey="solutions" title={p.meta.title} description={p.meta.description}>
-  <PageHero {...p.hero} image={heroImage} />
+  <PageHero {...p.hero} variant="cinematic" heightScale={1.05} focus="center center" focusMobile="40% center" video={{ src: '/media/executiva-globo.mp4', poster: '/media/executiva-globo.jpg' }} />
   <ServicesGrid lang={lang} />
   <CtaBand lang={lang} />
 </Page>

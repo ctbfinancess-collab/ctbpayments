@@ -40,24 +40,24 @@ export function confirmationEmail(lang: Lang, siteOrigin: string) {
   const c = COPY[lang];
   const logo = `${siteOrigin}/email/logo.png`;
   const html = `<!doctype html>
-<html lang="${lang === 'en' ? 'en' : 'pt-BR'}"><body style="margin:0;padding:0;background:#071426">
+<html lang="${lang === 'en' ? 'en' : 'pt-BR'}"><body style="margin:0;padding:0;background:#292B2E">
   <span style="display:none;max-height:0;overflow:hidden">${c.preheader}</span>
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#071426;padding:32px 16px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#292B2E;padding:32px 16px">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#0B1C33;border:1px solid #1E3753;border-radius:16px;font-family:Arial,Helvetica,sans-serif">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#303236;border:1px solid #44474C;border-radius:16px;font-family:Arial,Helvetica,sans-serif">
         <tr><td style="padding:32px 32px 8px" align="left">
           <img src="${logo}" alt="CTBX Payments" width="96" style="display:block;border:0;width:96px;height:auto" />
         </td></tr>
         <tr><td style="padding:16px 32px 0">
-          <div style="width:48px;height:2px;background:#D9773F;margin:0 0 20px"></div>
-          <h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;color:#F5F7FA">${c.title}</h1>
-          <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#B8C2D1">${c.greeting}</p>
-          ${c.paragraphs.map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#B8C2D1">${p}</p>`).join('')}
-          <p style="margin:24px 0 4px;font-size:15px;color:#B8C2D1">${c.closing}</p>
-          <p style="margin:0 0 28px;font-size:15px;font-weight:bold;color:#F5F7FA">${c.team}</p>
+          <div style="width:48px;height:2px;background:#C5A46C;margin:0 0 20px"></div>
+          <h1 style="margin:0 0 20px;font-size:22px;line-height:1.3;color:#F4F4F2">${c.title}</h1>
+          <p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#BFC2C7">${c.greeting}</p>
+          ${c.paragraphs.map((p) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#BFC2C7">${p}</p>`).join('')}
+          <p style="margin:24px 0 4px;font-size:15px;color:#BFC2C7">${c.closing}</p>
+          <p style="margin:0 0 28px;font-size:15px;font-weight:bold;color:#F4F4F2">${c.team}</p>
         </td></tr>
-        <tr><td style="padding:16px 32px 28px;border-top:1px solid #1E3753">
-          <p style="margin:0;font-size:12px;color:#7E8DA3">${c.note}</p>
+        <tr><td style="padding:16px 32px 28px;border-top:1px solid #44474C">
+          <p style="margin:0;font-size:12px;color:#8E9298">${c.note}</p>
         </td></tr>
       </table>
     </td></tr>

@@ -8,7 +8,7 @@ import logoVenture from '../assets/grupo/ctb-venture-logo.png';
 import logoPayments from '../assets/grupo/ctbx-payments-logo.png';
 import logoFinances from '../assets/grupo/ctb-finances-logo.png';
 import logoWahibi from '../assets/grupo/fundacao-wahibi-logo.png';
-import logoOman from '../assets/grupo/oman-brazil.jpg';
+import logoOman from '../assets/grupo/oman-brazil-logo.png';
 import logoCamara from '../assets/grupo/camara-brasil-oma-selo.png';
 
 type L = Record<Lang, string>;
@@ -22,6 +22,8 @@ export interface GroupEntity {
   website?: string;
   /** Logo com fundo próprio (quadrada): exibida com cantos arredondados. */
   tile?: boolean;
+  /** Altura da logo no cartão, em px (padrão 84). */
+  logoHeight?: number;
   /** A própria CTBX Payments: sem link, com a etiqueta "Você está aqui". */
   isSelf?: boolean;
 }
@@ -65,11 +67,13 @@ export const groupCompanies: GroupEntity[] = [
       'pt-br': 'Empresa sediada em Dubai, dedicada ao desenvolvimento de soluções e oportunidades no setor financeiro, observadas as autorizações regulatórias aplicáveis.',
       en: 'Dubai-based company dedicated to developing solutions and opportunities in the financial sector, in compliance with the applicable regulatory authorisations.',
     },
+    website: 'https://ctbfinances.ae/',
   },
   {
     name: 'Oman Brazil',
     logo: logoOman,
-    tile: true,
+    // Logo quase quadrada: altura maior para ficar do tamanho visual das outras.
+    logoHeight: 120,
     location: { 'pt-br': 'Omã', en: 'Oman' },
     description: {
       'pt-br': 'Empresa sediada em Omã, voltada ao desenvolvimento de negócios e à conexão de oportunidades comerciais internacionais.',

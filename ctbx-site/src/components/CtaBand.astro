@@ -1,5 +1,5 @@
 ---
-// Banner final "Abertura de conta em breve" (robô CTBX) + botão Contato.
+// Faixa final "Abra sua conta" (robô CTBX) + botão Contato.
 // Texto em HTML (traduzível); a ilustração à direita se dissolve no fundo.
 import { Image } from 'astro:assets';
 import robot from '../assets/cta-robot.png';
@@ -14,29 +14,29 @@ const c = t(lang);
   <div class="cta-band relative isolate mx-auto max-w-[1180px] overflow-hidden rounded-3xl border border-line">
     <Image src={robot} alt="" widths={[480, 720, 884]} sizes="(min-width: 768px) 50vw, 100vw" class="cta-img" />
     <div class="cta-shade" aria-hidden="true"></div>
-    <div class="relative z-10 flex min-h-[380px] max-w-[560px] flex-col justify-center gap-5 px-8 py-14 md:min-h-[440px] md:px-14">
+    <div class="relative z-10 flex max-w-[560px] flex-col justify-center gap-5 px-8 pb-12 pt-4 md:min-h-[440px] md:px-14 md:py-14">
       <span class="eyebrow">{c.open.eyebrow}</span>
       <span class="h-[2px] w-14 rounded-full bg-orange-brand/80" aria-hidden="true"></span>
-      <h2 class="text-[clamp(26px,3vw,38px)] font-semibold leading-tight">{c.open.title}</h2>
+      <h2 class="section-title">{c.open.title}</h2>
       <p class="max-w-[38ch] text-[clamp(15px,1.2vw,17px)] leading-relaxed text-slate-brand">{c.open.text}</p>
-      <a href={href(lang, 'contact')} class="btn btn-primary mt-1 w-fit uppercase tracking-[0.06em] !px-7 !py-3 !text-[13px]">{c.nav.contact}</a>
+      <a href={href(lang, 'contact')} class="btn btn-primary mt-1 w-fit !px-7 !py-3 !text-[13px]">{c.nav.contact}</a>
     </div>
   </div>
 </section>
 
 <style>
-  .cta-band { background: radial-gradient(70% 90% at 80% 40%, rgba(21, 89, 183, 0.25), transparent 70%), linear-gradient(135deg, #0B1C33, #071426); }
+  .cta-band { background: radial-gradient(70% 90% at 80% 40%, rgba(197, 164, 108, 0.12), transparent 70%), linear-gradient(135deg, #232529, #1C1E21); }
   .cta-img {
     position: absolute; right: 0; top: 0; z-index: -1;
     height: 100%; width: auto; max-width: 62%; object-fit: cover; object-position: left center;
-    filter: saturate(0.85) brightness(0.88);
     -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 30%);
     mask-image: linear-gradient(90deg, transparent 0%, #000 30%);
   }
-  .cta-shade { position: absolute; inset: 0; z-index: 0; background: linear-gradient(90deg, rgba(7, 20, 38, 0.92) 0%, rgba(7, 20, 38, 0.6) 40%, rgba(7, 20, 38, 0) 60%); pointer-events: none; }
+  .cta-shade { position: absolute; inset: 0; z-index: 0; background: linear-gradient(90deg, rgba(28, 30, 33, 0.92) 0%, rgba(28, 30, 33, 0.6) 40%, rgba(28, 30, 33, 0) 60%); pointer-events: none; }
   @media (max-width: 767px) {
-    .cta-img { max-width: none; width: 100%; height: 60%; top: auto; bottom: 0; object-position: center 30%; opacity: 0.35;
-      -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 40%); mask-image: linear-gradient(180deg, transparent 0%, #000 40%); }
-    .cta-shade { background: linear-gradient(180deg, rgba(7, 20, 38, 0.6), rgba(7, 20, 38, 0.85)); }
+    /* Celular: imagem inteira, cores originais, acima do texto. */
+    .cta-img { position: static; display: block; max-width: none; width: 100%; height: auto; z-index: auto;
+      -webkit-mask-image: linear-gradient(180deg, #000 80%, transparent 100%); mask-image: linear-gradient(180deg, #000 80%, transparent 100%); }
+    .cta-shade { display: none; }
   }
 </style>

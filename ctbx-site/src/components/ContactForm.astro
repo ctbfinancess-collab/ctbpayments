@@ -53,14 +53,14 @@ const messages = {
 
   <div class="field">
     <label class="flex cursor-pointer items-start gap-3 text-[14px] !font-normal leading-relaxed text-slate-brand">
-      <input id="cf-consent" name="consent" type="checkbox" required class="mt-1 h-4 w-4 shrink-0 accent-[#D9773F]" />
+      <input id="cf-consent" name="consent" type="checkbox" required class="mt-1 h-4 w-4 shrink-0 accent-[#C5A46C]" />
       <span>{f.consent} <a href={href(lang, 'privacy')} target="_blank" class="text-orange-300 underline underline-offset-2 hover:text-ice">{t(lang).footer.privacy}</a>.</span>
     </label>
     <p class="field-error" aria-live="polite"></p>
   </div>
 
   <div class="flex flex-col items-start gap-4">
-    <button type="submit" class="btn btn-primary uppercase tracking-[0.06em] !px-7 !py-3 !text-[13px] disabled:opacity-60">{f.submit}</button>
+    <button type="submit" class="btn btn-primary !px-7 !py-3 !text-[13px] disabled:opacity-60">{f.submit}</button>
     <p id="cf-status" class="hidden rounded-xl border px-4 py-3 text-[14px]" role="status" aria-live="polite"></p>
   </div>
 </form>
@@ -69,22 +69,22 @@ const messages = {
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .field > label { font-size: 13px; font-weight: 500; color: var(--color-slate-brand); }
   .field input:not([type="checkbox"]), .field select, .field textarea {
-    width: 100%; border-radius: 12px; border: 1px solid rgba(184, 194, 209, 0.18);
-    background: rgba(5, 15, 29, 0.6); color: var(--color-ice);
+    width: 100%; border-radius: 12px; border: 1px solid rgba(191, 194, 199, 0.2);
+    background: rgba(20, 22, 25, 0.7); color: var(--color-ice);
     padding: 12px 14px; font-size: 15px; transition: border-color .2s, box-shadow .2s;
   }
-  .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #B8C2D1 50%), linear-gradient(135deg, #B8C2D1 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 40px; }
-  .field select option { background: #0B1C33; color: #F5F7FA; }
+  .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #BFC2C7 50%), linear-gradient(135deg, #BFC2C7 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 40px; }
+  .field select option { background: #232529; color: #F4F4F2; }
   .field textarea { resize: vertical; min-height: 130px; }
   .field input:focus, .field select:focus, .field textarea:focus {
-    outline: none; border-color: var(--color-orange-300); box-shadow: 0 0 0 3px rgba(217, 119, 63, 0.18);
+    outline: none; border-color: var(--color-orange-300); box-shadow: 0 0 0 3px rgba(197, 164, 108, 0.2);
   }
   .field.has-error input, .field.has-error select, .field.has-error textarea { border-color: #E05260; }
   .field-error { min-height: 0; font-size: 13px; color: #F08A94; }
   .field-error:empty { display: none; }
   .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
   #cf-status.is-ok { border-color: rgba(143, 227, 176, 0.4); background: rgba(143, 227, 176, 0.08); color: #BDEFD0; }
-  #cf-status.is-warn { border-color: rgba(227, 154, 110, 0.45); background: rgba(217, 119, 63, 0.1); color: #F2C3A4; }
+  #cf-status.is-warn { border-color: rgba(217, 191, 142, 0.45); background: rgba(197, 164, 108, 0.1); color: #E8D6B4; }
   #cf-status.is-error { border-color: rgba(224, 82, 96, 0.45); background: rgba(224, 82, 96, 0.1); color: #F5B3BA; }
 </style>
 

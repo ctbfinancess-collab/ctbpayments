@@ -3,7 +3,6 @@ import Page from '../layouts/Page.astro';
 import PageHero from '../components/PageHero.astro';
 import Icon from '../components/Icon.astro';
 import ContactForm from '../components/ContactForm.astro';
-import heroImage from '../assets/hero-contact.png';
 import { t, type Lang } from '../i18n/ui';
 import { site } from '../config/site';
 
@@ -15,10 +14,10 @@ const f = c.footer;
 const channels = [
   { icon: 'mail', label: p.email, value: site.contact.email },
   { icon: 'phone', label: p.phone, value: site.contact.phone },
-] as const;
+].filter((ch) => ch.value);
 ---
 <Page lang={lang} routeKey="contact" title={p.meta.title} description={p.meta.description}>
-  <PageHero {...p.hero} image={heroImage} />
+  <PageHero {...p.hero} variant="cinematic" focus="75% top" focusMobile="72% top" video={{ src: '/media/contato-executiva.mp4', poster: '/media/contato-executiva.jpg' }} />
 
   <section class="border-b border-line bg-navy-800/60">
     <div class="container-site grid gap-6 py-20 md:py-24 lg:grid-cols-[1.5fr_1fr]">
@@ -40,7 +39,9 @@ const channels = [
                 <div class="flex flex-col">
                   <span class="text-sm text-muted">{ch.label}</span>
                   {ch.value
-                    ? <span class="select-all font-semibold">{ch.value}</span>
+                    ? (ch.icon === 'mail'
+                        ? <a href={`mailto:${ch.value}`} class="font-semibold transition-colors hover:text-orange-300">{ch.value}</a>
+                        : <span class="select-all font-semibold">{ch.value}</span>)
                     : <span class="italic text-orange-300/90">{f.pending}</span>}
                 </div>
               </li>
