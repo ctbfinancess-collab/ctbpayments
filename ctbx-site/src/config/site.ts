@@ -3,13 +3,12 @@
 
 export const site = {
   name: 'CTBX Payments',
-  url: 'https://ctbxpayments.com',
+  url: 'https://www.ctbxpayments.com',
 
-  // Destino do botão "Abrir conta". O app ainda não está publicado na
-  // web nem nas lojas. Enquanto for null, o botão leva à página de
-  // Contato, que explica que a abertura estará disponível em breve. Quando o app for publicado, basta colocar a
-  // URL aqui (ex.: 'https://app.ctbxpayments.com').
-  appUrl: null as string | null,
+  // Área do Cliente (web). "Abrir conta" leva ao cadastro e "Entrar" ao
+  // login. Com null, "Abrir conta" volta a levar à página de Contato e o
+  // link "Entrar" some do cabeçalho.
+  appUrl: 'https://app.ctbxpayments.com' as string | null,
 
   // Dados institucionais. NÃO INVENTAR: preencher só com dados oficiais
   // confirmados pela empresa. Enquanto forem null, o rodapé mostra
@@ -50,5 +49,7 @@ export const site = {
 };
 
 // Enquanto appUrl for null, "Abrir conta" leva à página de Contato.
+// A Área do Cliente é só em português, para os dois idiomas do site.
 export const openAccountHref = (lang: 'pt-br' | 'en') =>
-  site.appUrl ?? (lang === 'en' ? '/en/contact/' : '/contato/');
+  site.appUrl ? `${site.appUrl}/abrir-conta` : lang === 'en' ? '/en/contact/' : '/contato/';
+export const signInHref = site.appUrl ? `${site.appUrl}/entrar` : null;
