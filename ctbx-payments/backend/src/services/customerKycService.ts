@@ -27,6 +27,15 @@ export interface KycPersonalInfoView {
 }
 
 const MAX_PLAUSIBLE_AGE = 130;
+export const MIN_AGE = 18;
+
+// Maior de idade na data de hoje (UTC): completou 18 anos até hoje,
+// inclusive no próprio aniversário. 29/02 vira 01/03 em anos não bissextos.
+export function isAdult(birthDate: string, today: Date): boolean {
+  const [y, m, d] = birthDate.split('-').map(Number) as [number, number, number];
+  const eighteenth = new Date(Date.UTC(y + MIN_AGE, m - 1, d));
+  return eighteenth.getTime() <= today.getTime();
+}
 
 // ---- Fase 4: KYC completo ---------------------------------------------
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
@@ -221,6 +230,9 @@ export class CustomerKycService {
       throw new ApiError('KYC_INCOMPLETE', 'Complete todas as etapas antes de enviar para análise.', { statusCode: 422, details: { missing: overview.missing } });
     }
     const now = this.now();
+    // Dupla checagem: uma data salva antes da regra dos 18 anos não passa.
+    const birthDate = overview.personalInfo.birthDate;
+    if (birthDate && !isAdult(birthDate, now)) throw new ApiError('KYC_UNDERAGE', 'É preciso ter 18 anos ou mais para abrir uma conta.', { statusCode: 422 });
     await this.kyc.saveSection(customerId, { status: 'SUBMITTED', submittedAt: now }, now);
     const customer = await this.customers.findById(customerId);
     if (this.email && customer) {
@@ -265,6 +277,7 @@ export class CustomerKycService {
     const today = this.now();
     if (parsed.getTime() > today.getTime()) throw invalid();
     if (today.getUTCFullYear() - parsed.getUTCFullYear() > MAX_PLAUSIBLE_AGE) throw invalid();
+    if (!isAdult(value, today)) throw new ApiError('KYC_UNDERAGE', 'É preciso ter 18 anos ou mais para abrir uma conta.', { statusCode: 422 });
     return value;
   }
 

@@ -9,7 +9,7 @@ export class InMemoryCustomerRepository implements CustomerRepository {
 
   async create(input: CreateCustomerInput): Promise<CustomerRecord> {
     const now = new Date();
-    const record: CustomerRecord = { ...input, id: randomUUID(), emailVerifiedAt: null, status: 'ACTIVE', createdAt: now, updatedAt: now };
+    const record: CustomerRecord = { ...input, termsAcceptedAt: input.termsAcceptedAt ?? null, termsVersion: input.termsVersion ?? null, id: randomUUID(), emailVerifiedAt: null, status: 'ACTIVE', createdAt: now, updatedAt: now };
     this.byId.set(record.id, record);
     return record;
   }

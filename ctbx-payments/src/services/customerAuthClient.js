@@ -13,10 +13,10 @@ import { apiClient } from '../api';
 // ({ data: { customer } } / { data: { token, expiresAt, customer } }) —
 // quem mapeia pro formato de sessão do app é authService, não este
 // arquivo (mesmo espírito de sandboxAuthClient.mapSandboxSession).
-export async function registerCustomer({ name, document, email, phone, password }, client = apiClient) {
+export async function registerCustomer({ name, document, email, phone, password, acceptTerms }, client = apiClient) {
   return client('/v1/customers/register', {
     method: 'POST',
-    body: JSON.stringify({ name, document, email, phone, password }),
+    body: JSON.stringify({ name, document, email, phone, password, acceptTerms: acceptTerms === true }),
     skipAuth: true,
     retryOnUnauthorized: false,
   });

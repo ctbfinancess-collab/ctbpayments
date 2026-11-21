@@ -9,7 +9,7 @@ const baseConfig: AppConfig = {
   adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined,
 };
 
-const REGISTER_PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const REGISTER_PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 
 async function registerAndLogin(app: Awaited<ReturnType<typeof buildApp>>, payload = REGISTER_PAYLOAD) {
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload });
@@ -43,7 +43,7 @@ test('POST /v1/customers/register never reveals a duplicate e-mail or CPF: ident
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   const outbox = (app as unknown as { testEmailOutbox: { sent: { to: string; subject: string }[] } }).testEmailOutbox;
-  const payload = { name: 'Cliente', document: '111.444.777-35', email: 'duplicado@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+  const payload = { name: 'Cliente', document: '111.444.777-35', email: 'duplicado@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
   const first = await app.inject({ method: 'POST', url: '/v1/customers/register', payload });
   const sameEmail = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: { ...payload, document: '529.982.247-25', password: 'outra-senha-456' } });
   const sameCpf = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: { ...payload, email: 'outro@sandbox.invalid', password: 'outra-senha-456' } });
@@ -90,7 +90,7 @@ test('POST /v1/customers/register rejects an invalid CPF with 422', async (t) =>
   t.after(() => app.close());
   const response = await app.inject({
     method: 'POST', url: '/v1/customers/register',
-    payload: { name: 'Cliente', document: '111.444.777-36', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' },
+    payload: { name: 'Cliente', document: '111.444.777-36', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true },
   });
   assert.equal(response.statusCode, 422);
   assert.equal(response.json().error.code, 'CUSTOMER_DOCUMENT_INVALID');
@@ -108,7 +108,7 @@ test('POST /v1/customers/register rejects a password shorter than 8 characters (
   t.after(() => app.close());
   const response = await app.inject({
     method: 'POST', url: '/v1/customers/register',
-    payload: { name: 'Cliente', document: '111.444.777-35', email: 'a@sandbox.invalid', phone: '11999990000', password: '1234567' },
+    payload: { name: 'Cliente', document: '111.444.777-35', email: 'a@sandbox.invalid', phone: '11999990000', password: '1234567', acceptTerms: true },
   });
   assert.equal(response.statusCode, 422);
 });

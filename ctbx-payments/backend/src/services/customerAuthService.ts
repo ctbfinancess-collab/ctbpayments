@@ -7,12 +7,19 @@ import type { CustomerRecord, CustomerRepository } from '../repositories/Custome
 import type { CustomerSessionRepository } from '../repositories/CustomerSessionRepository.js';
 import { isValidCpf, onlyDigits } from '../utils/cpf.js';
 
+// Versão dos Termos de Uso e da Política de Privacidade aceitos no cadastro
+// (data de publicação no site). Atualizar sempre que esses textos mudarem.
+export const LEGAL_TERMS_VERSION = '2026-11-21';
+
 export interface RegisterCustomerInput {
   name: string;
   document: string;
   email: string;
   phone: string;
   password: string;
+  // Precisa ser true: o cliente marcou que leu e aceita os Termos de Uso
+  // e a Política de Privacidade.
+  acceptTerms: boolean;
 }
 
 // Formato público — nunca inclui passwordHash nem o documento completo.
@@ -118,6 +125,7 @@ export class CustomerAuthService {
     if (!isValidCpf(document)) throw new ApiError('CUSTOMER_DOCUMENT_INVALID', 'CPF inválido.', { statusCode: 422 });
     if (!name) throw new ApiError('CUSTOMER_NAME_INVALID', 'Nome inválido.', { statusCode: 422 });
     if (!phone) throw new ApiError('CUSTOMER_PHONE_INVALID', 'Telefone inválido.', { statusCode: 422 });
+    if (input.acceptTerms !== true) throw new ApiError('CUSTOMER_TERMS_REQUIRED', 'Para abrir a conta, aceite os Termos de Uso e a Política de Privacidade.', { statusCode: 422 });
 
     // Nunca revela se o e-mail ou o CPF já existem (evita descobrir quem é
     // cliente a partir de um CPF). Sempre calcula o hash da senha, para o
@@ -132,7 +140,7 @@ export class CustomerAuthService {
 
     let row: CustomerRecord;
     try {
-      row = await this.customers.create({ type: 'PF', name, document, email, phone, passwordHash });
+      row = await this.customers.create({ type: 'PF', name, document, email, phone, passwordHash, termsAcceptedAt: this.now(), termsVersion: LEGAL_TERMS_VERSION });
     } catch (error) {
       // Dois cadastros simultâneos com o mesmo e-mail/CPF: a restrição de
       // unicidade do banco barra o segundo — tratado como duplicado, nunca 500.

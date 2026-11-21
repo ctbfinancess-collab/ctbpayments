@@ -15,6 +15,8 @@ export interface CustomerRecord {
   phone: string;
   passwordHash: string;
   status: CustomerStatus;
+  termsAcceptedAt: Date | null;
+  termsVersion: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -26,6 +28,8 @@ export interface CreateCustomerInput {
   email: string;
   phone: string;
   passwordHash: string;
+  termsAcceptedAt?: Date | null;
+  termsVersion?: string | null;
 }
 
 // Interface própria — mesmo motivo de sempre neste backend (Postgres real

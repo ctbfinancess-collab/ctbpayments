@@ -11,7 +11,7 @@ import { registered } from './helpers/verifyEmail.js';
 // Customer Identity — Etapa 3 (verificação real de e-mail). Usa sempre o
 // InMemoryEmailProvider — nenhum e-mail real é enviado por nenhum teste
 // deste arquivo.
-const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 
 function setup(now: () => Date = () => new Date()) {
   const customers = new InMemoryCustomerRepository();

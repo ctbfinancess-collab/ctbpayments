@@ -9,7 +9,7 @@ const baseConfig: AppConfig = {
   adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined,
 };
 
-const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 
 // Etapa 3, em nível de rota HTTP. providers:{} de propósito (mesmo padrão
 // do resto de tests/customers*.test.ts) — nenhum e-mail real sai daqui,

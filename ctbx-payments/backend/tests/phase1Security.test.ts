@@ -15,7 +15,7 @@ import { CustomerPasswordResetService } from '../src/services/customerPasswordRe
 import { registered } from './helpers/verifyEmail.js';
 
 // Fase 1 da Área do Cliente — testes das correções de segurança.
-const PAYLOAD = { name: 'Cliente', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const PAYLOAD = { name: 'Cliente', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 const tokenFrom = (text: string) => new URL(text.match(/https?:\/\/\S+/)![0]).searchParams.get('token')!;
 const failingProvider: EmailProvider = { send: async () => { throw new Error('Resend fora do ar'); } };
 

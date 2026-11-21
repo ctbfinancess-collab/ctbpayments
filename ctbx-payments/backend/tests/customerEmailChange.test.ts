@@ -12,7 +12,7 @@ import { registered } from './helpers/verifyEmail.js';
 // mas com erros EXPLÍCITOS (é ação sobre a própria conta já logada, não
 // um fluxo público/silencioso). Usa sempre o InMemoryEmailProvider —
 // nenhum e-mail real é enviado por nenhum teste deste arquivo.
-const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'antigo@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'antigo@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 
 function setup(now: () => Date = () => new Date()) {
   const customers = new InMemoryCustomerRepository();
@@ -62,7 +62,7 @@ test('requestChange rejects a new e-mail that is the same as the current one', a
 test('requestChange rejects a new e-mail already registered by another customer', async () => {
   const { auth, changeService } = setup();
   const customer = await registered(auth.register(PAYLOAD));
-  await registered(auth.register({ name: 'Outro Cliente', document: '529.982.247-25', email: 'ja-existe@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' }));
+  await registered(auth.register({ name: 'Outro Cliente', document: '529.982.247-25', email: 'ja-existe@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123', acceptTerms: true }));
   await assert.rejects(
     changeService.requestChange(customer.id, 'ja-existe@sandbox.invalid', PAYLOAD.password),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_EMAIL_ALREADY_REGISTERED',

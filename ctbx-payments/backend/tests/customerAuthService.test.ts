@@ -16,7 +16,7 @@ function service() {
 
 test('register creates a customer with a hashed password (never the plain one) and a masked document', async () => {
   const svc = service();
-  const customer = await registered(svc.register({ name: 'Cliente Exemplo', document: VALID_CPF, email: 'Cliente@Exemplo.COM', phone: '11999990000', password: 'senha-forte-123' }));
+  const customer = await registered(svc.register({ name: 'Cliente Exemplo', document: VALID_CPF, email: 'Cliente@Exemplo.COM', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }));
   assert.equal(customer.type, 'PF');
   assert.equal(customer.name, 'Cliente Exemplo');
   assert.equal(customer.email, 'cliente@exemplo.com'); // normalizado (trim + lowercase)
@@ -29,7 +29,7 @@ test('register creates a customer with a hashed password (never the plain one) a
 test('register rejects an invalid CPF (wrong check digit)', async () => {
   const svc = service();
   await assert.rejects(
-    svc.register({ name: 'Cliente', document: '111.444.777-36', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }),
+    svc.register({ name: 'Cliente', document: '111.444.777-36', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_DOCUMENT_INVALID',
   );
 });
@@ -37,34 +37,34 @@ test('register rejects an invalid CPF (wrong check digit)', async () => {
 test('register rejects a repeated (all-same-digit) CPF', async () => {
   const svc = service();
   await assert.rejects(
-    svc.register({ name: 'Cliente', document: '111.111.111-11', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }),
+    svc.register({ name: 'Cliente', document: '111.111.111-11', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_DOCUMENT_INVALID',
   );
 });
 
 test('register silently refuses a duplicate e-mail (case-insensitive) even with a different valid CPF', async () => {
   const svc = service();
-  await registered(svc.register({ name: 'Cliente A', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }));
+  await registered(svc.register({ name: 'Cliente A', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }));
   // Nunca lança (não revela a duplicidade): só não cria conta nova.
-  const second = await svc.register({ name: 'Cliente B', document: VALID_CPF_2, email: 'CLIENTE@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' });
+  const second = await svc.register({ name: 'Cliente B', document: VALID_CPF_2, email: 'CLIENTE@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123', acceptTerms: true });
   assert.equal(second.customer, null);
 });
 
 test('register silently refuses a duplicate CPF even with a different e-mail', async () => {
   const svc = service();
-  await registered(svc.register({ name: 'Cliente A', document: VALID_CPF, email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }));
-  const second = await svc.register({ name: 'Cliente B', document: VALID_CPF, email: 'b@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' });
+  await registered(svc.register({ name: 'Cliente A', document: VALID_CPF, email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }));
+  const second = await svc.register({ name: 'Cliente B', document: VALID_CPF, email: 'b@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123', acceptTerms: true });
   assert.equal(second.customer, null);
 });
 
 test('register rejects an empty name or phone', async () => {
   const svc = service();
   await assert.rejects(
-    svc.register({ name: '   ', document: VALID_CPF, email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }),
+    svc.register({ name: '   ', document: VALID_CPF, email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_NAME_INVALID',
   );
   await assert.rejects(
-    svc.register({ name: 'Cliente', document: VALID_CPF_2, email: 'b@sandbox.invalid', phone: '   ', password: 'senha-forte-123' }),
+    svc.register({ name: 'Cliente', document: VALID_CPF_2, email: 'b@sandbox.invalid', phone: '   ', password: 'senha-forte-123', acceptTerms: true }),
     (error: unknown) => error instanceof Error && (error as { code?: string }).code === 'CUSTOMER_PHONE_INVALID',
   );
 });
@@ -72,8 +72,8 @@ test('register rejects an empty name or phone', async () => {
 test('two different customers get their own independent record, isolated from each other', async () => {
   const repo = new InMemoryCustomerRepository();
   const svc = new CustomerAuthService(repo, new InMemoryCustomerSessionRepository());
-  const a = await registered(svc.register({ name: 'Cliente A', document: VALID_CPF, email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }));
-  const b = await registered(svc.register({ name: 'Cliente B', document: VALID_CPF_2, email: 'b@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' }));
+  const a = await registered(svc.register({ name: 'Cliente A', document: VALID_CPF, email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }));
+  const b = await registered(svc.register({ name: 'Cliente B', document: VALID_CPF_2, email: 'b@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123', acceptTerms: true }));
   assert.notEqual(a.id, b.id);
   const rowA = await repo.findById(a.id);
   const rowB = await repo.findById(b.id);
@@ -86,10 +86,10 @@ test('a registered customer survives a fresh service instance over the same repo
   const repo = new InMemoryCustomerRepository();
   const sessions = new InMemoryCustomerSessionRepository();
   const svc = new CustomerAuthService(repo, sessions);
-  const created = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }));
+  const created = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }));
 
   const svcAfterRestart = new CustomerAuthService(repo, sessions);
-  const duplicate = await svcAfterRestart.register({ name: 'Outro', document: VALID_CPF, email: 'outro@sandbox.invalid', phone: '11988880000', password: 'senha-forte-123' });
+  const duplicate = await svcAfterRestart.register({ name: 'Outro', document: VALID_CPF, email: 'outro@sandbox.invalid', phone: '11988880000', password: 'senha-forte-123', acceptTerms: true });
   assert.equal(duplicate.customer, null);
   const row = await repo.findById(created.id);
   assert.equal(row!.name, 'Cliente');
@@ -101,7 +101,7 @@ test('changePassword with the correct current password changes the password and 
   const repo = new InMemoryCustomerRepository();
   const sessions = new InMemoryCustomerSessionRepository();
   const svc = new CustomerAuthService(repo, sessions);
-  const created = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123' }));
+  const created = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123', acceptTerms: true }));
   await repo.markEmailVerified(created.id, new Date());
   const login = (await svc.login('cliente@sandbox.invalid', 'senha-antiga-123'))!;
 
@@ -115,7 +115,7 @@ test('changePassword revokes every session that existed before the change (inclu
   const repo = new InMemoryCustomerRepository();
   const sessions = new InMemoryCustomerSessionRepository();
   const svc = new CustomerAuthService(repo, sessions);
-  const created = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123' }));
+  const created = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123', acceptTerms: true }));
   await repo.markEmailVerified(created.id, new Date());
   const login1 = (await svc.login('cliente@sandbox.invalid', 'senha-antiga-123'))!;
   const login2 = (await svc.login('cliente@sandbox.invalid', 'senha-antiga-123'))!;
@@ -129,7 +129,7 @@ test('changePassword rejects an incorrect current password and leaves the passwo
   const repo = new InMemoryCustomerRepository();
   const sessions = new InMemoryCustomerSessionRepository();
   const svc = new CustomerAuthService(repo, sessions);
-  const customer = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123' }));
+  const customer = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123', acceptTerms: true }));
   await repo.markEmailVerified(customer.id, new Date());
 
   await assert.rejects(
@@ -142,7 +142,7 @@ test('changePassword rejects an incorrect current password and leaves the passwo
 test('login refuses an unverified e-mail with CUSTOMER_EMAIL_NOT_VERIFIED, but only after the right password', async () => {
   const repo = new InMemoryCustomerRepository();
   const svc = new CustomerAuthService(repo, new InMemoryCustomerSessionRepository());
-  await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' }));
+  await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true }));
   assert.equal(await svc.login('cliente@sandbox.invalid', 'senha-errada-999'), null);
   await assert.rejects(
     svc.login('cliente@sandbox.invalid', 'senha-forte-123'),
@@ -155,7 +155,7 @@ test('changePassword sends a PASSWORD_CHANGED security notice when a notifier is
   const repo = new InMemoryCustomerRepository();
   const outbox = new InMemoryEmailProvider();
   const svc = new CustomerAuthService(repo, new InMemoryCustomerSessionRepository(), undefined, outbox);
-  const customer = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123' }));
+  const customer = await registered(svc.register({ name: 'Cliente', document: VALID_CPF, email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-antiga-123', acceptTerms: true }));
   await svc.changePassword(customer.id, 'senha-antiga-123', 'senha-nova-456');
   assert.ok(outbox.sent.some((m) => m.to === 'cliente@sandbox.invalid' && /senha foi alterada/i.test(m.subject)));
 });

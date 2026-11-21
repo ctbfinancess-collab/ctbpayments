@@ -12,7 +12,7 @@ const baseConfig: AppConfig = {
   adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined,
 };
 
-const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 
 // Etapa 2.5 — hardening da autenticação de cliente. Cobre exatamente os
 // cenários de segurança pedidos: tentativas repetidas/rate limit, token
@@ -108,7 +108,7 @@ test('a customer can never see another customer\'s identity — session always r
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   const payloadA = PAYLOAD;
-  const payloadB = { name: 'Outro Cliente', document: '529.982.247-25', email: 'outro@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' };
+  const payloadB = { name: 'Outro Cliente', document: '529.982.247-25', email: 'outro@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123', acceptTerms: true };
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: payloadA });
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: payloadB });
   await verifyEmail(app, payloadA.email);
