@@ -33,6 +33,8 @@ const MESSAGES = {
   CUSTOMER_EMAIL_CHANGE_SAME_EMAIL: 'Este já é o seu e-mail atual.',
   CUSTOMER_EMAIL_ALREADY_REGISTERED: 'Não foi possível usar este e-mail. Escolha outro endereço.',
   KYC_BIRTH_DATE_INVALID: 'Data de nascimento inválida.',
+  KYC_UNDERAGE: 'É preciso ter 18 anos ou mais para abrir uma conta.',
+  CUSTOMER_TERMS_REQUIRED: 'Para abrir a conta, aceite os Termos de Uso e a Política de Privacidade.',
   KYC_MOTHER_NAME_INVALID: 'Informe o nome completo da mãe.',
   KYC_NATIONALITY_INVALID: 'Informe a nacionalidade.',
   KYC_LOCKED: 'Seus dados já foram enviados para análise e não podem ser alterados agora.',
@@ -143,12 +145,23 @@ export function validateRegister(form) {
   const pw = passwordProblem(form.password);
   if (pw) errors.password = pw;
   if (form.password !== form.confirmPassword) errors.confirmPassword = 'As senhas não conferem.';
+  if (form.acceptTerms !== true) errors.acceptTerms = 'Para abrir a conta, aceite os Termos de Uso e a Política de Privacidade.';
   return errors;
 }
 
-export function validateKyc({ birthDate, motherName, nationality }) {
+// Completa 18 anos até hoje (inclusive no dia do aniversário). Mesma regra
+// do servidor, que é quem decide de fato.
+export function isAdultBirthDate(date, today = new Date()) {
+  const eighteenth = new Date(date.getFullYear() + 18, date.getMonth(), date.getDate());
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return eighteenth.getTime() <= t.getTime();
+}
+
+export function validateKyc({ birthDate, motherName, nationality }, today = new Date()) {
   const errors = {};
-  if (birthDate && (birthDate.length !== 10 || !parseBrazilianDate(birthDate))) errors.birthDate = 'Data de nascimento inválida.';
+  const parsedBirth = birthDate ? parseBrazilianDate(birthDate) : null;
+  if (birthDate && (birthDate.length !== 10 || !parsedBirth)) errors.birthDate = 'Data de nascimento inválida.';
+  else if (parsedBirth && !isAdultBirthDate(parsedBirth, today)) errors.birthDate = 'É preciso ter 18 anos ou mais para abrir uma conta.';
   if (motherName && motherName.trim().length < 2) errors.motherName = 'Informe o nome completo da mãe.';
   if (nationality && nationality.trim().length < 2) errors.nationality = 'Informe a nacionalidade.';
   return errors;

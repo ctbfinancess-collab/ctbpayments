@@ -17,7 +17,7 @@ const config: AppConfig = {
   staff: { enabled: true, appBaseUrl: 'https://admin.test', totpEncryptionKey: undefined },
 };
 const PASSWORD = 'Senha-Forte-2026!';
-const CUSTOMER = { name: 'Cliente Fictício', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const CUSTOMER = { name: 'Cliente Fictício', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('foto-ficticia')]);
 const PDF = Buffer.from('%PDF-1.7 comprovante-ficticio');
 

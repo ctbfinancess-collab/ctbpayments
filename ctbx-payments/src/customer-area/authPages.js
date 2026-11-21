@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Linking, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { env } from '../config';
 import { useSession } from '../session';
 import { confirmCustomerEmailChange, confirmCustomerPasswordReset, registerCustomer, requestCustomerPasswordReset, resendCustomerEmailVerification, verifyCustomerEmail } from '../services/customerAuthClient';
@@ -60,20 +60,32 @@ export function LoginPage({ navigation, route }) {
   );
 }
 
-function TermsText() {
-  if (!env.siteUrl) return <Body muted style={styles.terms}>Ao abrir a conta, você concorda com os Termos de Uso e a Política de Privacidade da CTBX Payments.</Body>;
+// Aceite obrigatório: o servidor grava quando e qual versão foi aceita.
+function TermsAcceptance({ checked, onChange, error }) {
+  const link = (path, label) => (env.siteUrl
+    ? <Text accessibilityRole="link" onPress={() => Linking.openURL(`${env.siteUrl}${path}`)} style={styles.inlineLink}>{label}</Text>
+    : label);
   return (
-    <Text style={[styles.termsBase, styles.terms]}>
-      Ao abrir a conta, você concorda com os{' '}
-      <Text accessibilityRole="link" onPress={() => Linking.openURL(`${env.siteUrl}/termos-de-uso/`)} style={styles.inlineLink}>Termos de Uso</Text>
-      {' '}e a{' '}
-      <Text accessibilityRole="link" onPress={() => Linking.openURL(`${env.siteUrl}/privacidade/`)} style={styles.inlineLink}>Política de Privacidade</Text>.
-    </Text>
+    <View style={styles.terms}>
+      <View style={styles.termsRow}>
+        <Pressable accessibilityLabel="Li e aceito os Termos de Uso e a Política de Privacidade" accessibilityRole="checkbox" accessibilityState={{ checked }} hitSlop={8} onPress={() => onChange(!checked)} style={[styles.checkbox, checked && styles.checkboxOn, error && !checked && styles.checkboxError]} testID="accept-terms">
+          {checked ? <Text style={styles.checkMark}>✓</Text> : null}
+        </Pressable>
+        <Text style={[styles.termsBase, styles.termsLabel]}>
+          <Text onPress={() => onChange(!checked)}>Li e aceito os </Text>
+          {link('/termos-de-uso/', 'Termos de Uso')}
+          <Text onPress={() => onChange(!checked)}> e a </Text>
+          {link('/privacidade/', 'Política de Privacidade')}
+          <Text onPress={() => onChange(!checked)}> da CTBX Payments.</Text>
+        </Text>
+      </View>
+      {error ? <Text style={styles.termsError}>{error}</Text> : null}
+    </View>
   );
 }
 
 export function RegisterPage({ navigation }) {
-  const [form, setForm] = useState({ name: '', document: '', email: '', phone: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ name: '', document: '', email: '', phone: '', password: '', confirmPassword: '', acceptTerms: false });
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState('');
@@ -85,7 +97,7 @@ export function RegisterPage({ navigation }) {
     if (Object.keys(found).length) return;
     setBusy(true);
     try {
-      await registerCustomer({ name: form.name.trim(), document: form.document, email: form.email.trim(), phone: form.phone, password: form.password });
+      await registerCustomer({ name: form.name.trim(), document: form.document, email: form.email.trim(), phone: form.phone, password: form.password, acceptTerms: form.acceptTerms });
       setDone(true);
     } catch (e) { setServerError(messageFor(e, 'Não foi possível concluir o cadastro. Tente novamente.')); }
     finally { setBusy(false); }
@@ -108,7 +120,7 @@ export function RegisterPage({ navigation }) {
       <Field autoComplete="tel" error={errors.phone} inputMode="tel" keyboardType="phone-pad" label="Celular com DDD" maxLength={15} onChangeText={set('phone', maskPhoneInput)} placeholder="(11) 90000-0000" value={form.phone} />
       <Field autoComplete="new-password" error={errors.password} hint="Mínimo de 8 caracteres, com letras e números." label="Crie uma senha" onChangeText={set('password')} secure value={form.password} />
       <Field autoComplete="new-password" error={errors.confirmPassword} label="Confirme a senha" onChangeText={set('confirmPassword')} onSubmitEditing={submit} secure value={form.confirmPassword} />
-      <TermsText />
+      <TermsAcceptance checked={form.acceptTerms} error={errors.acceptTerms} onChange={(v) => { setForm((f) => ({ ...f, acceptTerms: v })); if (v) setErrors((e) => ({ ...e, acceptTerms: undefined })); }} />
       <Button loading={busy} onPress={submit} title="Abrir minha conta" />
       <View style={styles.altRow}>
         <Body muted>Já tem conta?</Body>
@@ -250,6 +262,13 @@ const styles = StyleSheet.create({
   altRow: { alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 24 },
   subBox: { borderColor: ca.border, borderRadius: 14, borderWidth: 1, marginBottom: 22, padding: 18 },
   termsBase: { color: ca.textMuted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20 },
-  terms: { fontSize: 13, lineHeight: 20, marginBottom: 20 },
+  terms: { marginBottom: 20 },
+  termsRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 12 },
+  termsLabel: { flex: 1, fontSize: 14, lineHeight: 21 },
+  checkbox: { alignItems: 'center', borderColor: ca.borderStrong, borderRadius: 6, borderWidth: 1.5, height: 22, justifyContent: 'center', marginTop: 0, width: 22 },
+  checkboxOn: { backgroundColor: ca.gold, borderColor: ca.gold },
+  checkboxError: { borderColor: ca.danger },
+  checkMark: { color: ca.bg, fontFamily: fonts.medium, fontSize: 14, lineHeight: 16 },
+  termsError: { color: ca.danger, fontFamily: fonts.regular, fontSize: 13, marginTop: 6 },
   inlineLink: { color: ca.goldLight, fontFamily: fonts.medium, textDecorationLine: 'underline' },
 });

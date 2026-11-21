@@ -169,6 +169,13 @@
       "when": 1795230063587,
       "tag": "0023_staff_admin_phase6",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795238840023,
+      "tag": "0024_terms_acceptance",
+      "breakpoints": true
     }
   ]
 }

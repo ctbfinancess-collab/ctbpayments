@@ -7,7 +7,7 @@ const { maskCnpjInput, lookupCnpjPublic, uploadCompanyDocument, COMPANY_STATUS, 
 const { linking } = routesModule;
 
 // Fase 3 — Área do Cliente: lógica pura (sem interface).
-const VALID = { name: 'Mariana Souza', document: '529.982.247-25', email: 'mariana@sandbox.invalid', phone: '(11) 98765-4321', password: 'Senha2026x', confirmPassword: 'Senha2026x' };
+const VALID = { name: 'Mariana Souza', document: '529.982.247-25', email: 'mariana@sandbox.invalid', phone: '(11) 98765-4321', password: 'Senha2026x', confirmPassword: 'Senha2026x', acceptTerms: true };
 
 test('masks format CPF, phone and date while typing', () => {
   assert.equal(maskCpfInput('52998224725'), '529.982.247-25');
@@ -21,7 +21,7 @@ test('masks format CPF, phone and date while typing', () => {
 test('register validation accepts a valid form and flags each invalid field', () => {
   assert.deepEqual(validateRegister(VALID), {});
   const errors = validateRegister({ name: 'Mariana', document: '111.111.111-11', email: 'x@', phone: '1199', password: 'abcdefgh', confirmPassword: 'outra' });
-  assert.deepEqual(Object.keys(errors).sort(), ['confirmPassword', 'document', 'email', 'name', 'password', 'phone']);
+  assert.deepEqual(Object.keys(errors).sort(), ['acceptTerms', 'confirmPassword', 'document', 'email', 'name', 'password', 'phone']);
 });
 
 test('password rule: at least 8 characters with letters and numbers', () => {
@@ -144,4 +144,14 @@ test('staff audit details are shown in Portuguese and never expose internal ids'
   assert.equal(eventLabel('STAFF_CUSTOMER_BLOCK'), 'Conta de cliente suspensa');
   assert.equal(describeDetails({ statusCode: 200, filter: 'CUSTOMER_LOGIN', byCustomer: false }), 'filtro: Login do cliente');
   assert.equal(eventLabel('ALGO_NOVO'), 'ALGO_NOVO');
+});
+
+test('Fase 7: cadastro exige o aceite e a verificação recusa menores de 18 anos', () => {
+  const semAceite = validateRegister({ ...VALID, acceptTerms: false });
+  assert.deepEqual(Object.keys(semAceite), ['acceptTerms']);
+  const hoje = new Date(2026, 10, 21);
+  assert.deepEqual(validateKyc({ birthDate: '22/11/2008', motherName: '', nationality: '' }, hoje), { birthDate: 'É preciso ter 18 anos ou mais para abrir uma conta.' });
+  assert.deepEqual(validateKyc({ birthDate: '21/11/2008', motherName: '', nationality: '' }, hoje), {});
+  assert.equal(messageFor({ code: 'KYC_UNDERAGE' }), 'É preciso ter 18 anos ou mais para abrir uma conta.');
+  assert.equal(messageFor({ code: 'CUSTOMER_TERMS_REQUIRED' }), 'Para abrir a conta, aceite os Termos de Uso e a Política de Privacidade.');
 });

@@ -17,10 +17,10 @@ test('registerCustomer calls POST /v1/customers/register with the full payload, 
     call = { path, options, body: JSON.parse(options.body) };
     return { data: { customer: { id: 'cust-1', type: 'PF', name: 'Cliente Exemplo', email: 'cliente@sandbox.invalid', documentMasked: '***.111.***-**', status: 'ACTIVE', createdAt: new Date().toISOString() } } };
   };
-  const result = await registerCustomer({ name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999998888', password: 'senha-nova-456' }, client);
+  const result = await registerCustomer({ name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999998888', password: 'senha-nova-456', acceptTerms: true }, client);
   assert.equal(call.path, '/v1/customers/register');
   assert.equal(call.options.method, 'POST');
-  assert.deepEqual(call.body, { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999998888', password: 'senha-nova-456' });
+  assert.deepEqual(call.body, { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'cliente@sandbox.invalid', phone: '11999998888', password: 'senha-nova-456', acceptTerms: true });
   assert.equal(call.options.skipAuth, true);
   assert.equal(call.options.retryOnUnauthorized, false);
   assert.equal(result.data.customer.id, 'cust-1');

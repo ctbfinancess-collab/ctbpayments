@@ -17,8 +17,8 @@ const config: AppConfig = {
   nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [],
   adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined,
 };
-const A = { name: 'Cliente Fictício A', document: '111.444.777-35', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
-const B = { name: 'Cliente Fictício B', document: '529.982.247-25', email: 'b@sandbox.invalid', phone: '11988880000', password: 'senha-forte-456' };
+const A = { name: 'Cliente Fictício A', document: '111.444.777-35', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
+const B = { name: 'Cliente Fictício B', document: '529.982.247-25', email: 'b@sandbox.invalid', phone: '11988880000', password: 'senha-forte-456', acceptTerms: true };
 
 // Arquivos mínimos com a "assinatura" real de cada formato.
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from('conteudo-ficticio-do-documento-JPEG')]);

@@ -21,6 +21,10 @@ export const customers = pgTable('customers', {
   phone: text('phone').notNull(),
   passwordHash: text('password_hash').notNull(),
   status: text('status').notNull().default('ACTIVE'),
+  // Aceite dos Termos de Uso e da Política de Privacidade no cadastro:
+  // quando e qual versão (a data de publicação dos textos no site).
+  termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
+  termsVersion: text('terms_version'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

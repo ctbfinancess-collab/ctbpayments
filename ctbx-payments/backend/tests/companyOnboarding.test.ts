@@ -13,8 +13,8 @@ const config: AppConfig = {
   staff: { enabled: true, appBaseUrl: 'https://admin.test', totpEncryptionKey: undefined },
 };
 const CNPJ = '11.222.333/0001-81'; // CNPJ fictício com dígitos válidos
-const ANA = { name: 'Ana Fictícia', document: '111.444.777-35', email: 'ana@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
-const BETO = { name: 'Beto Fictício', document: '529.982.247-25', email: 'beto@sandbox.invalid', phone: '11988880000', password: 'senha-forte-456' };
+const ANA = { name: 'Ana Fictícia', document: '111.444.777-35', email: 'ana@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
+const BETO = { name: 'Beto Fictício', document: '529.982.247-25', email: 'beto@sandbox.invalid', phone: '11988880000', password: 'senha-forte-456', acceptTerms: true };
 const DATA = { legalName: 'Empresa Fictícia LTDA', tradeName: 'Fictícia', openingDate: '2015-03-10', legalNature: '206-2 - Sociedade Empresária Limitada', mainActivity: '6201-5/01 - Desenvolvimento de software', businessEmail: 'financeiro@empresa.invalid', businessPhone: '(11) 3333-4444', annualRevenueRange: 'DE_360K_A_4_8M', applicantPosition: 'SOCIO_ADMINISTRADOR' };
 const ADDRESS = { cep: '01310-100', street: 'Avenida Paulista', number: '2000', complement: 'Conj. 10', district: 'Bela Vista', city: 'São Paulo', state: 'SP' };
 const PDF = Buffer.from('%PDF-1.7 contrato-social-ficticio');

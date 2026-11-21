@@ -4,6 +4,7 @@ import { ApiError, providerNotConfigured } from '../errors/ApiError.js';
 import { requireCustomerSession } from '../middleware/requireCustomerSession.js';
 import type { CompanyService } from '../services/companyService.js';
 import type { CustomerAuthService } from '../services/customerAuthService.js';
+import { LEGAL_TERMS_VERSION } from '../services/customerAuthService.js';
 import type { CustomerEmailChangeService } from '../services/customerEmailChangeService.js';
 import type { CustomerEmailVerificationService } from '../services/customerEmailVerificationService.js';
 import { DOCUMENT_KINDS, ID_DOCUMENT_TYPES, INCOME_RANGES, MAX_DOCUMENT_BYTES, type CustomerKycService } from '../services/customerKycService.js';
@@ -137,16 +138,16 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   app.post('/register', {
     config: { rateLimit: { max: 3, timeWindow: '1 minute' } },
     schema: {
-      body: objectSchema(['name', 'document', 'email', 'phone', 'password'], {
-        name: nameSchema, document: documentSchema, email: emailSchema, phone: phoneSchema, password: passwordSchema,
+      body: objectSchema(['name', 'document', 'email', 'phone', 'password', 'acceptTerms'], {
+        name: nameSchema, document: documentSchema, email: emailSchema, phone: phoneSchema, password: passwordSchema, acceptTerms: { type: 'boolean' },
       }),
     },
   }, async (request, reply) => {
     if (!customerAuthService) throw providerNotConfigured('de cadastro de clientes');
-    const input = request.body as { name: string; document: string; email: string; phone: string; password: string };
+    const input = request.body as { name: string; document: string; email: string; phone: string; password: string; acceptTerms: boolean };
     const { customer } = await customerAuthService.register(input);
     // Só para auditoria interna — a resposta continua idêntica nos dois casos.
-    request.auditDetails = { accountCreated: Boolean(customer) };
+    request.auditDetails = { accountCreated: Boolean(customer), termsVersion: LEGAL_TERMS_VERSION };
     if (customer) request.auditCustomerId = customer.id;
     // Conta nova: dispara a verificação de e-mail. Falha de envio nunca
     // derruba o cadastro (o reenvio cobre esse caso).

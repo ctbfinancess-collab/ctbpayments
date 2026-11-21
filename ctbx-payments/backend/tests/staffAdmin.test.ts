@@ -12,8 +12,8 @@ const config: AppConfig = {
   adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: 'https://app.test',
   staff: { enabled: true, appBaseUrl: 'https://admin.test', totpEncryptionKey: undefined },
 };
-const ANA = { name: 'Ana Fictícia Souza', document: '111.444.777-35', email: 'ana@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
-const BETO = { name: 'Beto Fictício Lima', document: '529.982.247-25', email: 'beto@sandbox.invalid', phone: '11988880000', password: 'senha-forte-456' };
+const ANA = { name: 'Ana Fictícia Souza', document: '111.444.777-35', email: 'ana@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
+const BETO = { name: 'Beto Fictício Lima', document: '529.982.247-25', email: 'beto@sandbox.invalid', phone: '11988880000', password: 'senha-forte-456', acceptTerms: true };
 
 async function setup() {
   const app = await buildApp({ config, providers: {}, logger: false, cnpjLookup: async () => ({ ok: false, error: 'teste' }) });

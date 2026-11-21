@@ -10,7 +10,7 @@ const config: AppConfig = {
   nodeEnv: 'test', host: '0.0.0.0', port: 3000, apiVersion: 'v1', logLevel: 'silent', corsOrigins: [],
   adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined,
 };
-const P = { name: 'Cliente Fictício', document: '111.444.777-35', email: 'ficticio@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const P = { name: 'Cliente Fictício', document: '111.444.777-35', email: 'ficticio@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 
 async function setup() {
   const app = await buildApp({ config, providers: {}, logger: false });

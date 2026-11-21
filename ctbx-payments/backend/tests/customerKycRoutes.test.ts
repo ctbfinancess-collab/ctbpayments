@@ -9,8 +9,8 @@ const baseConfig: AppConfig = {
   adminApiToken: undefined, databaseUrl: undefined, adminSessionSecret: undefined, sandboxCardEncryptionKey: undefined, resendApiKey: undefined, emailFrom: undefined, customerAppBaseUrl: undefined,
 };
 
-const CUSTOMER_A = { name: 'Cliente A', document: '111.444.777-35', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
-const CUSTOMER_B = { name: 'Cliente B', document: '529.982.247-25', email: 'b@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
+const CUSTOMER_A = { name: 'Cliente A', document: '111.444.777-35', email: 'a@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
+const CUSTOMER_B = { name: 'Cliente B', document: '529.982.247-25', email: 'b@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123', acceptTerms: true };
 
 async function registerAndLogin(app: Awaited<ReturnType<typeof buildApp>>, payload: typeof CUSTOMER_A) {
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload });
