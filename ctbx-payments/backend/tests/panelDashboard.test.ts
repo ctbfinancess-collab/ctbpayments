@@ -7,6 +7,7 @@ import type { InMemoryStaffRepository } from '../src/repositories/StaffRepositor
 import { totpCode, totpStep } from '../src/security/totp.js';
 import { StaffAuthService } from '../src/services/staffAuthService.js';
 import { monthKey } from '../src/utils/monthKey.js';
+import { maskIp } from '../src/security/maskIp.js';
 import { verifyEmail } from './helpers/verifyEmail.js';
 
 // Etapa A do painel: Dashboard com números reais e contadores do menu.
@@ -97,4 +98,29 @@ test('Dashboard e contadores exigem login da equipe; analista também vê (só l
 test('mês no fuso de Brasília: 1º de dezembro às 01:00 UTC ainda é novembro', () => {
   assert.equal(monthKey(new Date('2026-12-01T01:00:00Z')), '2026-11');
   assert.equal(monthKey(new Date('2026-12-01T04:00:00Z')), '2026-12');
+});
+
+// Etapa B: IP completo só para administradores.
+test('maskIp: IPv4, IPv4 mapeado, IPv6 e vazio', () => {
+  assert.equal(maskIp('189.45.120.33'), '189.45.•••.•••');
+  assert.equal(maskIp('::ffff:10.1.2.3'), '10.1.•••.•••');
+  assert.equal(maskIp('2804:14c:65a1:4021::1'), '2804:14c:•••');
+  assert.equal(maskIp(null), null);
+  assert.equal(maskIp('lixo'), '•••');
+});
+
+test('ficha do cliente: analista recebe IP mascarado; administrador, completo', async () => {
+  const app = await buildApp({ config, providers: {}, logger: false });
+  const admin = await staffLogin(app, 'ana@sandbox.invalid', 'ADMIN');
+  const analyst = await staffLogin(app, 'beto@sandbox.invalid', 'ANALYST', admin);
+  const id = await submittedCustomer(app, 0);
+  const asAdmin = (await app.inject({ method: 'GET', url: `/v1/staff/customers/${id}`, headers: { authorization: `Bearer ${admin}` } })).json().data.customer.recentEvents;
+  const asAnalyst = (await app.inject({ method: 'GET', url: `/v1/staff/customers/${id}`, headers: { authorization: `Bearer ${analyst}` } })).json().data.customer.recentEvents;
+  assert.ok(asAdmin.length > 0 && asAnalyst.length >= asAdmin.length); // a ficha aberta pelo admin também vira evento
+  assert.ok(asAdmin.some((e: { ip: string | null }) => e.ip === '127.0.0.1'));
+  for (const e of asAnalyst) assert.ok(e.ip === null || e.ip === '127.0.•••.•••', e.ip);
+  assert.doesNotMatch(JSON.stringify(asAnalyst), /127\.0\.0\.1/);
+  // a auditoria completa continua exclusiva de administradores
+  assert.equal((await app.inject({ method: 'GET', url: '/v1/staff/audit', headers: { authorization: `Bearer ${analyst}` } })).statusCode, 403);
+  await app.close();
 });

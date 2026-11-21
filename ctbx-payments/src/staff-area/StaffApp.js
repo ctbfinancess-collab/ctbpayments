@@ -775,6 +775,7 @@ function CustomerPage({ route, navigation }) {
       ) : null}
       <Card style={{ marginTop: 20 }}>
         <Heading level={2} style={{ marginBottom: 6 }}>Atividade recente</Heading>
+        {staff?.role !== 'ADMIN' ? <Body muted style={{ fontSize: 12, marginBottom: 6 }}>O IP aparece parcial; o completo fica visível só para administradores.</Body> : null}
         {data.recentEvents.length ? data.recentEvents.map((e, i) => {
           const [ol, ot] = OUTCOME_LABELS[e.outcome] || [e.outcome, 'neutral'];
           return (
@@ -782,7 +783,7 @@ function CustomerPage({ route, navigation }) {
               <Body muted style={{ fontSize: 13, minWidth: 130 }}>{fmtDateTime(e.occurredAt)}</Body>
               <Text style={styles.eventName}>{eventLabel(e.event)}{e.byStaff ? ' (equipe)' : ''}</Text>
               <StatusPill label={ol} tone={ot} />
-              <Body muted style={{ fontSize: 12 }}>{e.ip || ''}</Body>
+              <Body muted style={{ fontSize: 12 }}>{e.ip ? `IP ${e.ip}` : ''}</Body>
             </View>
           );
         }) : <Body muted>Sem atividade registrada.</Body>}
