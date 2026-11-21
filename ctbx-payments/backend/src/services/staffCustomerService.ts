@@ -1,3 +1,4 @@
+import { maskIp } from '../security/maskIp.js';
 import { monthKey } from '../utils/monthKey.js';
 import { renderAccountStatusTemplate } from '../emails/staffAndKycTemplates.js';
 import { ApiError } from '../errors/ApiError.js';
@@ -106,7 +107,8 @@ export class StaffCustomerService {
     return out;
   }
 
-  async detail(customerId: string) {
+  // fullIp: só administradores recebem o IP completo; analistas, mascarado.
+  async detail(customerId: string, opts: { fullIp: boolean } = { fullIp: false }) {
     const c = await this.require(customerId);
     const k = await this.kyc.findByCustomerId(customerId);
     const links = await this.representatives.listByCustomer(customerId);
@@ -124,7 +126,7 @@ export class StaffCustomerService {
       kyc: { status: k?.status ?? 'NOT_STARTED', submittedAt: k?.submittedAt?.toISOString() ?? null, reviewedAt: k?.reviewedAt?.toISOString() ?? null },
       companies,
       statusHistory: changes.map((ch) => ({ action: ch.action, reason: ch.reason, staffName: names.get(ch.staffId) ?? '—', createdAt: ch.createdAt.toISOString() })),
-      recentEvents: events.map((e) => ({ event: e.event, outcome: e.outcome, byStaff: Boolean(e.staffId), ip: e.ip ?? null, occurredAt: e.occurredAt.toISOString() })),
+      recentEvents: events.map((e) => ({ event: e.event, outcome: e.outcome, byStaff: Boolean(e.staffId), ip: opts.fullIp ? (e.ip ?? null) : maskIp(e.ip), occurredAt: e.occurredAt.toISOString() })),
     };
   }
 

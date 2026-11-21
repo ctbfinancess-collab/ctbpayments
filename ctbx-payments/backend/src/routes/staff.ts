@@ -280,7 +280,7 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
   const customerParams = { type: 'object', additionalProperties: false, required: ['customerId'], properties: { customerId: idSchema } } as const;
   app.get('/customers/:customerId', { preValidation: requireStaff, schema: { params: customerParams } }, async (request) => {
     const { customerId } = request.params as { customerId: string };
-    return envelope(request, { customer: await staffCustomers.detail(customerId) });
+    return envelope(request, { customer: await staffCustomers.detail(customerId, { fullIp: request.staffAuth?.role === 'ADMIN' }) });
   });
 
   for (const [action, blocked] of [['block', true], ['unblock', false]] as const) {
