@@ -97,6 +97,13 @@ export function DashboardPage({ navigation }) {
             </Card>
           </GridItem>
           <GridItem full>
+            <Card>
+              <Eyebrow>Conta PJ</Eyebrow>
+              <Body style={{ marginTop: 10 }}>{data.kyc.status === 'APPROVED' ? 'Abra a conta da sua empresa: informe o CNPJ, os dados e os documentos, e nossa equipe analisa.' : 'Depois que a sua identidade for verificada, você poderá abrir a conta da sua empresa.'}</Body>
+              <Button onPress={() => navigation.navigate('Companies')} style={styles.cardButton} title="Ver empresas" variant="ghost" />
+            </Card>
+          </GridItem>
+          <GridItem full>
             <Card style={styles.soon}>
               <Eyebrow style={{ color: ca.textMuted }}>Serviços financeiros</Eyebrow>
               <Body style={{ marginTop: 10 }}>PIX, transferências, pagamentos e cartões ainda não estão disponíveis. Eles serão liberados depois da conclusão da verificação de identidade e das autorizações necessárias. Avisaremos você por e-mail.</Body>

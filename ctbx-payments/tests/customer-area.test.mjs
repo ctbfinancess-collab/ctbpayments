@@ -3,7 +3,7 @@ import test from 'node:test';
 import logicModule from '../src/customer-area/logic.js';
 import routesModule from '../src/customer-area/routes.js';
 
-const { lookupCep, maskCepInput, uploadKycDocument, MISSING_LABELS, DOCUMENT_KINDS, INCOME_OPTIONS, incomeLabel, formatBytes, brazilianToIso, formatDate, isoToBrazilian, isSessionError, kycStatusInfo, maskCpfInput, maskDateInput, maskPhoneInput, messageFor, passwordProblem, validateKyc, validateRegister } = logicModule;
+const { maskCnpjInput, lookupCnpjPublic, uploadCompanyDocument, COMPANY_STATUS, COMPANY_DOCUMENTS, lookupCep, maskCepInput, uploadKycDocument, MISSING_LABELS, DOCUMENT_KINDS, INCOME_OPTIONS, incomeLabel, formatBytes, brazilianToIso, formatDate, isoToBrazilian, isSessionError, kycStatusInfo, maskCpfInput, maskDateInput, maskPhoneInput, messageFor, passwordProblem, validateKyc, validateRegister } = logicModule;
 const { linking } = routesModule;
 
 // Fase 3 — Área do Cliente: lógica pura (sem interface).
@@ -109,4 +109,29 @@ test('KYC labels cover every pending item, document kind and income range', () =
   assert.equal(incomeLabel('ACIMA_20K'), 'Acima de R$ 20.000');
   assert.equal(formatBytes(1536), '2 KB');
   assert.equal(formatBytes(3 * 1024 * 1024), '3,0 MB');
+});
+
+test('CNPJ mask and public lookup prefill (company name, dates and address), failing quietly', async () => {
+  assert.equal(maskCnpjInput('11222333000181'), '11.222.333/0001-81');
+  assert.equal(maskCnpjInput('11.222'), '11.222');
+  const ok = async () => ({ ok: true, json: async () => ({ razao_social: 'EMPRESA X LTDA', nome_fantasia: 'X', data_inicio_atividade: '2015-03-10', natureza_juridica: '206-2', cnae_fiscal: 6201501, cnae_fiscal_descricao: 'Software', descricao_situacao_cadastral: 'ATIVA', cep: '01310100', descricao_tipo_de_logradouro: 'AVENIDA', logradouro: 'PAULISTA', numero: '10', bairro: 'BELA VISTA', municipio: 'SAO PAULO', uf: 'SP' }) });
+  const r = await lookupCnpjPublic('11.222.333/0001-81', ok);
+  assert.equal(r.legalName, 'EMPRESA X LTDA');
+  assert.equal(r.mainActivity, '6201501 - Software');
+  assert.equal(r.address.street, 'AVENIDA PAULISTA');
+  assert.equal(await lookupCnpjPublic('123', ok), null);
+  assert.equal(await lookupCnpjPublic('11222333000181', async () => ({ ok: false })), null);
+  assert.equal(await lookupCnpjPublic('11222333000181', async () => { throw new Error('offline'); }), null);
+});
+
+test('company document upload goes to the right company path with the token, and refuses bad files locally', async () => {
+  const calls = [];
+  const fakeFetch = async (url, init) => { calls.push({ url, init }); return { ok: true, json: async () => ({ data: { document: { kind: 'SOCIAL_CONTRACT' } } }) }; };
+  await uploadCompanyDocument({ companyId: 'c1', kind: 'SOCIAL_CONTRACT', file: { size: 5, type: 'application/pdf' }, token: 't', baseUrl: 'https://api.test', fetchImpl: fakeFetch });
+  assert.equal(calls[0].url, 'https://api.test/v1/customers/companies/c1/documents/SOCIAL_CONTRACT');
+  assert.equal(calls[0].init.headers.Authorization, 'Bearer t');
+  await assert.rejects(uploadCompanyDocument({ companyId: 'c1', kind: 'SOCIAL_CONTRACT', file: { size: 11 * 1024 * 1024, type: 'application/pdf' }, token: 't', baseUrl: 'x', fetchImpl: fakeFetch }), (e) => e.code === 'KYC_DOCUMENT_TOO_LARGE');
+  assert.equal(calls.length, 1);
+  for (const s of ['DRAFT', 'SUBMITTED', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED']) assert.ok(COMPANY_STATUS[s].label);
+  assert.deepEqual(COMPANY_DOCUMENTS.map((d) => d.kind), ['SOCIAL_CONTRACT', 'ADDRESS_PROOF', 'POWER_OF_ATTORNEY', 'CNPJ_CARD']);
 });

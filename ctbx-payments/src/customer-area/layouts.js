@@ -59,6 +59,7 @@ const NAV = [
   { route: 'Dashboard', label: 'Painel' },
   { route: 'Profile', label: 'Meus dados' },
   { route: 'Kyc', label: 'Verificação de identidade' },
+  { route: 'Companies', label: 'Empresas' },
   { route: 'Security', label: 'Segurança' },
 ];
 

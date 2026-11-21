@@ -7,6 +7,7 @@ import type { CustomerAuthService } from '../services/customerAuthService.js';
 import type { CustomerEmailChangeService } from '../services/customerEmailChangeService.js';
 import type { CustomerEmailVerificationService } from '../services/customerEmailVerificationService.js';
 import { DOCUMENT_KINDS, ID_DOCUMENT_TYPES, INCOME_RANGES, MAX_DOCUMENT_BYTES, type CustomerKycService } from '../services/customerKycService.js';
+import { COMPANY_DOCUMENT_KINDS, COMPANY_POSITIONS, COMPANY_REVENUE_RANGES } from '../services/companyService.js';
 import type { CustomerPasswordResetService } from '../services/customerPasswordResetService.js';
 import type { SecurityAuditOutcome, SecurityAuditRepository } from '../repositories/SecurityAuditRepository.js';
 import { envelope } from '../utils/envelope.js';
@@ -29,7 +30,6 @@ const phoneSchema = { type: 'string', minLength: 8, maxLength: 20 } as const;
 const passwordSchema = { type: 'string', minLength: 8, maxLength: 256 } as const;
 const tokenSchema = { type: 'string', minLength: 1, maxLength: 512 } as const;
 const cnpjSchema = { type: 'string', minLength: 14, maxLength: 18 } as const; // CNPJ com ou sem máscara
-const roleSchema = { type: 'string', enum: ['ADMIN', 'MEMBER'] } as const;
 const companyIdParams = { type: 'object', additionalProperties: false, required: ['companyId'], properties: { companyId: idSchema } } as const;
 const birthDateSchema = { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' } as const; // YYYY-MM-DD
 const kycFreeTextSchema = { type: 'string', minLength: 2, maxLength: 160 } as const;
@@ -54,8 +54,12 @@ const AUDITED_ROUTES: Record<string, string> = {
   'POST /kyc/documents/:kind': 'CUSTOMER_KYC_DOCUMENT_UPLOAD',
   'POST /kyc/submit': 'CUSTOMER_KYC_SUBMIT',
   'POST /kyc/withdraw': 'CUSTOMER_KYC_WITHDRAW',
-  'POST /companies': 'COMPANY_REGISTER',
-  'POST /companies/:companyId/representatives': 'COMPANY_REPRESENTATIVE_ADD',
+  'POST /companies': 'COMPANY_APPLICATION_CREATE',
+  'PUT /companies/:companyId/data': 'COMPANY_DATA_UPDATE',
+  'PUT /companies/:companyId/address': 'COMPANY_ADDRESS_UPDATE',
+  'POST /companies/:companyId/documents/:kind': 'COMPANY_DOCUMENT_UPLOAD',
+  'POST /companies/:companyId/submit': 'COMPANY_SUBMIT',
+  'POST /companies/:companyId/withdraw': 'COMPANY_WITHDRAW',
 };
 
 function auditOutcome(statusCode: number, event: string): SecurityAuditOutcome {
@@ -110,7 +114,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   await app.register(rateLimit, {
     global: false,
     errorResponseBuilder: (request, context) => {
-      const code = request.url.includes('/kyc')
+      const code = request.url.includes('/kyc') || request.url.includes('/companies')
         ? 'CUSTOMER_KYC_RATE_LIMITED'
         : request.url.includes('/register')
         ? 'CUSTOMER_REGISTER_RATE_LIMITED'
@@ -393,56 +397,81 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
     return envelope(request, { kyc: await kycService.withdraw(request.customerAuth!.id) });
   });
 
-  // Estrutura PJ — todas as rotas abaixo exigem sessão real (sessionGuard);
-  // CompanyService já existia pronto e testado, só faltava a camada HTTP
-  // (ver comentário histórico em companyService.ts). Identidade de quem
-  // está agindo vem sempre de request.customerAuth, nunca de body/params
-  // — mesmo item 5 já aplicado no resto deste arquivo.
+  // ---- Conta PJ (Fase 5) ----------------------------------------------
+  // Pedido de conta PJ analisado pela equipe. Identidade sempre do token;
+  // empresa de outra pessoa responde 404 (nunca revela que existe).
+  const companyDocParams = { type: 'object', additionalProperties: false, required: ['companyId', 'kind'], properties: { companyId: idSchema, kind: { type: 'string', enum: [...COMPANY_DOCUMENT_KINDS] } } } as const;
   app.post('/companies', {
     preHandler: sessionGuard,
-    schema: { body: objectSchema(['cnpj', 'legalName'], { cnpj: cnpjSchema, legalName: nameSchema, tradeName: nameSchema }) },
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+    schema: { body: objectSchema(['cnpj'], { cnpj: cnpjSchema }) },
   }, async (request, reply) => {
     if (!companyService) throw providerNotConfigured('de empresas');
-    const input = request.body as { cnpj: string; legalName: string; tradeName?: string };
-    const company = await companyService.registerCompany(input, request.customerAuth!.id);
+    const company = await companyService.create(request.customerAuth!.id, (request.body as { cnpj: string }).cnpj);
+    request.auditDetails = { companyId: company.id };
     return reply.status(201).send(envelope(request, { company }));
   });
 
   app.get('/companies', { preHandler: sessionGuard }, async (request) => {
     if (!companyService) throw providerNotConfigured('de empresas');
-    const companies = await companyService.listCompaniesForCustomer(request.customerAuth!.id);
-    return envelope(request, { companies });
+    return envelope(request, { companies: await companyService.list(request.customerAuth!.id) });
   });
 
-  // Só um representante com papel ADMIN pode adicionar outro representante
-  // — sem essa checagem, qualquer cliente autenticado poderia se auto-
-  // vincular a uma empresa alheia só sabendo o companyId (IDOR). O
-  // customerId do novo representante vem direto no corpo (precisa já ser
-  // um cliente cadastrado); não existe busca por e-mail nesta etapa.
-  app.post('/companies/:companyId/representatives', {
-    preHandler: sessionGuard,
-    schema: { params: companyIdParams, body: objectSchema(['customerId'], { customerId: idSchema, role: roleSchema }) },
-  }, async (request, reply) => {
+  app.get('/companies/:companyId', { preHandler: sessionGuard, schema: { params: companyIdParams } }, async (request) => {
     if (!companyService) throw providerNotConfigured('de empresas');
     const { companyId } = request.params as { companyId: string };
-    const { customerId, role } = request.body as { customerId: string; role?: string };
-    const callerRole = await companyService.getRepresentativeRole(companyId, request.customerAuth!.id);
-    if (callerRole !== 'ADMIN') throw new ApiError('COMPANY_FORBIDDEN', 'Você não tem permissão para gerenciar representantes desta empresa.', { statusCode: 403 });
-    await companyService.addRepresentative(companyId, customerId, role);
-    return reply.status(201).send(envelope(request, { message: 'Representante adicionado.' }));
+    return envelope(request, { company: await companyService.get(request.customerAuth!.id, companyId) });
   });
 
-  // Ver a lista de representantes exige ao menos representar a empresa
-  // (qualquer papel) — mesma lógica anti-IDOR do endpoint acima.
-  app.get('/companies/:companyId/representatives', {
+  const t = (max: number) => ({ type: 'string', minLength: 1, maxLength: max }) as const;
+  app.put('/companies/:companyId/data', {
     preHandler: sessionGuard,
-    schema: { params: companyIdParams },
+    schema: { params: companyIdParams, body: objectSchema(['legalName', 'openingDate', 'legalNature', 'mainActivity', 'businessEmail', 'businessPhone', 'annualRevenueRange', 'applicantPosition'], {
+      legalName: t(200), tradeName: { type: 'string', maxLength: 200 }, openingDate: { type: 'string', pattern: '^\\d{4}-\\d{2}-\\d{2}$' }, legalNature: t(160), mainActivity: t(300),
+      businessEmail: emailSchema, businessPhone: t(20), annualRevenueRange: { type: 'string', enum: [...COMPANY_REVENUE_RANGES] }, applicantPosition: { type: 'string', enum: [...COMPANY_POSITIONS] },
+    }) },
   }, async (request) => {
     if (!companyService) throw providerNotConfigured('de empresas');
     const { companyId } = request.params as { companyId: string };
-    const callerRole = await companyService.getRepresentativeRole(companyId, request.customerAuth!.id);
-    if (!callerRole) throw new ApiError('COMPANY_FORBIDDEN', 'Você não representa esta empresa.', { statusCode: 403 });
-    const representativeIds = await companyService.listRepresentativesForCompany(companyId);
-    return envelope(request, { representativeIds });
+    request.auditDetails = { companyId };
+    return envelope(request, { company: await companyService.saveData(request.customerAuth!.id, companyId, request.body as never) });
   });
+
+  app.put('/companies/:companyId/address', {
+    preHandler: sessionGuard,
+    schema: { params: companyIdParams, body: objectSchema(['cep', 'street', 'number', 'district', 'city', 'state'], { cep: { type: 'string', minLength: 8, maxLength: 9 }, street: t(160), number: t(20), complement: { type: 'string', maxLength: 80 }, district: t(80), city: t(80), state: { type: 'string', minLength: 2, maxLength: 2 } }) },
+  }, async (request) => {
+    if (!companyService) throw providerNotConfigured('de empresas');
+    const { companyId } = request.params as { companyId: string };
+    request.auditDetails = { companyId };
+    return envelope(request, { company: await companyService.saveAddress(request.customerAuth!.id, companyId, request.body as never) });
+  });
+
+  app.post('/companies/:companyId/documents/:kind', {
+    preHandler: sessionGuard,
+    bodyLimit: MAX_DOCUMENT_BYTES,
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    schema: { params: companyDocParams },
+  }, async (request, reply) => {
+    if (!companyService) throw providerNotConfigured('de empresas');
+    const { companyId, kind } = request.params as { companyId: string; kind: string };
+    const body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
+    const document = await companyService.uploadDocument(request.customerAuth!.id, companyId, kind, body);
+    request.auditDetails = { companyId, kind, contentType: document.contentType, sizeBytes: document.sizeBytes };
+    return reply.status(201).send(envelope(request, { document }));
+  });
+
+  for (const action of ['submit', 'withdraw'] as const) {
+    app.post(`/companies/:companyId/${action}`, {
+      preHandler: sessionGuard,
+      config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+      schema: { params: companyIdParams, body: emptyObjectSchema },
+    }, async (request) => {
+      if (!companyService) throw providerNotConfigured('de empresas');
+      const { companyId } = request.params as { companyId: string };
+      request.auditDetails = { companyId };
+      const company = action === 'submit' ? await companyService.submit(request.customerAuth!.id, companyId) : await companyService.withdraw(request.customerAuth!.id, companyId);
+      return envelope(request, { company });
+    });
+  }
 }

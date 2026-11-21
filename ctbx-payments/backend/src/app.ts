@@ -77,6 +77,7 @@ import { staffRoutes } from './routes/staff.js';
 import { InMemoryStaffRepository, PostgresStaffRepository, type StaffRepository } from './repositories/StaffRepository.js';
 import { StaffAuthService } from './services/staffAuthService.js';
 import { KycReviewService } from './services/kycReviewService.js';
+import { CompanyReviewService } from './services/companyReviewService.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 import { AdminAuthService } from './services/adminAuthService.js';
@@ -89,7 +90,8 @@ import { CustomerPasswordResetService } from './services/customerPasswordResetSe
 import { InMemoryEmailProvider } from './providers/InMemoryEmailProvider.js';
 import { createEmailProvider } from './providers/createEmailProvider.js';
 
-export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean }
+// cnpjLookup: só para testes (evita chamar a Receita de verdade).
+export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean; cnpjLookup?: (cnpj: string) => Promise<import('./services/cnpjLookup.js').CnpjLookupResult> }
 
 // virtualCards/cardEncryptionKey são opcionais de propósito: sem
 // DATABASE_URL configurado, o cartão virtual falha fechado
@@ -234,7 +236,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // fallback de tudo em Customer Identity. Sem EmailProvider nenhum
   // (empresa nunca recebe e-mail própria — quem recebe é sempre um
   // customer/representante).
-  const companyService = new CompanyService(companyRepository, companyRepresentativeRepository);
+  // Conta PJ (Fase 5): criada mais abaixo, junto do cofre de documentos.
   // KYC — nunca fail-closed sem DATABASE_URL, mesmo par real+fallback de
   // tudo em Customer Identity (ver comentário acima em
   // customerKycRepository).
@@ -253,6 +255,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const kycUploadsEnabled = isProduction ? Boolean(kycCfg?.uploadsEnabled && kycVault) : kycCfg?.uploadsEnabled !== false;
   if (config.nodeEnv === 'test' && kycStorage instanceof InMemoryDocumentStorage) app.decorate('testKycStorage', kycStorage);
   const kycService = new CustomerKycService(customerRepository, customerKycRepository, undefined, kycDocumentRepository, kycVault, kycUploadsEnabled);
+  const companyService = new CompanyService(companyRepository, companyRepresentativeRepository, customerKycRepository, kycVault, kycUploadsEnabled);
   // Etapa 3 — mesmo EmailProvider criado na Etapa 1 (createEmailProvider):
   // Resend real em produção, InMemory em dev/test por padrão. Nenhuma
   // segunda integração com o Resend é feita em lugar nenhum.
@@ -318,7 +321,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     const staffAuth = new StaffAuthService(staffRepository, staffKey, emailProvider, staffCfg?.appBaseUrl ?? 'http://localhost:8082');
     const review = new KycReviewService(customerRepository, customerKycRepository, kycDocumentRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081');
     if (config.nodeEnv === 'test' && staffRepository instanceof InMemoryStaffRepository) app.decorate('testStaffRepo', staffRepository);
-    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
+    const companyReview = new CompanyReviewService(companyRepository, companyRepresentativeRepository, customerRepository, customerKycRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081', options.cnpjLookup);
+    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, companyReview, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
   }
 
   await app.register(async (adminApi) => {

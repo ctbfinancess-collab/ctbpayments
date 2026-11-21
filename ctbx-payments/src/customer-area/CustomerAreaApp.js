@@ -9,6 +9,7 @@ import { SessionProvider, useSession } from '../session';
 import { ConfirmEmailChangePage, ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage } from './authPages';
 import { CustomerDataProvider, DashboardPage, ProfilePage, SecurityPage } from './appPages';
 import { KycPage } from './kycPage';
+import { CompaniesPage, CompanyPage } from './companyPage';
 import { linking, TITLES } from './routes';
 import { ca } from './theme';
 import { LoadingBlock } from './ui';
@@ -60,6 +61,8 @@ function Navigator() {
             <Stack.Screen component={ProfilePage} name="Profile" options={opts('Profile')} />
             <Stack.Screen component={KycPage} name="Kyc" options={opts('Kyc')} />
             <Stack.Screen component={SecurityPage} name="Security" options={opts('Security')} />
+            <Stack.Screen component={CompaniesPage} name="Companies" options={opts('Companies')} />
+            <Stack.Screen component={CompanyPage} name="Company" options={opts('Company')} />
           </>
         ) : (
           <>

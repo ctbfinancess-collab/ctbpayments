@@ -50,3 +50,12 @@ export function renderKycDecisionTemplate(kind: KycDecisionKind, reason: string 
   }[kind];
   return { subject: `${copy.title} — CTBX Payments`, html: layout(copy.title, copy.p, { label: 'Abrir a Área do Cliente', url: appLink }), text: `${copy.title}\n\n${copy.p.join('\n\n')}\n\n${appLink}` };
 }
+
+export function renderCompanyDecisionTemplate(kind: KycDecisionKind, companyName: string, reason: string | null, appLink: string): RenderedEmail {
+  const copy = {
+    APPROVED: { title: 'Conta PJ aprovada', p: [`O pedido de conta PJ da empresa ${companyName} foi aprovado.`, 'Os serviços financeiros para empresas serão liberados assim que estiverem disponíveis; avisaremos você.'] },
+    CHANGES_REQUESTED: { title: 'Precisamos de um ajuste no pedido de conta PJ', p: [`Analisamos o pedido da empresa ${companyName} e precisamos de uma correção.`, `O que ajustar: ${reason ?? ''}`, 'Entre na Área do Cliente, em Empresas, faça o ajuste e envie novamente.'] },
+    REJECTED: { title: 'Pedido de conta PJ não aprovado', p: [`Concluímos a análise do pedido da empresa ${companyName} e, desta vez, não foi possível aprovar.`, `Motivo: ${reason ?? ''}`, 'Se tiver dúvidas, fale com nosso atendimento: contato@ctbxpayments.com.'] },
+  }[kind];
+  return { subject: `${copy.title} — CTBX Payments`, html: layout(copy.title, copy.p, { label: 'Abrir a Área do Cliente', url: appLink }), text: `${copy.title}\n\n${copy.p.join('\n\n')}\n\n${appLink}` };
+}

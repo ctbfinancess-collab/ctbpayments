@@ -12,6 +12,8 @@ export const linking = {
       Profile: 'meus-dados',
       Kyc: 'verificacao',
       Security: 'seguranca',
+      Companies: 'empresas',
+      Company: 'empresas/:companyId',
       VerifyEmail: 'verify-email',
       ResetPassword: 'reset-password',
       ConfirmEmailChange: 'confirm-email-change',
@@ -21,6 +23,6 @@ export const linking = {
 
 export const TITLES = {
   Login: 'Entrar', Register: 'Abrir conta', ForgotPassword: 'Esqueci minha senha', Dashboard: 'Painel', Profile: 'Meus dados',
-  Kyc: 'Verificação de identidade', Security: 'Segurança', VerifyEmail: 'Confirmar e-mail', ResetPassword: 'Redefinir senha', ConfirmEmailChange: 'Confirmar troca de e-mail',
+  Kyc: 'Verificação de identidade', Security: 'Segurança', Companies: 'Empresas', Company: 'Conta PJ', VerifyEmail: 'Confirmar e-mail', ResetPassword: 'Redefinir senha', ConfirmEmailChange: 'Confirmar troca de e-mail',
 };
 

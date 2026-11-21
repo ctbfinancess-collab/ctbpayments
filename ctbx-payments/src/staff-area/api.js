@@ -73,6 +73,8 @@ const MESSAGES = {
   STAFF_SELF_DISABLE: 'Você não pode desativar o seu próprio acesso.',
   KYC_REASON_REQUIRED: 'Explique o motivo para o cliente (de 10 a 1.000 caracteres).',
   KYC_NOT_PENDING: 'Este caso não está mais aguardando análise (outra pessoa pode já ter decidido).',
+  COMPANY_CNPJ_ALREADY_APPROVED: 'Já existe outra conta PJ aprovada para este CNPJ.',
+  COMPANY_APPLICANT_KYC_NOT_APPROVED: 'A identidade de quem pediu não está aprovada.',
   NETWORK_ERROR: 'Sem conexão com o servidor.',
 };
 export const staffMessage = (e, fallback = 'Não foi possível concluir. Tente novamente.') => MESSAGES[e?.code] || e?.message || fallback;

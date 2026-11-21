@@ -3,11 +3,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ApiError } from '../errors/ApiError.js';
 import type { SecurityAuditOutcome, SecurityAuditRepository } from '../repositories/SecurityAuditRepository.js';
 import type { KycReviewService } from '../services/kycReviewService.js';
+import type { CompanyReviewService } from '../services/companyReviewService.js';
 import type { StaffAuthService } from '../services/staffAuthService.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
 
-export interface StaffRoutesOptions { auth: StaffAuthService; review: KycReviewService; audit: SecurityAuditRepository }
+export interface StaffRoutesOptions { auth: StaffAuthService; review: KycReviewService; companyReview: CompanyReviewService; audit: SecurityAuditRepository }
 
 // Toda ação do painel é auditada (inclusive LEITURAS de fichas e documentos),
 // com quem fez, sobre qual cliente, IP e resultado. Nunca o conteúdo.
@@ -25,6 +26,10 @@ const AUDITED: Record<string, string> = {
   'GET /kyc/cases/:customerId': 'STAFF_KYC_CASE_VIEW',
   'GET /kyc/cases/:customerId/documents/:documentId': 'STAFF_KYC_DOCUMENT_VIEW',
   'POST /kyc/cases/:customerId/decision': 'STAFF_KYC_DECISION',
+  'GET /companies/queue': 'STAFF_COMPANY_QUEUE_VIEW',
+  'GET /companies/cases/:companyId': 'STAFF_COMPANY_CASE_VIEW',
+  'GET /companies/cases/:companyId/documents/:documentId': 'STAFF_COMPANY_DOCUMENT_VIEW',
+  'POST /companies/cases/:companyId/decision': 'STAFF_COMPANY_DECISION',
 };
 
 function outcome(status: number): SecurityAuditOutcome {
@@ -38,7 +43,7 @@ const tokenOf = (request: FastifyRequest) => {
 };
 
 export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOptions): Promise<void> {
-  const { auth, review, audit } = options;
+  const { auth, review, companyReview, audit } = options;
   const prefix = app.prefix;
 
   app.addHook('onResponse', async (request, reply) => {
@@ -54,7 +59,7 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
         staffId: request.staffAuth?.id ?? request.auditStaffId ?? null,
         customerId: params.customerId && /^[0-9a-f-]{36}$/i.test(params.customerId) ? params.customerId : null,
         ip: request.ip, userAgent: typeof ua === 'string' ? ua.slice(0, 200) : null, requestId: request.id,
-        details: { statusCode: reply.statusCode, ...(request.auditDetails ?? {}) },
+        details: { statusCode: reply.statusCode, ...(params.companyId ? { companyId: params.companyId } : {}), ...(request.auditDetails ?? {}) },
       });
     } catch (error) {
       request.log.error({ event, err: (error as Error).message }, 'falha ao gravar o registro de auditoria');
@@ -175,6 +180,39 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
     const { decision, reason } = request.body as { decision: string; reason?: string };
     const result = await review.decide(request.staffAuth!, customerId, decision, reason);
     // Auditoria: a decisão e se o e-mail saiu — o motivo fica em kyc_reviews.
+    request.auditDetails = { decision, notified: result.notified };
+    return envelope(request, result);
+  });
+
+  // ---- Análise de conta PJ (ANALYST e ADMIN) — Fase 5 ----------------------
+  const companyParams = { type: 'object', additionalProperties: false, required: ['companyId'], properties: { companyId: idSchema } } as const;
+  app.get('/companies/queue', { preValidation: requireStaff }, async (request) => envelope(request, { items: await companyReview.queue() }));
+
+  app.get('/companies/cases/:companyId', { preValidation: requireStaff, schema: { params: companyParams } }, async (request) => {
+    const { companyId } = request.params as { companyId: string };
+    return envelope(request, { case: await companyReview.caseDetail(companyId) });
+  });
+
+  app.get('/companies/cases/:companyId/documents/:documentId', {
+    preValidation: requireStaff,
+    config: limit(60),
+    schema: { params: { type: 'object', additionalProperties: false, required: ['companyId', 'documentId'], properties: { companyId: idSchema, documentId: idSchema } } },
+  }, async (request, reply) => {
+    const { companyId, documentId } = request.params as { companyId: string; documentId: string };
+    const doc = await companyReview.openDocument(companyId, documentId);
+    request.auditDetails = { documentId, kind: doc.kind };
+    return reply.header('Content-Type', doc.contentType).header('Cache-Control', 'no-store, private').header('Pragma', 'no-cache')
+      .header('Content-Disposition', 'inline').header('Content-Security-Policy', "default-src 'none'; sandbox").send(doc.bytes);
+  });
+
+  app.post('/companies/cases/:companyId/decision', {
+    preValidation: requireStaff,
+    config: limit(20),
+    schema: { params: companyParams, body: objectSchema(['decision'], { decision: { type: 'string', enum: ['APPROVED', 'CHANGES_REQUESTED', 'REJECTED'] }, reason: { type: 'string', maxLength: 1000 } }) },
+  }, async (request) => {
+    const { companyId } = request.params as { companyId: string };
+    const { decision, reason } = request.body as { decision: string; reason?: string };
+    const result = await companyReview.decide(request.staffAuth!, companyId, decision, reason);
     request.auditDetails = { decision, notified: result.notified };
     return envelope(request, result);
   });

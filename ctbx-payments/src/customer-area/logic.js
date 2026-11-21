@@ -36,6 +36,21 @@ const MESSAGES = {
   KYC_NATIONALITY_INVALID: 'Informe a nacionalidade.',
   KYC_LOCKED: 'Seus dados já foram enviados para análise e não podem ser alterados agora.',
   KYC_INCOMPLETE: 'Complete todas as etapas antes de enviar para análise.',
+  COMPANY_KYC_REQUIRED: 'Para abrir uma conta PJ, primeiro conclua a verificação da sua identidade.',
+  COMPANY_CNPJ_INVALID: 'CNPJ inválido.',
+  COMPANY_ALREADY_REQUESTED: 'Você já tem um pedido para este CNPJ.',
+  COMPANY_INCOMPLETE: 'Complete todas as etapas antes de enviar para análise.',
+  COMPANY_LOCKED: 'Este pedido já foi enviado para análise e não pode ser alterado agora.',
+  COMPANY_NOT_WITHDRAWABLE: 'Este pedido não está mais em análise e não pode ser retirado.',
+  COMPANY_NOT_FOUND: 'Empresa não encontrada.',
+  COMPANY_OPENING_DATE_INVALID: 'Data de abertura inválida.',
+  COMPANY_EMAIL_INVALID: 'E-mail da empresa inválido.',
+  COMPANY_PHONE_INVALID: 'Telefone da empresa inválido.',
+  COMPANY_LEGAL_NAME_INVALID: 'Informe a razão social.',
+  COMPANY_LEGAL_NATURE_INVALID: 'Informe a natureza jurídica.',
+  COMPANY_ACTIVITY_INVALID: 'Informe a atividade principal.',
+  COMPANY_CEP_INVALID: 'CEP inválido.',
+  COMPANY_STATE_INVALID: 'Estado (UF) inválido.',
   KYC_NOT_WITHDRAWABLE: 'Nossa equipe já concluiu a análise; não é mais possível retirar o envio.',
   KYC_CEP_INVALID: 'CEP inválido.',
   KYC_STATE_INVALID: 'Estado (UF) inválido.',
@@ -216,3 +231,84 @@ export const MISSING_LABELS = {
 export const incomeLabel = (v) => INCOME_OPTIONS.find((o) => o.value === v)?.label || '—';
 export const documentTypeLabel = (v) => DOCUMENT_TYPE_OPTIONS.find((o) => o.value === v)?.label || '—';
 export const formatBytes = (n) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+// ---- Fase 5: conta PJ ---------------------------------------------------
+export const listCompanies = (client = apiClient) => client('/v1/customers/companies', { method: 'GET' });
+export const createCompany = (cnpj, client = apiClient) => client('/v1/customers/companies', { method: 'POST', body: JSON.stringify({ cnpj }) });
+export const getCompany = (id, client = apiClient) => client(`/v1/customers/companies/${id}`, { method: 'GET' });
+export const saveCompanyData = (id, data, client = apiClient) => client(`/v1/customers/companies/${id}/data`, { method: 'PUT', body: JSON.stringify(data) });
+export const saveCompanyAddress = (id, address, client = apiClient) => client(`/v1/customers/companies/${id}/address`, { method: 'PUT', body: JSON.stringify(address) });
+export const submitCompany = (id, client = apiClient) => client(`/v1/customers/companies/${id}/submit`, { method: 'POST', body: JSON.stringify({}) });
+export const withdrawCompany = (id, client = apiClient) => client(`/v1/customers/companies/${id}/withdraw`, { method: 'POST', body: JSON.stringify({}) });
+
+export async function uploadCompanyDocument({ companyId, kind, file, token, baseUrl, fetchImpl = fetch }) {
+  if (!file) throw Object.assign(new Error('Selecione um arquivo.'), { code: 'KYC_DOCUMENT_EMPTY' });
+  if (file.size > MAX_UPLOAD_BYTES) throw Object.assign(new Error('Arquivo grande demais.'), { code: 'KYC_DOCUMENT_TOO_LARGE' });
+  if (file.type && !UPLOAD_TYPES.includes(file.type)) throw Object.assign(new Error('Formato inválido.'), { code: 'KYC_DOCUMENT_FORMAT_INVALID' });
+  const res = await fetchImpl(`${String(baseUrl).replace(/\/$/, '')}/v1/customers/companies/${companyId}/documents/${kind}`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' }, body: file,
+  });
+  let json = null;
+  try { json = await res.json(); } catch { /* corpo vazio */ }
+  if (!res.ok) throw Object.assign(new Error(json?.error?.message || 'Falha no envio.'), { code: json?.error?.code || 'UPLOAD_FAILED', status: res.status });
+  return json?.data?.document;
+}
+
+// Consulta pública do CNPJ (BrasilAPI) só para PREENCHER o formulário. O
+// cliente confere e pode corrigir; a equipe consulta de novo na análise.
+export async function lookupCnpjPublic(cnpj, fetchImpl = fetch) {
+  const digits = onlyDigits(cnpj);
+  if (digits.length !== 14) return null;
+  try {
+    const res = await fetchImpl(`https://brasilapi.com.br/api/cnpj/v1/${digits}`);
+    if (!res.ok) return null;
+    const j = await res.json();
+    return {
+      legalName: j.razao_social || '', tradeName: j.nome_fantasia || '', openingDate: j.data_inicio_atividade || '',
+      legalNature: j.natureza_juridica || '', mainActivity: [j.cnae_fiscal, j.cnae_fiscal_descricao].filter(Boolean).join(' - '),
+      situacao: j.descricao_situacao_cadastral || '',
+      address: { cep: j.cep ? String(j.cep) : '', street: [j.descricao_tipo_de_logradouro, j.logradouro].filter(Boolean).join(' '), number: j.numero || '', complement: j.complemento || '', district: j.bairro || '', city: j.municipio || '', state: j.uf || '' },
+    };
+  } catch { return null; }
+}
+
+export function maskCnpjInput(value = '') {
+  const d = onlyDigits(value).slice(0, 14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
+
+export const COMPANY_POSITION_OPTIONS = [
+  { value: 'SOCIO_ADMINISTRADOR', label: 'Sócio(a)-administrador(a)' },
+  { value: 'SOCIO', label: 'Sócio(a)' },
+  { value: 'ADMINISTRADOR', label: 'Administrador(a) não sócio(a)' },
+  { value: 'PROCURADOR', label: 'Procurador(a)' },
+];
+export const COMPANY_REVENUE_OPTIONS = [
+  { value: 'ATE_81K', label: 'Até R$ 81 mil por ano (MEI)' },
+  { value: 'DE_81K_A_360K', label: 'De R$ 81 mil a R$ 360 mil (ME)' },
+  { value: 'DE_360K_A_4_8M', label: 'De R$ 360 mil a R$ 4,8 milhões (EPP)' },
+  { value: 'ACIMA_4_8M', label: 'Acima de R$ 4,8 milhões' },
+];
+export const COMPANY_DOCUMENTS = [
+  { kind: 'SOCIAL_CONTRACT', label: 'Contrato social ou requerimento de empresário', hint: 'Última alteração consolidada (ou certificado MEI). PDF de preferência.' },
+  { kind: 'ADDRESS_PROOF', label: 'Comprovante de endereço da empresa', hint: 'Conta de consumo, contrato de locação ou extrato em nome da empresa (últimos 90 dias).' },
+  { kind: 'POWER_OF_ATTORNEY', label: 'Procuração', hint: 'Obrigatória para procurador(a): procuração com poderes para abrir e movimentar a conta.' },
+  { kind: 'CNPJ_CARD', label: 'Cartão CNPJ (opcional)', hint: 'Comprovante de inscrição no CNPJ. Ajuda na análise, mas é opcional.' },
+];
+export const COMPANY_MISSING_LABELS = {
+  COMPANY_DATA: 'Dados da empresa', COMPANY_ADDRESS: 'Endereço da empresa', SOCIAL_CONTRACT: 'Contrato social',
+  ADDRESS_PROOF: 'Comprovante de endereço', POWER_OF_ATTORNEY: 'Procuração',
+};
+export const COMPANY_STATUS = {
+  DRAFT: { label: 'Em preenchimento', tone: 'warning' },
+  SUBMITTED: { label: 'Em análise', tone: 'neutral' },
+  CHANGES_REQUESTED: { label: 'Ajustes solicitados', tone: 'warning' },
+  APPROVED: { label: 'Aprovada', tone: 'success' },
+  REJECTED: { label: 'Não aprovada', tone: 'danger' },
+};
+export const formatCnpj = (v = '') => maskCnpjInput(v);
+export const optionLabel = (options, v) => options.find((o) => o.value === v)?.label || '—';

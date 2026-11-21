@@ -1,4 +1,5 @@
 import { index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { companies } from './companies.js';
 import { customers } from './customers.js';
 
 // Painel administrativo da equipe (análise de KYC). Módulo NOVO e separado
@@ -55,3 +56,13 @@ export const kycReviews = pgTable('kyc_reviews', {
   reason: text('reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('kyc_reviews_customer_idx').on(t.customerId, t.createdAt)]);
+
+// Histórico das decisões sobre pedidos de conta PJ.
+export const companyReviews = pgTable('company_reviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyId: uuid('company_id').notNull().references(() => companies.id),
+  staffId: uuid('staff_id').notNull().references(() => staffUsers.id),
+  decision: text('decision').notNull(), // APPROVED | CHANGES_REQUESTED | REJECTED
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('company_reviews_company_idx').on(t.companyId, t.createdAt)]);

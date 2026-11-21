@@ -16,8 +16,11 @@ export function hashPayload(raw: unknown): string {
 // é unique_violation. InMemoryX* replicam o mesmo formato de erro (ver
 // InMemorySandboxLedgerRepository etc.) pra exercitar o MESMO caminho de
 // código em teste, sem precisar de concorrência real.
+// O Drizzle embrulha o erro do driver (DrizzleQueryError) e guarda o
+// original em `cause` — por isso olha os dois.
 export function isUniqueViolation(error: unknown): boolean {
-  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === '23505');
+  const e = error as { code?: unknown; cause?: { code?: unknown } } | null | undefined;
+  return e?.code === '23505' || e?.cause?.code === '23505';
 }
 
 export interface PersistedIdempotencyOptions<Row> {

@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
 import { CormorantGaramond_500Medium, CormorantGaramond_600SemiBold } from '@expo-google-fonts/cormorant-garamond';
 import QRCode from 'qrcode';
-import { documentTypeLabel, DOCUMENT_KINDS, formatBytes, formatDate, incomeLabel, maskCepInput } from '../customer-area/logic';
+import { COMPANY_DOCUMENTS, COMPANY_POSITION_OPTIONS, COMPANY_REVENUE_OPTIONS, documentTypeLabel, DOCUMENT_KINDS, formatBytes, formatCnpj, formatDate, incomeLabel, maskCepInput, maskPhoneInput, optionLabel } from '../customer-area/logic';
 import { ca, fonts } from '../customer-area/theme';
 import { Body, Brand, Button, Card, ChoiceGroup, DataRow, Eyebrow, Field, Heading, LoadingBlock, Notice, Page, StatusPill, useLayout } from '../customer-area/ui';
 import { StaffSessionProvider, staffApi, staffMessage, useStaff } from './api';
@@ -13,8 +13,8 @@ import { StaffSessionProvider, staffApi, staffMessage, useStaff } from './api';
 // Painel da equipe (análise de KYC) — serviço próprio, separado da Área do
 // Cliente. Acesso só com convite, senha forte e verificação em duas etapas.
 const Stack = createNativeStackNavigator();
-const linking = { prefixes: [], config: { screens: { Login: 'entrar', Invite: 'convite', Queue: 'fila', Case: 'analise/:customerId', Team: 'equipe' } } };
-const TITLES = { Login: 'Entrar', Invite: 'Aceitar convite', Queue: 'Fila de análise', Case: 'Análise', Team: 'Equipe' };
+const linking = { prefixes: [], config: { screens: { Login: 'entrar', Invite: 'convite', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
+const TITLES = { Login: 'Entrar', Invite: 'Aceitar convite', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
 const theme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: ca.bg, card: ca.bgRaised, primary: ca.gold, text: ca.text, border: ca.border } };
 const tokenFromUrl = () => { try { return new URL(window.location.href).searchParams.get('token') || ''; } catch { return ''; } };
 const STATUS = { SUBMITTED: ['Em análise', 'neutral'], CHANGES_REQUESTED: ['Ajustes solicitados', 'warning'], APPROVED: ['Aprovada', 'success'], REJECTED: ['Não aprovada', 'danger'], IN_PROGRESS: ['Em preenchimento', 'warning'], NOT_STARTED: ['Não iniciada', 'warning'] };
@@ -134,7 +134,7 @@ function Shell({ active, title, subtitle, children }) {
   const { staff, signOut } = useStaff();
   const navigation = useNavigation();
   const { isDesktop } = useLayout();
-  const nav = [{ route: 'Queue', label: 'Fila de análise' }, ...(staff?.role === 'ADMIN' ? [{ route: 'Team', label: 'Equipe' }] : [])];
+  const nav = [{ route: 'Queue', label: 'Fila de análise' }, { route: 'CompanyQueue', label: 'Empresas (PJ)' }, ...(staff?.role === 'ADMIN' ? [{ route: 'Team', label: 'Equipe' }] : [])];
   const items = nav.map((n) => (
     <Pressable accessibilityRole="link" key={n.route} onPress={() => navigation.navigate(n.route)} style={({ hovered }) => [styles.navItem, active === n.route && styles.navActive, hovered && active !== n.route && { backgroundColor: 'rgba(191,194,199,0.06)' }]}>
       <Text style={[styles.navText, active === n.route && { color: ca.goldLight }]}>{n.label}</Text>
@@ -194,18 +194,18 @@ function QueuePage({ navigation }) {
 
 // Documento descriptografado só em memória, com marca d'água de quem está
 // vendo. Sem botão de download e sem cache.
-function DocumentViewer({ customerId, doc, viewer }) {
+function DocumentViewer({ customerId, doc, viewer, basePath }) {
   const { call } = useStaff();
   const [url, setUrl] = useState('');
   const [error, setError] = useState('');
   useEffect(() => {
     let objectUrl = '';
-    call(`/kyc/cases/${customerId}/documents/${doc.id}`, { raw: true })
+    call(`${basePath || `/kyc/cases/${customerId}`}/documents/${doc.id}`, { raw: true })
       .then((res) => res.blob()).then((blob) => { objectUrl = URL.createObjectURL(blob); setUrl(objectUrl); })
       .catch((e) => setError(staffMessage(e)));
     return () => { if (objectUrl) URL.revokeObjectURL(objectUrl); };
-  }, [call, customerId, doc.id]);
-  const label = DOCUMENT_KINDS.find((k) => k.kind === doc.kind)?.label || doc.kind;
+  }, [call, customerId, doc.id, basePath]);
+  const label = DOCUMENT_KINDS.find((k) => k.kind === doc.kind)?.label || COMPANY_DOCUMENTS.find((k) => k.kind === doc.kind)?.label || doc.kind;
   const isPdf = doc.contentType === 'application/pdf';
   return (
     <View style={styles.docBox}>
@@ -224,7 +224,7 @@ function DocumentViewer({ customerId, doc, viewer }) {
   );
 }
 
-function DecisionPanel({ customerId, onDone }) {
+function DecisionPanel({ customerId, onDone, endpoint, approveNote = 'A aprovação verifica a identidade. Ela NÃO libera nenhuma operação financeira.' }) {
   const { call } = useStaff();
   const [decision, setDecision] = useState(null);
   const [reason, setReason] = useState('');
@@ -233,7 +233,7 @@ function DecisionPanel({ customerId, onDone }) {
   const needsReason = decision && decision !== 'APPROVED';
   const submit = async () => {
     setBusy(true); setError('');
-    try { const r = await call(`/kyc/cases/${customerId}/decision`, { method: 'POST', body: needsReason ? { decision, reason } : { decision } }); onDone(r); }
+    try { const r = await call(endpoint || `/kyc/cases/${customerId}/decision`, { method: 'POST', body: needsReason ? { decision, reason } : { decision } }); onDone(r); }
     catch (e) { setError(staffMessage(e)); }
     finally { setBusy(false); }
   };
@@ -243,7 +243,7 @@ function DecisionPanel({ customerId, onDone }) {
       {error ? <Notice kind="error">{error}</Notice> : null}
       <ChoiceGroup label="Resultado da análise" onChange={setDecision} options={[{ value: 'APPROVED', label: 'Aprovar' }, { value: 'CHANGES_REQUESTED', label: 'Pedir ajustes' }, { value: 'REJECTED', label: 'Recusar' }]} value={decision} />
       {needsReason ? <Field autoCapitalize="sentences" hint="O cliente verá este texto e o receberá por e-mail. Seja claro e objetivo; não inclua CPF nem outros dados sensíveis." label={decision === 'REJECTED' ? 'Motivo da recusa' : 'O que o cliente precisa ajustar'} maxLength={1000} multiline numberOfLines={4} onChangeText={setReason} value={reason} /> : null}
-      {decision === 'APPROVED' ? <Notice kind="info">A aprovação verifica a identidade. Ela NÃO libera nenhuma operação financeira.</Notice> : null}
+      {decision === 'APPROVED' ? <Notice kind="info">{approveNote}</Notice> : null}
       {decision ? <Button loading={busy} onPress={submit} style={{ alignSelf: 'flex-start', minWidth: 240 }} title={decision === 'APPROVED' ? 'Confirmar aprovação' : decision === 'REJECTED' ? 'Confirmar recusa' : 'Enviar pedido de ajustes'} /> : null}
     </Card>
   );
@@ -300,6 +300,108 @@ function CasePage({ route, navigation }) {
       ) : null}
       <View style={{ marginTop: 20 }}>{k.status === 'SUBMITTED' && !done ? <DecisionPanel customerId={c.id} onDone={(r) => { setDone(r); load(); }} /> : <Notice kind="info">Este caso não está aguardando análise.</Notice>}</View>
       <View style={{ marginTop: 16 }}><Button onPress={() => navigation.navigate('Queue')} style={{ alignSelf: 'flex-start', minWidth: 180 }} title="Voltar para a fila" variant="ghost" /></View>
+    </Shell>
+  );
+}
+
+function CompanyQueuePage({ navigation }) {
+  const { call } = useStaff();
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+  const load = useCallback(() => { setError(''); call('/companies/queue').then((d) => setItems(d.items)).catch((e) => setError(staffMessage(e))); }, [call]);
+  useEffect(() => { load(); }, [load]);
+  return (
+    <Shell active="CompanyQueue" subtitle="Pedidos de conta PJ enviados para análise, do mais antigo para o mais novo." title="Empresas (PJ)">
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {!items && !error ? <LoadingBlock /> : null}
+      {items && !items.length ? <Card><Body>Nenhum pedido de conta PJ aguardando análise.</Body></Card> : null}
+      {items?.length ? (
+        <Card style={{ padding: 0 }}>
+          {items.map((it, i) => (
+            <Pressable accessibilityRole="link" key={it.companyId} onPress={() => navigation.navigate('CompanyCase', { companyId: it.companyId })} style={({ hovered }) => [styles.queueRow, i === items.length - 1 && { borderBottomWidth: 0 }, hovered && { backgroundColor: 'rgba(191,194,199,0.05)' }]}>
+              <View style={{ flex: 1, minWidth: 220 }}><Text style={styles.queueName}>{it.tradeName || it.legalName}</Text><Body muted style={{ fontSize: 13 }}>CNPJ {formatCnpj(it.cnpj)} · pedido por {it.applicantName}</Body></View>
+              <Body muted style={{ fontSize: 13 }}>Enviado em {fmtDateTime(it.submittedAt)}</Body>
+              <Text style={styles.queueOpen}>Analisar →</Text>
+            </Pressable>
+          ))}
+        </Card>
+      ) : null}
+      <View style={{ marginTop: 16 }}><Button onPress={load} style={{ alignSelf: 'flex-start', minWidth: 160 }} title="Atualizar" variant="ghost" /></View>
+    </Shell>
+  );
+}
+
+function CompanyCasePage({ route, navigation }) {
+  const { call, staff } = useStaff();
+  const { companyId } = route.params || {};
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(null);
+  const { isDesktop } = useLayout();
+  const load = useCallback(() => { call(`/companies/cases/${companyId}`).then((d) => setData(d.case)).catch((e) => setError(staffMessage(e))); }, [call, companyId]);
+  useEffect(() => { load(); }, [load]);
+  if (error) return <Shell active="CompanyQueue" title="Análise PJ"><Notice kind="error">{error}</Notice><Button onPress={() => navigation.navigate('CompanyQueue')} title="Voltar para a fila" variant="ghost" /></Shell>;
+  if (!data) return <Shell active="CompanyQueue" title="Análise PJ"><LoadingBlock /></Shell>;
+  const c = data.company; const a = c.address; const r = data.receita; const ap = data.applicant;
+  const [label, tone] = STATUS[c.status] || [c.status, 'neutral'];
+  const kycLabel = (STATUS[ap?.kycStatus] || [ap?.kycStatus])[0];
+  const nameMatch = r?.socios?.some((s) => ap && s.toUpperCase().includes(ap.name.split(' ')[0].toUpperCase()));
+  return (
+    <Shell active="CompanyQueue" subtitle={`CNPJ ${formatCnpj(c.cnpj)} · enviado em ${fmtDateTime(c.submittedAt)}`} title={c.tradeName || c.legalName}>
+      <View style={{ alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 18 }}><Body muted>Situação:</Body><StatusPill label={label} tone={tone} /></View>
+      {done ? <Notice kind="success" title="Decisão registrada">{`${DECISION_LABEL[done.status]}. ${done.notified ? 'O cliente foi avisado por e-mail.' : 'Atenção: o e-mail ao cliente não pôde ser enviado.'}`}</Notice> : null}
+      {data.conflicts.approvedElsewhere ? <Notice kind="error" title="Atenção: CNPJ já aprovado">Já existe outra conta PJ APROVADA para este CNPJ. Uma segunda aprovação será bloqueada.</Notice> : null}
+      {!data.conflicts.approvedElsewhere && data.conflicts.otherApplications > 0 ? <Notice kind="warning" title="Outros pedidos para este CNPJ">{`Existem ${data.conflicts.otherApplications} outro(s) pedido(s) para o mesmo CNPJ, feitos por outras pessoas. Confira quem de fato representa a empresa.`}</Notice> : null}
+      <View style={[styles.cols, !isDesktop && { flexDirection: 'column' }]}>
+        <Card style={{ flex: 1 }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Dados informados</Heading>
+          <DataRow label="Razão social" value={c.legalName || '—'} />
+          <DataRow label="Nome fantasia" value={c.tradeName || '—'} />
+          <DataRow label="Abertura" value={c.openingDate ? c.openingDate.split('-').reverse().join('/') : '—'} />
+          <DataRow label="Natureza jurídica" value={c.legalNature || '—'} />
+          <DataRow label="Atividade" value={c.mainActivity || '—'} />
+          <DataRow label="Faturamento anual" value={optionLabel(COMPANY_REVENUE_OPTIONS, c.annualRevenueRange)} />
+          <DataRow label="E-mail / telefone" value={`${c.businessEmail || '—'} · ${c.businessPhone ? maskPhoneInput(c.businessPhone) : '—'}`} />
+          <DataRow last label="Endereço" value={a.street ? `${a.street}, ${a.number}${a.complement ? ` (${a.complement})` : ''} · ${a.district} · ${a.city}/${a.state} · CEP ${maskCepInput(a.cep)}` : '—'} />
+        </Card>
+        <Card style={{ flex: 1 }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Receita Federal (consulta pública)</Heading>
+          {r?.ok ? (
+            <>
+              <DataRow label="Situação cadastral" value={r.situacao || '—'} />
+              <DataRow label="Razão social" value={r.razaoSocial || '—'} />
+              <DataRow label="Abertura" value={r.abertura ? r.abertura.split('-').reverse().join('/') : '—'} />
+              <DataRow label="Município" value={r.municipio ? `${r.municipio}/${r.uf}` : '—'} />
+              <DataRow last label="Sócios (QSA)" value={r.socios?.length ? r.socios.join(' · ') : '—'} />
+              {r.situacao && r.situacao !== 'ATIVA' ? <Notice kind="error" style={{ marginTop: 12 }}>{`Situação cadastral: ${r.situacao}.`}</Notice> : null}
+            </>
+          ) : <Notice kind="warning">{r?.error || 'Consulta indisponível.'}</Notice>}
+        </Card>
+      </View>
+      <Card style={{ marginTop: 20 }}>
+        <Heading level={2} style={{ marginBottom: 6 }}>Quem pediu</Heading>
+        {ap ? (
+          <>
+            <DataRow label="Nome" value={ap.name} />
+            <DataRow label="CPF" value={fmtCpf(ap.document)} />
+            <DataRow label="E-mail" value={ap.email} />
+            <DataRow label="Cargo declarado" value={optionLabel(COMPANY_POSITION_OPTIONS, c.applicantPosition)} />
+            <DataRow last label="Identidade (KYC)" value={kycLabel || '—'} />
+            {r?.ok && r.socios?.length ? <Notice kind={nameMatch ? 'success' : 'warning'} style={{ marginTop: 12 }}>{nameMatch ? 'O nome de quem pediu aparece entre os sócios da Receita.' : 'O nome de quem pediu NÃO aparece entre os sócios da Receita. Se for administrador(a) ou procurador(a), confira a procuração ou o contrato social.'}</Notice> : null}
+            <View style={{ marginTop: 12 }}><Button onPress={() => navigation.navigate('Case', { customerId: ap.id })} style={{ alignSelf: 'flex-start', minWidth: 240 }} title="Ver a verificação (KYC) dessa pessoa" variant="ghost" /></View>
+          </>
+        ) : <Body muted>—</Body>}
+      </Card>
+      <Heading level={2} style={{ marginBottom: 12, marginTop: 24 }}>Documentos da empresa</Heading>
+      <View style={styles.docsGrid}>{data.documents.map((d) => <View key={d.id} style={{ flexBasis: isDesktop ? '48%' : '100%', flexGrow: 1 }}><DocumentViewer basePath={`/companies/cases/${c.id}`} doc={d} viewer={staff?.name || ''} /></View>)}</View>
+      {data.reviews.length ? (
+        <Card style={{ marginTop: 20 }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Histórico de análises</Heading>
+          {data.reviews.map((rv, i) => <DataRow key={`${rv.createdAt}-${i}`} last={i === data.reviews.length - 1} label={`${fmtDateTime(rv.createdAt)} · ${rv.staffName}`} value={`${DECISION_LABEL[rv.decision]}${rv.reason ? `: ${rv.reason}` : ''}`} />)}
+        </Card>
+      ) : null}
+      <View style={{ marginTop: 20 }}>{c.status === 'SUBMITTED' && !done ? <DecisionPanel approveNote="A aprovação ativa o vínculo da pessoa com a empresa. Ela NÃO libera nenhuma operação financeira." endpoint={`/companies/cases/${c.id}/decision`} onDone={(res) => { setDone(res); load(); }} /> : <Notice kind="info">Este pedido não está aguardando análise.</Notice>}</View>
+      <View style={{ marginTop: 16 }}><Button onPress={() => navigation.navigate('CompanyQueue')} style={{ alignSelf: 'flex-start', minWidth: 180 }} title="Voltar para a fila" variant="ghost" /></View>
     </Shell>
   );
 }
@@ -363,6 +465,8 @@ function Navigator() {
           <>
             <Stack.Screen component={QueuePage} name="Queue" options={{ title: TITLES.Queue }} />
             <Stack.Screen component={CasePage} name="Case" options={{ title: TITLES.Case }} />
+            <Stack.Screen component={CompanyQueuePage} name="CompanyQueue" options={{ title: TITLES.CompanyQueue }} />
+            <Stack.Screen component={CompanyCasePage} name="CompanyCase" options={{ title: TITLES.CompanyCase }} />
             <Stack.Screen component={TeamPage} name="Team" options={{ title: TITLES.Team }} />
           </>
         ) : (

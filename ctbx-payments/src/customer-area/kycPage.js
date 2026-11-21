@@ -272,7 +272,7 @@ function ReviewStep({ kyc, onSaved, goTo }) {
   );
 }
 
-function StepCard({ title, subtitle, children, saved, onBack }) {
+export function StepCard({ title, subtitle, children, saved, onBack }) {
   return (
     <Card>
       <Heading level={2} style={{ marginBottom: 6 }}>{title}</Heading>
