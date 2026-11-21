@@ -97,7 +97,8 @@ export class CustomerKycService {
     return {
       status: kyc?.status ?? 'NOT_STARTED',
       name,
-      document,
+      // Fase 3: o CPF completo nunca sai da API (só os 3 dígitos do meio).
+      document: `***.${document.slice(3, 6)}.***-**`,
       email,
       phone,
       birthDate: kyc?.birthDate ?? null,

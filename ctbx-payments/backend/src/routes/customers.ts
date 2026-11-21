@@ -175,6 +175,15 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   // parâmetro de customer_id pra um cliente malicioso manipular aqui.
   app.get('/session', { preHandler: sessionGuard }, async (request) => envelope(request, { customer: request.customerAuth }));
 
+  // Painel do cliente (Fase 3): perfil com CPF/telefone mascarados e o
+  // status do KYC, numa chamada só. Identidade só do token.
+  app.get('/me', { preHandler: sessionGuard }, async (request) => {
+    if (!customerAuthService) throw providerNotConfigured('de autenticação de clientes');
+    const profile = await customerAuthService.getProfile(request.customerAuth!.id);
+    const kycStatus = kycService ? (await kycService.getPersonalInfo(request.customerAuth!.id)).status : 'NOT_STARTED';
+    return envelope(request, { profile, kyc: { status: kycStatus } });
+  });
+
   // Troca de senha autenticada — diferente de /password/reset (aquele é
   // o "esqueci minha senha", sem sessão, via token de e-mail). Rate limit
   // próprio: 5/min por IP, mesmo teto do login (é essencialmente uma

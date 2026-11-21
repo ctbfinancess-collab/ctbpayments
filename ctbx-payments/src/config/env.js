@@ -17,4 +17,7 @@ export const env = Object.freeze({
   // do Cliente publicada nunca expõe /admin; o painel terá endereço próprio
   // (Fase 6). Só liga com EXPO_PUBLIC_ENABLE_ADMIN=true (uso interno/local).
   adminEnabled: process.env.EXPO_PUBLIC_ENABLE_ADMIN === 'true',
+  // Endereço do site institucional (links de Termos/Privacidade e "voltar
+  // ao site"). Vazio = os links não aparecem.
+  siteUrl: (process.env.EXPO_PUBLIC_SITE_URL || '').replace(/\/$/, ''),
 });

@@ -81,3 +81,24 @@ test('read-only routes (GET) are not audited', async (t) => {
   await app.inject({ method: 'GET', url: '/v1/customers/session' });
   assert.equal(log.events.length, 0);
 });
+
+test('GET /me returns the dashboard profile with CPF and phone masked, plus the KYC status', async (t) => {
+  const { app } = await setup();
+  t.after(() => app.close());
+  await app.inject({ method: 'POST', url: '/v1/customers/register', payload: P });
+  await verifyEmail(app, P.email);
+  const token = (await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: P.email, password: P.password } })).json().data.token;
+  const me = await app.inject({ method: 'GET', url: '/v1/customers/me', headers: { authorization: `Bearer ${token}` } });
+  assert.equal(me.statusCode, 200);
+  const { profile, kyc } = me.json().data;
+  assert.equal(profile.documentMasked, '***.444.***-**');
+  assert.equal(profile.phoneMasked, '(11) *****-0000');
+  assert.equal(profile.emailVerified, true);
+  assert.equal(kyc.status, 'NOT_STARTED');
+  const raw = me.body;
+  assert.equal(raw.includes('11144477735') || raw.includes('11999990000') || raw.includes('passwordHash'), false);
+  await app.inject({ method: 'PUT', url: '/v1/customers/kyc/personal-info', headers: { authorization: `Bearer ${token}` }, payload: { nationality: 'Brasileira' } });
+  const after = await app.inject({ method: 'GET', url: '/v1/customers/me', headers: { authorization: `Bearer ${token}` } });
+  assert.equal(after.json().data.kyc.status, 'IN_PROGRESS');
+  assert.equal((await app.inject({ method: 'GET', url: '/v1/customers/me' })).statusCode, 401);
+});

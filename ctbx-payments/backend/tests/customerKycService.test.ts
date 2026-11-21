@@ -19,7 +19,7 @@ test('getPersonalInfo prefills name/document/email/phone from customers and star
   const view = await service.getPersonalInfo(customer.id);
   assert.equal(view.status, 'NOT_STARTED');
   assert.equal(view.name, 'Cliente KYC');
-  assert.equal(view.document, '11144477735');
+  assert.equal(view.document, '***.444.***-**'); // nunca o CPF completo
   assert.equal(view.email, 'kyc@sandbox.invalid');
   assert.equal(view.phone, '11999990000');
   assert.equal(view.birthDate, null);

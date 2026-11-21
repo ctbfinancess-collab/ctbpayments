@@ -4,7 +4,7 @@ import { apiClient } from '../api';
 import { MOCK_ACCOUNT, MOCK_PROFILE } from '../data/profileMockData';
 import { getSandboxDeviceRegistration } from '../session/deviceIdentity';
 import { clearSession, readSession } from '../session/sessionStorage';
-import { loginCustomer } from './customerAuthClient';
+import { loginCustomer, logoutCustomer } from './customerAuthClient';
 import { logoutSandboxSession, mapSandboxSession, refreshSandboxSession, sandboxLogin } from './sandboxAuthClient';
 
 const DEMO_DEVICE = Object.freeze({ id: 'demo-device', name: 'DISPOSITIVO DEMONSTRAÇÃO' });
@@ -21,6 +21,12 @@ async function loginProduction(credentials) {
   return { user: customer, account: null, device: null, deviceId: null, accessToken: token, refreshToken: null, expiresAt, demoMode: false, sandboxMode: false, lastActivity: Date.now() };
 }
 
+// Sessão nova devolvida pela API após a troca de senha (Fase 3) — mesmo
+// formato do login de produção.
+export function sessionFromCustomerAuth({ token, expiresAt, customer }) {
+  return { user: customer, account: null, device: null, deviceId: null, accessToken: token, refreshToken: null, expiresAt, demoMode: false, sandboxMode: false, lastActivity: Date.now() };
+}
+
 export async function login(credentials = {}) {
   if (isDemoMode) return { user: MOCK_PROFILE, account: MOCK_ACCOUNT, device: DEMO_DEVICE, accessToken: null, refreshToken: null, demoMode: true, sandboxMode: false, lastActivity: Date.now() };
   if (isProductionMode) return loginProduction(credentials);
@@ -28,6 +34,10 @@ export async function login(credentials = {}) {
   return sandboxLogin(credentials, getSandboxDeviceRegistration());
 }
 export async function logout(session) {
+  if (isProductionMode && session?.accessToken) {
+    try { await logoutCustomer(); }
+    catch { /* A sessão local é apagada mesmo se a API estiver fora do ar. */ }
+  }
   if (isSandboxMode && session?.accessToken) {
     try { await logoutSandboxSession(); }
     catch { /* A revogação local é obrigatória mesmo se o BFF estiver indisponível. */ }

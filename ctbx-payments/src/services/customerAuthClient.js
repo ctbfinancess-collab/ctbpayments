@@ -86,3 +86,9 @@ export async function confirmCustomerEmailChange(token, client = apiClient) {
     retryOnUnauthorized: false,
   });
 }
+
+// Encerra a sessão NO SERVIDOR (Fase 3). Usa o token atual, anexado pelo
+// apiClient; sem retry — se falhar, a sessão local é apagada mesmo assim.
+export async function logoutCustomer(client = apiClient) {
+  return client('/v1/customers/logout', { method: 'POST', body: JSON.stringify({}), retryOnUnauthorized: false });
+}

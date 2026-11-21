@@ -13,6 +13,8 @@
     "test:app": "node --import ./backend/node_modules/tsx/dist/loader.mjs --test tests/**/*.test.mjs"
   },
   "dependencies": {
+    "@expo-google-fonts/cormorant-garamond": "^0.4.1",
+    "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/poppins": "^0.4.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-navigation/native": "^7.3.16",

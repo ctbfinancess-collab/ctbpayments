@@ -31,6 +31,19 @@ export interface RegisteredCustomer {
 // que o brief pediu pra já deixar pronto: dá pra, depois, olhar
 // company_representatives por este mesmo id sem precisar de outro
 // contrato de autenticação.
+// Perfil para o painel (Fase 3) — o CPF e o telefone saem sempre mascarados.
+export interface CustomerProfile {
+  id: string;
+  type: 'PF';
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  documentMasked: string;
+  phoneMasked: string;
+  status: string;
+  createdAt: string;
+}
+
 export interface AuthenticatedCustomer {
   id: string;
   type: 'PF';
@@ -54,6 +67,14 @@ export interface CustomerLoginResult {
 }
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
+function maskPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 8) return '****';
+  const ddd = digits.length >= 10 ? `(${digits.slice(0, 2)}) ` : '';
+  const local = digits.length >= 10 ? digits.slice(2) : digits;
+  return `${ddd}${'*'.repeat(local.length - 4)}-${local.slice(-4)}`;
+}
 
 function maskCpf(cpf: string): string {
   return `***.${cpf.slice(3, 6)}.***-**`;
@@ -144,6 +165,15 @@ export class CustomerAuthService {
     const expiresAt = new Date(this.now().getTime() + SESSION_TTL_MS);
     await this.sessions.create({ customerId: customer.id, tokenHash: hashToken(token), expiresAt });
     return { token, expiresAt, customer: toAuthenticatedCustomer(customer) };
+  }
+
+  async getProfile(customerId: string): Promise<CustomerProfile> {
+    const row = await this.customers.findById(customerId);
+    if (!row) throw new ApiError('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.', { statusCode: 404 });
+    return {
+      id: row.id, type: 'PF', name: row.name, email: row.email, emailVerified: Boolean(row.emailVerifiedAt),
+      documentMasked: maskCpf(row.document), phoneMasked: maskPhone(row.phone), status: row.status, createdAt: row.createdAt.toISOString(),
+    };
   }
 
   async validateSession(token: string): Promise<AuthenticatedCustomer | null> {

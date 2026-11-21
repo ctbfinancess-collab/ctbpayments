@@ -53,8 +53,15 @@ export function SessionProvider({ children }) {
     try { await authService.logout(sessionRef.current); }
     finally { await clearLocalSession(); }
   }, [clearLocalSession]);
+  // Troca a sessão atual por outra já emitida pela API (ex.: após trocar a
+  // senha, quando todas as sessões antigas são encerradas).
+  const adoptSession = useCallback(async (session) => {
+    sessionRef.current = session;
+    await writeSession(session);
+    dispatch({ type: 'AUTHENTICATED', payload: session });
+  }, []);
   const touch = useCallback(() => dispatch({ type: 'ACTIVITY' }), []);
-  const value = useMemo(() => ({ ...state, login, logout, refresh, touch }), [state, login, logout, refresh, touch]);
+  const value = useMemo(() => ({ ...state, login, logout, refresh, touch, adoptSession }), [state, login, logout, refresh, touch, adoptSession]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
