@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { companies, companyDocuments, companyReviews } from '../db/schema/index.js';
 
@@ -73,6 +73,7 @@ export interface CompanyRepository {
   addReview(review: Omit<CompanyReviewRecord, 'id'>): Promise<CompanyReviewRecord>;
   listReviews(companyId: string): Promise<CompanyReviewRecord[]>;
   countByStatus(): Promise<Record<string, number>>;
+  countCreatedByMonth(since: Date): Promise<Record<string, number>>;
 }
 
 export class PostgresCompanyRepository implements CompanyRepository {
@@ -126,6 +127,11 @@ export class PostgresCompanyRepository implements CompanyRepository {
   async countByStatus() {
     const rows = await this.db.select({ status: companies.status, n: count() }).from(companies).groupBy(companies.status);
     return Object.fromEntries(rows.map((r) => [r.status, Number(r.n)])) as Record<string, number>;
+  }
+  async countCreatedByMonth(since: Date) {
+    const m = sql<string>`to_char(date_trunc('month', ${companies.createdAt} at time zone 'America/Sao_Paulo'), 'YYYY-MM')`;
+    const rows = await this.db.select({ m, n: count() }).from(companies).where(gte(companies.createdAt, since)).groupBy(m);
+    return Object.fromEntries(rows.map((r) => [r.m, Number(r.n)])) as Record<string, number>;
   }
   async listReviews(companyId: string) {
     return (await this.db.select().from(companyReviews).where(eq(companyReviews.companyId, companyId)).orderBy(desc(companyReviews.createdAt))) as CompanyReviewRecord[];

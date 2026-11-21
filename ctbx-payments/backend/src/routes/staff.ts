@@ -36,6 +36,7 @@ const AUDITED: Record<string, string> = {
   'GET /companies/cases/:companyId/documents/:documentId': 'STAFF_COMPANY_DOCUMENT_VIEW',
   'POST /companies/cases/:companyId/decision': 'STAFF_COMPANY_DECISION',
   'GET /overview': 'STAFF_OVERVIEW_VIEW',
+  'GET /dashboard': 'STAFF_DASHBOARD_VIEW',
   'GET /customers': 'STAFF_CUSTOMER_SEARCH',
   'GET /customers/:customerId': 'STAFF_CUSTOMER_VIEW',
   'POST /customers/:customerId/block': 'STAFF_CUSTOMER_BLOCK',
@@ -259,6 +260,9 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
 
   // ---- Painel administrativo (Fase 6) -------------------------------------
   app.get('/overview', { preValidation: requireStaff }, async (request) => envelope(request, { overview: await staffCustomers.overview() }));
+  app.get('/dashboard', { preValidation: requireStaff }, async (request) => envelope(request, { dashboard: await staffCustomers.dashboard() }));
+  // Contadores do menu: só números, consultados a cada página; sem auditoria.
+  app.get('/badges', { preValidation: requireStaff }, async (request) => envelope(request, { badges: await staffCustomers.badges() }));
 
   // Busca: o termo pesquisado (nome, e-mail ou CPF) NUNCA vai para a
   // auditoria — só o tipo de busca e quantos resultados vieram.

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { monthKey } from '../utils/monthKey.js';
 import type { CreateCustomerInput, CustomerRecord, CustomerRepository, CustomerSearch, CustomerStatus } from './CustomerRepository.js';
 
 // Fallback/testes — mesmo papel de todo InMemoryX deste backend: usado
@@ -55,5 +56,11 @@ export class InMemoryCustomerRepository implements CustomerRepository {
 
   async countAll(): Promise<number> {
     return this.byId.size;
+  }
+
+  async countCreatedByMonth(since: Date): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const c of this.byId.values()) if (c.createdAt >= since) { const k = monthKey(c.createdAt); out[k] = (out[k] ?? 0) + 1; }
+    return out;
   }
 }

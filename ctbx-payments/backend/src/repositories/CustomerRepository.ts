@@ -1,4 +1,4 @@
-import { count, desc, eq, ilike } from 'drizzle-orm';
+import { count, desc, eq, gte, ilike, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customers } from '../db/schema/index.js';
 
@@ -49,6 +49,8 @@ export interface CustomerRepository {
   search(criteria: CustomerSearch, limit: number): Promise<CustomerRecord[]>;
   setStatus(id: string, status: CustomerStatus, now: Date): Promise<void>;
   countAll(): Promise<number>;
+  // Painel: novos cadastros por mês (fuso de Brasília) desde a data dada.
+  countCreatedByMonth(since: Date): Promise<Record<string, number>>;
 }
 
 // Uma busca por vez: CPF exato, parte do e-mail ou parte do nome.
@@ -107,5 +109,10 @@ export class PostgresCustomerRepository implements CustomerRepository {
   async countAll(): Promise<number> {
     const [row] = await this.db.select({ n: count() }).from(customers);
     return Number(row?.n ?? 0);
+  }
+  async countCreatedByMonth(since: Date): Promise<Record<string, number>> {
+    const m = sql<string>`to_char(date_trunc('month', ${customers.createdAt} at time zone 'America/Sao_Paulo'), 'YYYY-MM')`;
+    const rows = await this.db.select({ m, n: count() }).from(customers).where(gte(customers.createdAt, since)).groupBy(m);
+    return Object.fromEntries(rows.map((r) => [r.m, Number(r.n)]));
   }
 }
