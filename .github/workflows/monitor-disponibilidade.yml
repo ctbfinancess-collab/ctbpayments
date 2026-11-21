@@ -10,7 +10,12 @@ name: Monitoramento de disponibilidade
 on:
   schedule:
     - cron: '*/10 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      testar_alerta:
+        description: 'Só enviar um e-mail de TESTE para a equipe (não verifica nem derruba nada)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -20,7 +25,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  testar-alerta:
+    # Disparo manual: confirma que a chave do Resend e os destinatários
+    # funcionam. Falha se o Resend recusar o envio.
+    if: github.event_name == 'workflow_dispatch' && inputs.testar_alerta
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar e-mail de teste
+        shell: bash
+        env:
+          RESEND_KEY: ${{ secrets.ALERT_RESEND_API_KEY }}
+          DESTINOS: ${{ secrets.ALERT_EMAILS }}
+        run: |
+          if [ -z "${RESEND_KEY:-}" ] || [ -z "${DESTINOS:-}" ]; then echo "Segredos ALERT_RESEND_API_KEY e ALERT_EMAILS não configurados."; exit 1; fi
+          para=$(printf '%s' "$DESTINOS" | jq -R 'split(",") | map(gsub("^ +| +$";""))')
+          status=$(jq -n --argjson to "$para" --arg quando "$(date -u +%Y-%m-%dT%H:%MZ)" \
+            '{from:"CTBX Payments <no-reply@ctbxpayments.com>", to:$to, subject:"[CTBX · teste] Alerta do monitoramento funcionando", text:("Este é um e-mail de TESTE do monitoramento automático da CTBX Payments.\nNada está fora do ar.\nQuando: " + $quando + "\nSe um serviço cair, um aviso como este chega em até cerca de 10 minutos.")}' \
+            | curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -X POST https://api.resend.com/emails -H "Authorization: Bearer $RESEND_KEY" -H 'Content-Type: application/json' -d @-)
+          echo "Resposta do Resend: HTTP $status"
+          [ "$status" -ge 200 ] && [ "$status" -lt 300 ]
+
   verificar:
+    if: github.event_name != 'workflow_dispatch' || !inputs.testar_alerta
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
