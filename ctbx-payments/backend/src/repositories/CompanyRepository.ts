@@ -74,6 +74,7 @@ export interface CompanyRepository {
   listReviews(companyId: string): Promise<CompanyReviewRecord[]>;
   countByStatus(): Promise<Record<string, number>>;
   countCreatedByMonth(since: Date): Promise<Record<string, number>>;
+  countReviewsByMonth(since: Date): Promise<Record<string, Record<string, number>>>;
 }
 
 export class PostgresCompanyRepository implements CompanyRepository {
@@ -132,6 +133,13 @@ export class PostgresCompanyRepository implements CompanyRepository {
     const m = sql<string>`to_char(date_trunc('month', ${companies.createdAt} at time zone 'America/Sao_Paulo'), 'YYYY-MM')`;
     const rows = await this.db.select({ m, n: count() }).from(companies).where(gte(companies.createdAt, since)).groupBy(m);
     return Object.fromEntries(rows.map((r) => [r.m, Number(r.n)])) as Record<string, number>;
+  }
+  async countReviewsByMonth(since: Date) {
+    const m = sql<string>`to_char(date_trunc('month', ${companyReviews.createdAt} at time zone 'America/Sao_Paulo'), 'YYYY-MM')`;
+    const rows = await this.db.select({ m, decision: companyReviews.decision, n: count() }).from(companyReviews).where(gte(companyReviews.createdAt, since)).groupBy(m, companyReviews.decision);
+    const out: Record<string, Record<string, number>> = {};
+    for (const r of rows) (out[r.m] ??= {})[r.decision] = Number(r.n);
+    return out;
   }
   async listReviews(companyId: string) {
     return (await this.db.select().from(companyReviews).where(eq(companyReviews.companyId, companyId)).orderBy(desc(companyReviews.createdAt))) as CompanyReviewRecord[];

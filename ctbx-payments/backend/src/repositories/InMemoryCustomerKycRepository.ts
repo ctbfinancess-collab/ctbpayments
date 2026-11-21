@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { monthKey } from '../utils/monthKey.js';
 import type { CustomerKycRecord, CustomerKycRepository, KycStatus, KycDocumentRecord, KycDocumentRepository, KycSectionPatch, NewKycDocument, PersonalInfoPatch } from './CustomerKycRepository.js';
 
 const EMPTY = {
@@ -36,6 +37,12 @@ export class InMemoryCustomerKycRepository implements CustomerKycRepository {
     const out: Record<string, number> = {};
     for (const k of this.byCustomerId.values()) out[k.status] = (out[k.status] ?? 0) + 1;
     return out;
+  }
+
+  async avgReviewHoursByMonth(since: Date): Promise<Record<string, number>> {
+    const acc: Record<string, number[]> = {};
+    for (const k of this.byCustomerId.values()) if (k.reviewedAt && k.submittedAt && k.reviewedAt >= since) (acc[monthKey(k.reviewedAt)] ??= []).push((k.reviewedAt.getTime() - k.submittedAt.getTime()) / 3_600_000);
+    return Object.fromEntries(Object.entries(acc).map(([m, h]) => [m, h.reduce((a, b) => a + b, 0) / h.length]));
   }
 
   async reviewStats(since: Date): Promise<{ reviewed: number; avgHours: number | null }> {

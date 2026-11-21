@@ -1,5 +1,5 @@
 import { maskIp } from '../security/maskIp.js';
-import { monthKey } from '../utils/monthKey.js';
+import { lastMonths } from '../utils/monthKey.js';
 import { renderAccountStatusTemplate } from '../emails/staffAndKycTemplates.js';
 import { ApiError } from '../errors/ApiError.js';
 import type { EmailProvider } from '../providers/EmailProvider.js';
@@ -176,12 +176,4 @@ export class StaffCustomerService {
     if (!c) throw new ApiError('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.', { statusCode: 404 });
     return c;
   }
-}
-
-// Os últimos N meses (fuso de Brasília), do mais antigo ao atual: "2026-11".
-function lastMonths(now: Date, n: number): string[] {
-  const cur = monthKey(now); const [y, m] = cur.split('-').map(Number) as [number, number];
-  const out: string[] = [];
-  for (let i = n - 1; i >= 0; i -= 1) { const t = (y * 12 + (m - 1)) - i; out.push(`${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`); }
-  return out;
 }

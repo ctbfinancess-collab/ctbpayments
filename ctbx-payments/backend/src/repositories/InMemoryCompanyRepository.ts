@@ -50,5 +50,6 @@ export class InMemoryCompanyRepository implements CompanyRepository {
   async addReview(review: Omit<CompanyReviewRecord, 'id'>) { const r = { ...review, id: randomUUID() }; this.reviews.push(r); return { ...r }; }
   async countByStatus() { const out: Record<string, number> = {}; for (const c of this.companies) out[c.status] = (out[c.status] ?? 0) + 1; return out; }
   async countCreatedByMonth(since: Date) { const out: Record<string, number> = {}; for (const c of this.companies) if (c.createdAt >= since) { const k = monthKey(c.createdAt); out[k] = (out[k] ?? 0) + 1; } return out; }
+  async countReviewsByMonth(since: Date) { const out: Record<string, Record<string, number>> = {}; for (const r of this.reviews) if (r.createdAt >= since) { const o = (out[monthKey(r.createdAt)] ??= {}); o[r.decision] = (o[r.decision] ?? 0) + 1; } return out; }
   async listReviews(companyId: string) { return this.reviews.filter((r) => r.companyId === companyId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); }
 }

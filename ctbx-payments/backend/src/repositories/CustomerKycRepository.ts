@@ -92,6 +92,7 @@ export interface CustomerKycRepository {
   // Painel: análises concluídas desde a data dada e o tempo médio (horas)
   // entre o envio e a decisão.
   reviewStats(since: Date): Promise<{ reviewed: number; avgHours: number | null }>;
+  avgReviewHoursByMonth(since: Date): Promise<Record<string, number>>;
 }
 
 export class PostgresCustomerKycRepository implements CustomerKycRepository {
@@ -143,6 +144,13 @@ export class PostgresCustomerKycRepository implements CustomerKycRepository {
     }).from(customerKyc).where(and(gte(customerKyc.reviewedAt, since), isNotNull(customerKyc.submittedAt)));
     const avg = row?.avg == null ? null : Number(row.avg);
     return { reviewed: Number(row?.n ?? 0), avgHours: avg != null && Number.isFinite(avg) ? avg : null };
+  }
+
+  async avgReviewHoursByMonth(since: Date): Promise<Record<string, number>> {
+    const m = sql<string>`to_char(date_trunc('month', ${customerKyc.reviewedAt} at time zone 'America/Sao_Paulo'), 'YYYY-MM')`;
+    const rows = await this.db.select({ m, avg: sql<string>`avg(extract(epoch from (${customerKyc.reviewedAt} - ${customerKyc.submittedAt})) / 3600)` })
+      .from(customerKyc).where(and(gte(customerKyc.reviewedAt, since), isNotNull(customerKyc.submittedAt))).groupBy(m);
+    return Object.fromEntries(rows.map((r) => [r.m, Number(r.avg)]).filter(([, v]) => Number.isFinite(v as number)));
   }
 
   async listByStatus(status: KycStatus): Promise<CustomerKycRecord[]> {

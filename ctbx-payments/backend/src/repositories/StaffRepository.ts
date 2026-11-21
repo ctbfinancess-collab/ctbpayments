@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { monthKey } from '../utils/monthKey.js';
+import { and, asc, count, desc, eq, gt, gte, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerStatusChanges, kycReviews, staffSessions, staffTokens, staffUsers } from '../db/schema/index.js';
 
@@ -55,6 +56,8 @@ export interface StaffRepository {
   revokeAllSessions(staffId: string, now: Date): Promise<void>;
   addReview(review: Omit<KycReviewRecord, 'id'>): Promise<KycReviewRecord>;
   listReviews(customerId: string): Promise<KycReviewRecord[]>;
+  // Relatórios: decisões de KYC por mês e por resultado.
+  countReviewsByMonth(since: Date): Promise<Record<string, Record<string, number>>>;
   addStatusChange(change: Omit<CustomerStatusChangeRecord, 'id'>): Promise<void>;
   listStatusChanges(customerId: string): Promise<CustomerStatusChangeRecord[]>;
 }
@@ -134,6 +137,13 @@ export class PostgresStaffRepository implements StaffRepository {
   async listStatusChanges(customerId: string) {
     return (await this.db.select().from(customerStatusChanges).where(eq(customerStatusChanges.customerId, customerId)).orderBy(desc(customerStatusChanges.createdAt))) as CustomerStatusChangeRecord[];
   }
+  async countReviewsByMonth(since: Date) {
+    const m = sql<string>`to_char(date_trunc('month', ${kycReviews.createdAt} at time zone 'America/Sao_Paulo'), 'YYYY-MM')`;
+    const rows = await this.db.select({ m, decision: kycReviews.decision, n: count() }).from(kycReviews).where(gte(kycReviews.createdAt, since)).groupBy(m, kycReviews.decision);
+    const out: Record<string, Record<string, number>> = {};
+    for (const r of rows) (out[r.m] ??= {})[r.decision] = Number(r.n);
+    return out;
+  }
   async listReviews(customerId: string) {
     return (await this.db.select().from(kycReviews).where(eq(kycReviews.customerId, customerId)).orderBy(desc(kycReviews.createdAt))) as KycReviewRecord[];
   }
@@ -195,4 +205,9 @@ export class InMemoryStaffRepository implements StaffRepository {
   async addStatusChange(change: Omit<CustomerStatusChangeRecord, 'id'>) { this.statusChanges.push({ ...change, id: randomUUID() }); }
   async listStatusChanges(customerId: string) { return this.statusChanges.filter((c) => c.customerId === customerId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); }
   async listReviews(customerId: string) { return this.reviews.filter((r) => r.customerId === customerId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); }
+  async countReviewsByMonth(since: Date) {
+    const out: Record<string, Record<string, number>> = {};
+    for (const r of this.reviews) if (r.createdAt >= since) { const o = (out[monthKey(r.createdAt)] ??= {}); o[r.decision] = (o[r.decision] ?? 0) + 1; }
+    return out;
+  }
 }

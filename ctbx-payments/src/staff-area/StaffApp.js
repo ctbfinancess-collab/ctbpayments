@@ -24,8 +24,8 @@ const GLOBE = require('../../assets/brand/globo-ctbx.png');
 const CARD_BG = 'rgba(28,30,33,0.82)';
 const Card = ({ style, ...rest }) => <BaseCard style={[{ backgroundColor: CARD_BG }, style]} {...rest} />;
 const Stack = createNativeStackNavigator();
-const linking = { prefixes: [], config: { screens: { Login: 'entrar', ForgotPassword: 'esqueci-minha-senha', ResetPassword: 'redefinir-senha', Invite: 'convite', Overview: 'inicio', Customers: 'clientes', Customer: 'clientes/:customerId', Audit: 'auditoria', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
-const TITLES = { Login: 'Entrar', ForgotPassword: 'Esqueci minha senha', ResetPassword: 'Redefinir senha', Invite: 'Aceitar convite', Overview: 'Visão geral', Customers: 'Clientes', Customer: 'Cliente', Audit: 'Auditoria', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
+const linking = { prefixes: [], config: { screens: { Login: 'entrar', ForgotPassword: 'esqueci-minha-senha', ResetPassword: 'redefinir-senha', Invite: 'convite', Overview: 'inicio', Customers: 'clientes', Customer: 'clientes/:customerId', Audit: 'auditoria', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe', Lgpd: 'lgpd', LgpdCase: 'lgpd/:requestId', Reports: 'relatorios' } } };
+const TITLES = { Login: 'Entrar', ForgotPassword: 'Esqueci minha senha', ResetPassword: 'Redefinir senha', Invite: 'Aceitar convite', Overview: 'Visão geral', Customers: 'Clientes', Customer: 'Cliente', Audit: 'Auditoria', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' , Lgpd: 'Solicitações LGPD', LgpdCase: 'Solicitação LGPD', Reports: 'Relatórios' };
 const theme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: ca.bg, card: ca.bgRaised, primary: ca.gold, text: ca.text, border: ca.border } };
 // Lê o código do link (convite/redefinição) e o tira da barra de endereço,
 // para não ficar no histórico do navegador.
@@ -222,6 +222,7 @@ const NAV_GROUPS = [
   { title: 'Análise', items: [{ route: 'Queue', label: 'Fila de análise KYC', badge: 'kyc' }, { route: 'CompanyQueue', label: 'Empresas (PJ)', badge: 'companies' }] },
   { title: 'Clientes', items: [{ route: 'Customers', label: 'Clientes' }] },
   { title: 'Controle', admin: true, items: [{ route: 'Audit', label: 'Auditoria' }, { route: 'Team', label: 'Equipe' }] },
+  { title: 'LGPD e relatórios', admin: true, items: [{ route: 'Lgpd', label: 'Solicitações LGPD', badge: 'lgpd' }, { route: 'Reports', label: 'Relatórios' }] },
 ];
 
 function Shell({ active, title, subtitle, eyebrow, children, watermark = 'corner' }) {
@@ -233,7 +234,8 @@ function Shell({ active, title, subtitle, eyebrow, children, watermark = 'corner
   const groups = NAV_GROUPS.filter((g) => !g.admin || staff?.role === 'ADMIN');
   const item = (n) => {
     const on = active === n.route;
-    const count = n.badge && badges ? badges[n.badge] : 0;
+    const raw = n.badge && badges ? badges[n.badge] : 0;
+    const count = raw && typeof raw === 'object' ? raw.open : raw;
     const inner = (
       <>
         <Text style={[styles.navText, on && styles.navTextOn]}>{n.label}</Text>
@@ -930,6 +932,9 @@ function Navigator() {
             <Stack.Screen component={CompanyQueuePage} name="CompanyQueue" options={{ title: TITLES.CompanyQueue }} />
             <Stack.Screen component={CompanyCasePage} name="CompanyCase" options={{ title: TITLES.CompanyCase }} />
             <Stack.Screen component={TeamPage} name="Team" options={{ title: TITLES.Team }} />
+            <Stack.Screen component={LgpdPage} name="Lgpd" options={{ title: TITLES.Lgpd }} />
+            <Stack.Screen component={LgpdCasePage} name="LgpdCase" options={{ title: TITLES.LgpdCase }} />
+            <Stack.Screen component={ReportsPage} name="Reports" options={{ title: TITLES.Reports }} />
           </>
         ) : (
           <>
@@ -948,6 +953,233 @@ export default function StaffApp() {
   const [loaded, error] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, CormorantGaramond_500Medium, CormorantGaramond_600SemiBold });
   if (!loaded && !error) return <View style={{ backgroundColor: ca.bg, flex: 1 }} />;
   return <StaffSessionProvider><Navigator /></StaffSessionProvider>;
+}
+
+// ——— Etapa D: solicitações LGPD e relatórios (só administradores) ———
+const LGPD_RIGHTS = [
+  { value: 'CONFIRMATION_ACCESS', label: 'Confirmação e acesso', hint: 'Reúna os dados pela ficha do cliente. A confirmação simples pode ser dada logo; a declaração completa, em até 15 dias.' },
+  { value: 'CORRECTION', label: 'Correção', hint: 'Peça o dado correto ao titular. Dados conferidos na verificação de identidade só mudam com novo envio pela Área do Cliente.' },
+  { value: 'ANONYMIZATION_DELETION', label: 'Anonimização, bloqueio ou eliminação', hint: 'Alguns dados precisam ser guardados pelo prazo previsto na Política de Privacidade (obrigações legais). Explique isso na resposta e consulte o jurídico antes de eliminar.' },
+  { value: 'PORTABILITY', label: 'Portabilidade', hint: 'Combine o formato com o jurídico. Nunca envie documentos por e-mail sem proteção.' },
+  { value: 'CONSENT_REVOCATION', label: 'Revogação de consentimento', hint: 'Indique quais tratamentos dependiam do consentimento e o que muda para o titular.' },
+  { value: 'SHARING_INFO', label: 'Com quem compartilhamos', hint: 'Use a lista de fornecedores da Política de Privacidade.' },
+  { value: 'DECISION_REVIEW', label: 'Revisão de decisão', hint: 'Uma pessoa da equipe que não tomou a decisão original deve revisar o cadastro.' },
+  { value: 'OTHER', label: 'Outro', hint: 'Descreva o pedido e consulte o encarregado (DPO).' },
+];
+const rightLabel = (v) => (LGPD_RIGHTS.find((r) => r.value === v) || {}).label || v;
+const LGPD_STATUS = { OPEN: ['Recebida', 'warning'], IN_PROGRESS: ['Em atendimento', 'neutral'], ANSWERED: ['Atendida', 'success'], DENIED: ['Não atendida', 'danger'] };
+const LGPD_ACTION = { CREATED: 'Solicitação registrada', NOTE: 'Anotação', IN_PROGRESS: 'Atendimento iniciado', IDENTITY_VERIFIED: 'Identidade do titular confirmada', ANSWERED: 'Encerrada como atendida', DENIED: 'Encerrada como não atendida' };
+const deadline = (r) => {
+  if (r.closedAt) return r.overdue ? 'encerrada fora do prazo' : 'encerrada no prazo';
+  if (r.daysLeft < 0) return `atrasada ${-r.daysLeft} ${-r.daysLeft === 1 ? 'dia' : 'dias'}`;
+  if (r.daysLeft === 0) return 'vence hoje';
+  return `vence em ${r.daysLeft} ${r.daysLeft === 1 ? 'dia' : 'dias'}`;
+};
+const todayBr = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`; };
+// dd/mm/aaaa → meio-dia em Brasília (evita virar o dia por fuso).
+const brDateToIso = (v) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v.trim()); if (!m) return null; const d = new Date(Date.UTC(+m[3], +m[2] - 1, +m[1], 15)); return d.getUTCDate() === +m[1] ? d.toISOString() : null; };
+const maskDate = (v) => { const d = v.replace(/\D/g, '').slice(0, 8); return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join('/'); };
+
+function AdminOnly({ active, title, children }) {
+  const { staff } = useStaff();
+  if (staff?.role !== 'ADMIN') return <Shell active={active} title={title}><Notice kind="error">Apenas administradores têm acesso a esta área.</Notice></Shell>;
+  return children;
+}
+
+function LgpdPage({ navigation }) {
+  const { call } = useStaff();
+  const [filter, setFilter] = useState('open');
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ right: 'CONFIRMATION_ACCESS', channel: 'EMAIL', receivedAt: todayBr(), requesterName: '', requesterContact: '', customerLookup: '', description: '' });
+  const [formError, setFormError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => { setItems(null); call(`/lgpd/requests?filter=${filter}`).then((d) => setItems(d.requests)).catch((e) => setError(staffMessage(e))); }, [call, filter]);
+  useEffect(() => { load(); }, [load]);
+  const set = (k) => (v) => setForm((f) => ({ ...f, [k]: k === 'receivedAt' ? maskDate(v) : v }));
+  const submit = async () => {
+    setFormError('');
+    const receivedAt = brDateToIso(form.receivedAt);
+    if (!receivedAt) { setFormError('Informe a data de recebimento no formato dd/mm/aaaa.'); return; }
+    setBusy(true);
+    try {
+      const d = await call('/lgpd/requests', { method: 'POST', body: { right: form.right, channel: form.channel, receivedAt, requesterName: form.requesterName.trim(), requesterContact: form.requesterContact.trim(), description: form.description.trim(), ...(form.customerLookup.trim() ? { customerLookup: form.customerLookup.trim() } : {}) } });
+      navigation.navigate('LgpdCase', { requestId: d.request.id });
+    } catch (e) { setFormError(staffMessage(e)); } finally { setBusy(false); }
+  };
+  return (
+    <AdminOnly active="Lgpd" title="Solicitações LGPD">
+      <Shell active="Lgpd" eyebrow="LGPD" subtitle="Pedidos de titulares recebidos pelo encarregado (juridico@). Prazo de resposta: 15 dias a partir do recebimento." title="Solicitações LGPD">
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between', marginBottom: 16 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {[['open', 'Em aberto'], ['closed', 'Encerradas'], ['all', 'Todas']].map(([v, l]) => (
+              <Pressable accessibilityRole="button" accessibilityState={{ selected: filter === v }} key={v} onPress={() => setFilter(v)} style={[styles.filterChip, filter === v && styles.filterChipOn]}><Text style={[styles.filterText, filter === v && { color: ca.bg }]}>{l}</Text></Pressable>
+            ))}
+          </View>
+          <Button onPress={() => { setShowForm(!showForm); setFormError(''); }} title={showForm ? 'Cancelar' : 'Registrar solicitação'} variant={showForm ? 'ghost' : 'primary'} />
+        </View>
+        {showForm ? (
+          <Card style={{ marginBottom: 18 }}>
+            <Heading level={2} style={{ marginBottom: 6 }}>Nova solicitação</Heading>
+            <Body muted style={{ fontSize: 13, marginBottom: 14 }}>Registre só o necessário para atender o pedido. Não anexe documentos aqui.</Body>
+            <ChoiceGroup label="Direito solicitado" onChange={set('right')} options={LGPD_RIGHTS} value={form.right} />
+            <ChoiceGroup label="Como chegou" onChange={set('channel')} options={[{ value: 'EMAIL', label: 'E-mail' }, { value: 'OTHER', label: 'Outro canal' }]} value={form.channel} />
+            <Field hint="O prazo de 15 dias conta a partir desta data." inputMode="numeric" label="Recebida em" maxLength={10} onChangeText={set('receivedAt')} placeholder="dd/mm/aaaa" value={form.receivedAt} />
+            <Field autoCapitalize="words" label="Nome do titular" maxLength={160} onChangeText={set('requesterName')} value={form.requesterName} />
+            <Field label="Contato do titular (e-mail ou telefone)" maxLength={200} onChangeText={set('requesterContact')} value={form.requesterContact} />
+            <Field hint="Opcional. Se for cliente, informe o e-mail ou o CPF da conta para ligar o pedido à ficha." label="Cliente CTBX (e-mail ou CPF)" maxLength={200} onChangeText={set('customerLookup')} value={form.customerLookup} />
+            <Field label="Resumo do pedido" maxLength={2000} multiline numberOfLines={4} onChangeText={set('description')} value={form.description} />
+            {formError ? <Notice kind="error">{formError}</Notice> : null}
+            <Button loading={busy} onPress={submit} style={{ alignSelf: 'flex-start', marginTop: 8, minWidth: 220 }} title="Registrar e abrir" />
+          </Card>
+        ) : null}
+        {error ? <Notice kind="error">{error}</Notice> : null}
+        {!items && !error ? <LoadingBlock /> : null}
+        {items ? (
+          <Card>
+            {items.length ? items.map((r, i) => {
+              const [sl, st] = LGPD_STATUS[r.status] || [r.status, 'neutral'];
+              return (
+                <Pressable accessibilityRole="link" key={r.id} onPress={() => navigation.navigate('LgpdCase', { requestId: r.id })} style={({ hovered }) => [styles.lgpdRow, i === items.length - 1 && { borderBottomWidth: 0 }, hovered && { backgroundColor: 'rgba(191,194,199,0.04)' }]}>
+                  <View style={{ flex: 1, minWidth: 200 }}>
+                    <Text style={styles.lgpdTitle}>{r.requesterName} · {rightLabel(r.right)}</Text>
+                    <Body muted style={{ fontSize: 12 }}>{r.protocol} · recebida em {formatDate(r.receivedAt)}{r.linkedCustomer ? ' · cliente CTBX' : ''}</Body>
+                  </View>
+                  <StatusPill label={sl} tone={st} />
+                  <Text style={[styles.lgpdDue, r.overdue && { color: ca.danger }]}>{deadline(r)}</Text>
+                </Pressable>
+              );
+            }) : <Body muted>{filter === 'open' ? 'Nenhuma solicitação em aberto.' : 'Nenhuma solicitação.'}</Body>}
+          </Card>
+        ) : null}
+      </Shell>
+    </AdminOnly>
+  );
+}
+
+function LgpdCasePage({ route, navigation }) {
+  const { call } = useStaff();
+  const id = route.params?.requestId;
+  const [r, setR] = useState(null);
+  const [error, setError] = useState('');
+  const [note, setNote] = useState('');
+  const [closeForm, setCloseForm] = useState({ outcome: 'ANSWERED', response: '' });
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState('');
+  useEffect(() => { call(`/lgpd/requests/${id}`).then((d) => setR(d.request)).catch((e) => setError(staffMessage(e))); }, [call, id]);
+  const act = async (key, path, body, ok) => {
+    setBusy(key); setMsg(null);
+    try { const d = await call(path, { method: 'POST', body }); setR(d.request); setMsg({ kind: 'success', text: ok }); if (key === 'note') setNote(''); }
+    catch (e) { setMsg({ kind: 'error', text: staffMessage(e) }); } finally { setBusy(''); }
+  };
+  if (error) return <AdminOnly active="Lgpd" title="Solicitação LGPD"><Shell active="Lgpd" title="Solicitação LGPD"><Notice kind="error">{error}</Notice></Shell></AdminOnly>;
+  if (!r) return <AdminOnly active="Lgpd" title="Solicitação LGPD"><Shell active="Lgpd" title="Solicitação LGPD"><LoadingBlock /></Shell></AdminOnly>;
+  const open = r.status === 'OPEN' || r.status === 'IN_PROGRESS';
+  const [sl, st] = LGPD_STATUS[r.status] || [r.status, 'neutral'];
+  const hint = (LGPD_RIGHTS.find((x) => x.value === r.right) || {}).hint;
+  return (
+    <AdminOnly active="Lgpd" title="Solicitação LGPD">
+      <Shell active="Lgpd" eyebrow={r.protocol} subtitle={`${rightLabel(r.right)} · recebida em ${formatDate(r.receivedAt)}`} title={r.requesterName}>
+        <View style={{ alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+          <StatusPill label={sl} tone={st} />
+          <Text style={[styles.lgpdDue, r.overdue && { color: ca.danger }]}>{deadline(r)} · prazo {formatDate(r.dueAt)}</Text>
+        </View>
+        {msg ? <Notice kind={msg.kind}>{msg.text}</Notice> : null}
+        <View style={styles.dashRow}>
+          <Card style={[styles.dashCard, { flexBasis: 420 }]}>
+            <Heading level={2} style={{ marginBottom: 6 }}>Pedido</Heading>
+            <DataRow label="Direito" value={rightLabel(r.right)} />
+            <DataRow label="Canal" value={r.channel === 'EMAIL' ? 'E-mail' : 'Outro canal'} />
+            <DataRow label="Contato do titular" value={r.requesterContact} />
+            <DataRow label="Identidade" value={r.identityVerified ? 'Confirmada' : 'Ainda não confirmada'} />
+            <DataRow label="Cliente CTBX" last value={r.customer ? r.customer.name : 'Não vinculado'} />
+            {r.customer ? <LinkText onPress={() => navigation.navigate('Customer', { customerId: r.customer.id })} style={{ marginTop: 8 }}>Abrir a ficha do cliente</LinkText> : null}
+            <Text style={[styles.dashTitle, { fontSize: 15, marginTop: 18 }]}>Resumo do pedido</Text>
+            <Body style={{ marginTop: 6 }}>{r.description}</Body>
+            {r.response ? <><Text style={[styles.dashTitle, { fontSize: 15, marginTop: 18 }]}>Resposta enviada</Text><Body style={{ marginTop: 6 }}>{r.response}</Body></> : null}
+          </Card>
+          <Card style={[styles.dashCard, { flexBasis: 300 }]}>
+            <Heading level={2} style={{ marginBottom: 6 }}>Como atender</Heading>
+            <Body muted style={{ fontSize: 14 }}>{hint}</Body>
+            <Body muted style={{ fontSize: 13, marginTop: 10 }}>Antes de entregar ou alterar dados, confirme que quem pediu é o titular (por exemplo, respondendo pelo e-mail cadastrado). A execução é manual; este registro comprova o atendimento.</Body>
+          </Card>
+        </View>
+        {open ? (
+          <View style={[styles.dashRow, { marginTop: 16 }]}>
+            <Card style={styles.dashCard}>
+              <Heading level={2} style={{ marginBottom: 10 }}>Andamento</Heading>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+                {r.status === 'OPEN' ? <Button loading={busy === 'start'} onPress={() => act('start', `/lgpd/requests/${id}/update`, { inProgress: true }, 'Atendimento iniciado.')} title="Iniciar atendimento" variant="ghost" /> : null}
+                {!r.identityVerified ? <Button loading={busy === 'verify'} onPress={() => act('verify', `/lgpd/requests/${id}/update`, { identityVerified: true }, 'Identidade registrada como confirmada.')} title="Identidade confirmada" variant="ghost" /> : null}
+              </View>
+              <Field label="Anotação interna" maxLength={2000} multiline numberOfLines={3} onChangeText={setNote} value={note} />
+              <Button disabled={!note.trim()} loading={busy === 'note'} onPress={() => act('note', `/lgpd/requests/${id}/update`, { note: note.trim() }, 'Anotação registrada.')} style={{ alignSelf: 'flex-start', minWidth: 200 }} title="Salvar anotação" />
+            </Card>
+            <Card style={styles.dashCard}>
+              <Heading level={2} style={{ marginBottom: 6 }}>Encerrar</Heading>
+              <Body muted style={{ fontSize: 13, marginBottom: 12 }}>O encerramento é definitivo. Para atender, a identidade precisa estar confirmada.</Body>
+              <ChoiceGroup label="Resultado" onChange={(v) => setCloseForm((f) => ({ ...f, outcome: v }))} options={[{ value: 'ANSWERED', label: 'Atendida' }, { value: 'DENIED', label: 'Não atendida (com justificativa)' }]} value={closeForm.outcome} />
+              <Field label="Resumo da resposta enviada ao titular" maxLength={4000} multiline numberOfLines={4} onChangeText={(v) => setCloseForm((f) => ({ ...f, response: v }))} value={closeForm.response} />
+              <Button disabled={closeForm.response.trim().length < 10} loading={busy === 'close'} onPress={() => act('close', `/lgpd/requests/${id}/close`, { outcome: closeForm.outcome, response: closeForm.response.trim() }, 'Solicitação encerrada.')} style={{ alignSelf: 'flex-start', minWidth: 220 }} title="Encerrar solicitação" />
+            </Card>
+          </View>
+        ) : null}
+        <Card style={{ marginTop: 16 }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Histórico</Heading>
+          <Body muted style={{ fontSize: 12, marginBottom: 8 }}>Registro permanente: não pode ser alterado nem apagado.</Body>
+          {r.events.map((e, i) => (
+            <View key={`${e.createdAt}-${i}`} style={[styles.eventRow, i === r.events.length - 1 && { borderBottomWidth: 0 }]}>
+              <Body muted style={{ fontSize: 13, minWidth: 130 }}>{fmtDateTime(e.createdAt)}</Body>
+              <View style={{ flex: 1, minWidth: 200 }}>
+                <Text style={styles.eventName}>{LGPD_ACTION[e.action] || e.action} · {e.staffName}</Text>
+                {e.note ? <Body style={{ fontSize: 14, marginTop: 2 }}>{e.note}</Body> : null}
+              </View>
+            </View>
+          ))}
+        </Card>
+      </Shell>
+    </AdminOnly>
+  );
+}
+
+function ReportsPage() {
+  const { call } = useStaff();
+  const [rep, setRep] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { call('/reports/monthly').then((d) => setRep(d.report)).catch((e) => setError(staffMessage(e))); }, [call]);
+  const t = rep?.totals;
+  const cols = ['Mês', 'Novos PF', 'Novas PJ', 'KYC aprovados', 'KYC ajustes', 'KYC recusados', 'PJ aprovadas', 'Tempo médio KYC', 'LGPD recebidas', 'LGPD encerradas', 'No prazo'];
+  return (
+    <AdminOnly active="Reports" title="Relatórios">
+      <Shell active="Reports" eyebrow="Últimos 12 meses" subtitle="Somente números agregados, lidos do banco. Nenhum dado pessoal." title="Relatórios">
+        {error ? <Notice kind="error">{error}</Notice> : null}
+        {!rep && !error ? <LoadingBlock /> : null}
+        {rep ? (
+          <>
+            <View style={[styles.statsRow, { marginBottom: 18 }]}>
+              <Kpi label="Novos clientes PF" value={t.newCustomers} />
+              <Kpi label="Novas empresas PJ" value={t.newCompanies} />
+              <Kpi hint={`${t.kycChanges} com ajustes · ${t.kycRejected} recusadas`} label="Verificações aprovadas" value={t.kycApproved} />
+              <Kpi hint={t.lgpdClosed ? `${t.lgpdClosedOnTime} de ${t.lgpdClosed} encerradas no prazo` : 'nenhuma encerrada'} label="Solicitações LGPD" value={t.lgpdReceived} />
+            </View>
+            <Card style={{ padding: 0 }}>
+              <ScrollView horizontal>
+                <View style={{ minWidth: 1040 }}>
+                  <View style={[styles.repRow, styles.repHead]}>{cols.map((c, i) => <Text key={c} style={[styles.repCell, i === 0 && styles.repFirst, styles.repHeadText]}>{c}</Text>)}</View>
+                  {rep.months.map((m) => {
+                    const cells = [`${MONTHS[Number(m.month.slice(5)) - 1]}/${m.month.slice(2, 4)}`, m.newCustomers, m.newCompanies, m.kycDecisions.approved, m.kycDecisions.changes, m.kycDecisions.rejected, m.companyDecisions.approved, duration(m.avgKycReviewHours), m.lgpd.received, m.lgpd.closed, m.lgpd.closed ? `${m.lgpd.closedOnTime}/${m.lgpd.closed}` : '—'];
+                    return <View key={m.month} style={styles.repRow}>{cells.map((c, i) => <Text key={i} style={[styles.repCell, i === 0 && styles.repFirst, c === 0 && { color: ca.textMuted }]}>{String(c)}</Text>)}</View>;
+                  })}
+                </View>
+              </ScrollView>
+            </Card>
+            <Body muted style={{ fontSize: 12, marginTop: 10 }}>Meses no horário de Brasília. Tempo médio: do envio à última decisão de cada verificação decidida no mês.</Body>
+          </>
+        ) : null}
+      </Shell>
+    </AdminOnly>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -1005,6 +1237,17 @@ const styles = StyleSheet.create({
   actText: { color: ca.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
   quick: { borderColor: 'rgba(197,164,108,0.45)', borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
   quickText: { color: ca.text, fontFamily: fonts.medium, fontSize: 14 },
+  filterChip: { borderColor: ca.borderStrong, borderRadius: 999, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 8 },
+  filterChipOn: { backgroundColor: ca.gold, borderColor: ca.gold },
+  filterText: { color: ca.textSoft, fontFamily: fonts.medium, fontSize: 13 },
+  lgpdRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 14 },
+  lgpdTitle: { color: ca.text, fontFamily: fonts.semibold, fontSize: 15 },
+  lgpdDue: { color: ca.goldLight, fontFamily: fonts.medium, fontSize: 13 },
+  repRow: { borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row' },
+  repHead: { backgroundColor: 'rgba(197,164,108,0.08)' },
+  repHeadText: { color: ca.goldLight, fontFamily: fonts.semibold, fontSize: 12 },
+  repCell: { color: ca.text, fontFamily: fonts.regular, fontSize: 13, paddingHorizontal: 12, paddingVertical: 11, textAlign: 'right', width: 92 },
+  repFirst: { textAlign: 'left', width: 120 },
   statValue: { color: ca.goldTitle, fontFamily: fonts.semibold, fontSize: 34, lineHeight: 40 },
   statLabel: { color: ca.text, fontFamily: fonts.semibold, fontSize: 14, marginTop: 4 },
   eventRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 12 },
