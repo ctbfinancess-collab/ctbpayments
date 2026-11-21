@@ -21,4 +21,6 @@ export const securityAuditEvents = pgTable('security_audit_events', {
 }, (t) => [
   index('security_audit_events_customer_idx').on(t.customerId, t.occurredAt),
   index('security_audit_events_occurred_idx').on(t.occurredAt),
+  index('security_audit_events_staff_idx').on(t.staffId, t.occurredAt),
+  index('security_audit_events_event_idx').on(t.event, t.occurredAt),
 ]);

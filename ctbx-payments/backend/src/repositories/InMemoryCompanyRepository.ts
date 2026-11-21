@@ -47,5 +47,6 @@ export class InMemoryCompanyRepository implements CompanyRepository {
   async listActiveDocuments(companyId: string) { return this.documents.filter((d) => d.companyId === companyId && d.status === 'ACTIVE'); }
   async findActiveDocument(companyId: string, documentId: string) { return this.documents.find((d) => d.id === documentId && d.companyId === companyId && d.status === 'ACTIVE'); }
   async addReview(review: Omit<CompanyReviewRecord, 'id'>) { const r = { ...review, id: randomUUID() }; this.reviews.push(r); return { ...r }; }
+  async countByStatus() { const out: Record<string, number> = {}; for (const c of this.companies) out[c.status] = (out[c.status] ?? 0) + 1; return out; }
   async listReviews(companyId: string) { return this.reviews.filter((r) => r.companyId === companyId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); }
 }

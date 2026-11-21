@@ -149,12 +149,16 @@ export class CustomerAuthService {
   async login(email: string, password: string): Promise<CustomerLoginResult | null> {
     const normalizedEmail = email.trim().toLowerCase();
     const customer = await this.customers.findByEmail(normalizedEmail);
-    if (!customer || customer.status !== 'ACTIVE') {
+    if (!customer) {
       await argon2.hash(password).catch(() => undefined);
       return null;
     }
     const valid = await argon2.verify(customer.passwordHash, password).catch(() => false);
     if (!valid) return null;
+    // Conta suspensa pela equipe (Fase 6): avisada só a quem acertou a senha.
+    if (customer.status !== 'ACTIVE') {
+      throw new ApiError('CUSTOMER_BLOCKED', 'Sua conta está suspensa. Fale com o atendimento: contato@ctbxpayments.com.', { statusCode: 403 });
+    }
     // Só entra quem confirmou o e-mail. Este erro só aparece para quem
     // acertou a senha, então não revela a existência da conta a terceiros.
     if (!customer.emailVerifiedAt) {

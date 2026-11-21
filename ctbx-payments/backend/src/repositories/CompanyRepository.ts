@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { companies, companyDocuments, companyReviews } from '../db/schema/index.js';
 
@@ -72,6 +72,7 @@ export interface CompanyRepository {
   findActiveDocument(companyId: string, documentId: string): Promise<CompanyDocumentRecord | undefined>;
   addReview(review: Omit<CompanyReviewRecord, 'id'>): Promise<CompanyReviewRecord>;
   listReviews(companyId: string): Promise<CompanyReviewRecord[]>;
+  countByStatus(): Promise<Record<string, number>>;
 }
 
 export class PostgresCompanyRepository implements CompanyRepository {
@@ -121,6 +122,10 @@ export class PostgresCompanyRepository implements CompanyRepository {
   async addReview(review: Omit<CompanyReviewRecord, 'id'>) {
     const [row] = await this.db.insert(companyReviews).values(review).returning();
     return row as CompanyReviewRecord;
+  }
+  async countByStatus() {
+    const rows = await this.db.select({ status: companies.status, n: count() }).from(companies).groupBy(companies.status);
+    return Object.fromEntries(rows.map((r) => [r.status, Number(r.n)])) as Record<string, number>;
   }
   async listReviews(companyId: string) {
     return (await this.db.select().from(companyReviews).where(eq(companyReviews.companyId, companyId)).orderBy(desc(companyReviews.createdAt))) as CompanyReviewRecord[];

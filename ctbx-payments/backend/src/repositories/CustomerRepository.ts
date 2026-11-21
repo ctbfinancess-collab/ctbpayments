@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { count, desc, eq, ilike } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customers } from '../db/schema/index.js';
 
@@ -41,7 +41,17 @@ export interface CustomerRepository {
   // (a posse do novo endereço acabou de ser provada pelo próprio token de
   // confirmação — não faz sentido pedir uma segunda verificação depois).
   updateEmail(id: string, newEmail: string, verifiedAt: Date): Promise<void>;
+  // Painel da equipe (Fase 6).
+  search(criteria: CustomerSearch, limit: number): Promise<CustomerRecord[]>;
+  setStatus(id: string, status: CustomerStatus, now: Date): Promise<void>;
+  countAll(): Promise<number>;
 }
+
+// Uma busca por vez: CPF exato, parte do e-mail ou parte do nome.
+export type CustomerSearch = { document: string } | { email: string } | { name: string };
+
+// Escapa curingas do LIKE para a busca nunca virar um "listar tudo".
+export const likePattern = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 
 export class PostgresCustomerRepository implements CustomerRepository {
   constructor(private readonly db: Db) {}
@@ -77,5 +87,21 @@ export class PostgresCustomerRepository implements CustomerRepository {
 
   async updateEmail(id: string, newEmail: string, verifiedAt: Date): Promise<void> {
     await this.db.update(customers).set({ email: newEmail, emailVerifiedAt: verifiedAt, updatedAt: verifiedAt }).where(eq(customers.id, id));
+  }
+
+  async search(criteria: CustomerSearch, limit: number): Promise<CustomerRecord[]> {
+    const where = 'document' in criteria ? eq(customers.document, criteria.document)
+      : 'email' in criteria ? ilike(customers.email, likePattern(criteria.email))
+        : ilike(customers.name, likePattern(criteria.name));
+    return (await this.db.select().from(customers).where(where).orderBy(desc(customers.createdAt)).limit(limit)) as CustomerRecord[];
+  }
+
+  async setStatus(id: string, status: CustomerStatus, now: Date): Promise<void> {
+    await this.db.update(customers).set({ status, updatedAt: now }).where(eq(customers.id, id));
+  }
+
+  async countAll(): Promise<number> {
+    const [row] = await this.db.select({ n: count() }).from(customers);
+    return Number(row?.n ?? 0);
   }
 }

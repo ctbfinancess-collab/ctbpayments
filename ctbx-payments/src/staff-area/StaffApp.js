@@ -7,14 +7,15 @@ import { CormorantGaramond_500Medium, CormorantGaramond_600SemiBold } from '@exp
 import QRCode from 'qrcode';
 import { COMPANY_DOCUMENTS, COMPANY_POSITION_OPTIONS, COMPANY_REVENUE_OPTIONS, documentTypeLabel, DOCUMENT_KINDS, formatBytes, formatCnpj, formatDate, incomeLabel, maskCepInput, maskPhoneInput, optionLabel } from '../customer-area/logic';
 import { ca, fonts } from '../customer-area/theme';
-import { Body, Brand, Button, Card, ChoiceGroup, DataRow, Eyebrow, Field, Heading, LoadingBlock, Notice, Page, StatusPill, useLayout } from '../customer-area/ui';
+import { Body, Brand, Button, Card, ChoiceGroup, DataRow, Eyebrow, Field, Heading, LinkText, LoadingBlock, Notice, Page, StatusPill, useLayout } from '../customer-area/ui';
 import { StaffSessionProvider, staffApi, staffMessage, useStaff } from './api';
+import { describeDetails, eventLabel, EVENT_LABELS, OUTCOME_LABELS } from './events';
 
 // Painel da equipe (análise de KYC) — serviço próprio, separado da Área do
 // Cliente. Acesso só com convite, senha forte e verificação em duas etapas.
 const Stack = createNativeStackNavigator();
-const linking = { prefixes: [], config: { screens: { Login: 'entrar', Invite: 'convite', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
-const TITLES = { Login: 'Entrar', Invite: 'Aceitar convite', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
+const linking = { prefixes: [], config: { screens: { Login: 'entrar', Invite: 'convite', Overview: 'inicio', Customers: 'clientes', Customer: 'clientes/:customerId', Audit: 'auditoria', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
+const TITLES = { Login: 'Entrar', Invite: 'Aceitar convite', Overview: 'Visão geral', Customers: 'Clientes', Customer: 'Cliente', Audit: 'Auditoria', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
 const theme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: ca.bg, card: ca.bgRaised, primary: ca.gold, text: ca.text, border: ca.border } };
 const tokenFromUrl = () => { try { return new URL(window.location.href).searchParams.get('token') || ''; } catch { return ''; } };
 const STATUS = { SUBMITTED: ['Em análise', 'neutral'], CHANGES_REQUESTED: ['Ajustes solicitados', 'warning'], APPROVED: ['Aprovada', 'success'], REJECTED: ['Não aprovada', 'danger'], IN_PROGRESS: ['Em preenchimento', 'warning'], NOT_STARTED: ['Não iniciada', 'warning'] };
@@ -134,7 +135,7 @@ function Shell({ active, title, subtitle, children }) {
   const { staff, signOut } = useStaff();
   const navigation = useNavigation();
   const { isDesktop } = useLayout();
-  const nav = [{ route: 'Queue', label: 'Fila de análise' }, { route: 'CompanyQueue', label: 'Empresas (PJ)' }, ...(staff?.role === 'ADMIN' ? [{ route: 'Team', label: 'Equipe' }] : [])];
+  const nav = [{ route: 'Overview', label: 'Visão geral' }, { route: 'Queue', label: 'Fila de análise' }, { route: 'CompanyQueue', label: 'Empresas (PJ)' }, { route: 'Customers', label: 'Clientes' }, ...(staff?.role === 'ADMIN' ? [{ route: 'Audit', label: 'Auditoria' }, { route: 'Team', label: 'Equipe' }] : [])];
   const items = nav.map((n) => (
     <Pressable accessibilityRole="link" key={n.route} onPress={() => navigation.navigate(n.route)} style={({ hovered }) => [styles.navItem, active === n.route && styles.navActive, hovered && active !== n.route && { backgroundColor: 'rgba(191,194,199,0.06)' }]}>
       <Text style={[styles.navText, active === n.route && { color: ca.goldLight }]}>{n.label}</Text>
@@ -406,6 +407,230 @@ function CompanyCasePage({ route, navigation }) {
   );
 }
 
+function StatCard({ label, value, hint, onPress }) {
+  return (
+    <Pressable accessibilityRole={onPress ? 'link' : undefined} disabled={!onPress} onPress={onPress} style={({ hovered }) => [styles.stat, hovered && onPress && { borderColor: ca.borderStrong }]}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+      {hint ? <Body muted style={{ fontSize: 12, marginTop: 4 }}>{hint}</Body> : null}
+    </Pressable>
+  );
+}
+
+function OverviewPage({ navigation }) {
+  const { call, staff } = useStaff();
+  const [o, setO] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => { call('/overview').then((d) => setO(d.overview)).catch((e) => setError(staffMessage(e))); }, [call]);
+  const k = o?.kyc || {}; const c = o?.companies || {};
+  return (
+    <Shell active="Overview" subtitle={`Olá, ${staff?.name || ''}. Resumo do ambiente.`} title="Visão geral">
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {!o && !error ? <LoadingBlock /> : null}
+      {o ? (
+        <>
+          <Heading level={2} style={{ marginBottom: 12 }}>Pendências</Heading>
+          <View style={styles.statsRow}>
+            <StatCard hint="Verificações de identidade aguardando" label="Fila de análise (KYC)" onPress={() => navigation.navigate('Queue')} value={o.pending.kyc} />
+            <StatCard hint="Pedidos de conta PJ aguardando" label="Empresas (PJ)" onPress={() => navigation.navigate('CompanyQueue')} value={o.pending.companies} />
+          </View>
+          <Heading level={2} style={{ marginBottom: 12, marginTop: 24 }}>Clientes e verificações</Heading>
+          <View style={styles.statsRow}>
+            <StatCard label="Clientes cadastrados" onPress={() => navigation.navigate('Customers')} value={o.customers} />
+            <StatCard label="KYC aprovados" value={k.APPROVED || 0} />
+            <StatCard label="KYC com ajustes pedidos" value={k.CHANGES_REQUESTED || 0} />
+            <StatCard label="KYC recusados" value={k.REJECTED || 0} />
+          </View>
+          <View style={[styles.statsRow, { marginTop: 12 }]}>
+            <StatCard label="Contas PJ aprovadas" value={c.APPROVED || 0} />
+            <StatCard label="PJ com ajustes pedidos" value={c.CHANGES_REQUESTED || 0} />
+            <StatCard label="PJ em preenchimento" value={c.DRAFT || 0} />
+            <StatCard label="PJ recusadas" value={c.REJECTED || 0} />
+          </View>
+        </>
+      ) : null}
+    </Shell>
+  );
+}
+
+const KYC_LABEL = { NOT_STARTED: 'Não iniciada', IN_PROGRESS: 'Em preenchimento', SUBMITTED: 'Em análise', CHANGES_REQUESTED: 'Ajustes solicitados', APPROVED: 'Aprovada', REJECTED: 'Não aprovada' };
+
+function CustomersPage({ navigation }) {
+  const { call } = useStaff();
+  const [q, setQ] = useState('');
+  const [items, setItems] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const search = async () => {
+    setBusy(true); setError('');
+    try { setItems((await call(`/customers?q=${encodeURIComponent(q.trim())}`)).items); }
+    catch (e) { setError(staffMessage(e)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <Shell active="Customers" subtitle="Busque por nome, parte do e-mail ou CPF completo. Cada busca fica registrada (sem o termo pesquisado)." title="Clientes">
+      <Card style={{ marginBottom: 20 }}>
+        <View style={{ maxWidth: 520 }}>
+          <Field label="Buscar cliente" onChangeText={setQ} onSubmitEditing={search} placeholder="Nome, e-mail ou CPF" value={q} />
+          <Button loading={busy} onPress={search} style={{ alignSelf: 'flex-start', minWidth: 180 }} title="Buscar" />
+        </View>
+      </Card>
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {items && !items.length ? <Body muted>Nenhum cliente encontrado.</Body> : null}
+      {items?.length ? (
+        <Card style={{ padding: 0 }}>
+          {items.map((it, i) => (
+            <Pressable accessibilityRole="link" key={it.id} onPress={() => navigation.navigate('Customer', { customerId: it.id })} style={({ hovered }) => [styles.queueRow, i === items.length - 1 && { borderBottomWidth: 0 }, hovered && { backgroundColor: 'rgba(191,194,199,0.05)' }]}>
+              <View style={{ flex: 1, minWidth: 220 }}><Text style={styles.queueName}>{it.name}</Text><Body muted style={{ fontSize: 13 }}>{it.email} · CPF {it.documentMasked}</Body></View>
+              {it.status === 'BLOCKED' ? <StatusPill label="Suspensa" tone="danger" /> : null}
+              <StatusPill label={`KYC: ${KYC_LABEL[it.kycStatus] || it.kycStatus}`} tone={it.kycStatus === 'APPROVED' ? 'success' : 'neutral'} />
+              <Text style={styles.queueOpen}>Abrir →</Text>
+            </Pressable>
+          ))}
+        </Card>
+      ) : null}
+    </Shell>
+  );
+}
+
+function CustomerPage({ route, navigation }) {
+  const { call, staff } = useStaff();
+  const { customerId } = route.params || {};
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  const [action, setAction] = useState(null);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const load = useCallback(() => { call(`/customers/${customerId}`).then((d) => setData(d.customer)).catch((e) => setError(staffMessage(e))); }, [call, customerId]);
+  useEffect(() => { load(); }, [load]);
+  const isAdmin = staff?.role === 'ADMIN';
+  const run = async () => {
+    setBusy(true); setResult(null);
+    try {
+      if (action === 'revoke') { await call(`/customers/${customerId}/revoke-sessions`, { method: 'POST', body: {} }); setResult({ kind: 'success', text: 'Todas as sessões do cliente foram encerradas.' }); }
+      else { const r = await call(`/customers/${customerId}/${action}`, { method: 'POST', body: { reason } }); setResult({ kind: 'success', text: `${r.status === 'BLOCKED' ? 'Conta suspensa e sessões encerradas.' : 'Conta reativada.'} ${r.notified ? 'O cliente foi avisado por e-mail.' : 'Atenção: o e-mail ao cliente não pôde ser enviado.'}` }); }
+      setAction(null); setReason(''); load();
+    } catch (e) { setResult({ kind: 'error', text: staffMessage(e) }); }
+    finally { setBusy(false); }
+  };
+  if (error) return <Shell active="Customers" title="Cliente"><Notice kind="error">{error}</Notice></Shell>;
+  if (!data) return <Shell active="Customers" title="Cliente"><LoadingBlock /></Shell>;
+  const c = data.customer;
+  return (
+    <Shell active="Customers" subtitle={`Cliente desde ${formatDate(c.createdAt)}`} title={c.name}>
+      <View style={{ alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
+        <StatusPill label={c.status === 'BLOCKED' ? 'Conta suspensa' : 'Conta ativa'} tone={c.status === 'BLOCKED' ? 'danger' : 'success'} />
+        <StatusPill label={`KYC: ${KYC_LABEL[data.kyc.status] || data.kyc.status}`} tone={data.kyc.status === 'APPROVED' ? 'success' : 'neutral'} />
+      </View>
+      {result ? <Notice kind={result.kind}>{result.text}</Notice> : null}
+      <View style={styles.cols}>
+        <Card style={{ flex: 1, minWidth: 300 }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Cadastro</Heading>
+          <DataRow label="CPF" value={fmtCpf(c.document)} />
+          <DataRow label="E-mail" value={`${c.email}${c.emailVerified ? ' (confirmado)' : ' (não confirmado)'}`} />
+          <DataRow label="Celular" value={c.phone} />
+          <DataRow last label="Verificação (KYC)" value={`${KYC_LABEL[data.kyc.status] || data.kyc.status}${data.kyc.reviewedAt ? ` · analisada em ${formatDate(data.kyc.reviewedAt)}` : ''}`} />
+          {['SUBMITTED', 'APPROVED', 'REJECTED', 'CHANGES_REQUESTED'].includes(data.kyc.status) ? <View style={{ marginTop: 12 }}><Button onPress={() => navigation.navigate('Case', { customerId: c.id })} style={{ alignSelf: 'flex-start', minWidth: 220 }} title="Abrir a verificação (KYC)" variant="ghost" /></View> : null}
+        </Card>
+        <Card style={{ flex: 1, minWidth: 300 }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Empresas</Heading>
+          {data.companies.length ? data.companies.map((co, i) => <DataRow key={co.id} last={i === data.companies.length - 1} label={`CNPJ ${formatCnpj(co.cnpj)}`} value={`${co.name || 'sem nome'} · ${(STATUS[co.status] || [co.status])[0]}`} />) : <Body muted>Nenhum pedido de conta PJ.</Body>}
+        </Card>
+      </View>
+      {isAdmin ? (
+        <Card style={{ marginTop: 20, borderColor: 'rgba(224,138,128,0.35)' }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Ações de administrador</Heading>
+          <Body muted style={{ marginBottom: 14 }}>Cada ação fica registrada na auditoria com o seu nome. O motivo fica só no registro interno; o cliente recebe um aviso sem o motivo.</Body>
+          {!action ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+              {c.status === 'ACTIVE' ? <Button onPress={() => setAction('block')} style={{ minWidth: 200 }} title="Suspender conta" variant="outline" /> : <Button onPress={() => setAction('unblock')} style={{ minWidth: 200 }} title="Reativar conta" variant="outline" />}
+              <Button onPress={() => setAction('revoke')} style={{ minWidth: 220 }} title="Encerrar todas as sessões" variant="ghost" />
+            </View>
+          ) : (
+            <View style={{ maxWidth: 560 }}>
+              {action !== 'revoke' ? <Field autoCapitalize="sentences" hint="De 10 a 500 caracteres." label={action === 'block' ? 'Motivo da suspensão' : 'Motivo da reativação'} maxLength={500} multiline numberOfLines={3} onChangeText={setReason} value={reason} /> : <Notice kind="warning">O cliente precisará entrar de novo em todos os dispositivos.</Notice>}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                <Button loading={busy} onPress={run} style={{ minWidth: 220 }} title={action === 'block' ? 'Confirmar suspensão' : action === 'unblock' ? 'Confirmar reativação' : 'Confirmar encerramento'} />
+                <Button onPress={() => { setAction(null); setReason(''); }} style={{ minWidth: 140 }} title="Cancelar" variant="ghost" />
+              </View>
+            </View>
+          )}
+        </Card>
+      ) : null}
+      {data.statusHistory.length ? (
+        <Card style={{ marginTop: 20 }}>
+          <Heading level={2} style={{ marginBottom: 6 }}>Histórico de suspensões</Heading>
+          {data.statusHistory.map((h, i) => <DataRow key={`${h.createdAt}-${i}`} last={i === data.statusHistory.length - 1} label={`${fmtDateTime(h.createdAt)} · ${h.staffName}`} value={`${h.action === 'BLOCK' ? 'Suspensa' : 'Reativada'}: ${h.reason}`} />)}
+        </Card>
+      ) : null}
+      <Card style={{ marginTop: 20 }}>
+        <Heading level={2} style={{ marginBottom: 6 }}>Atividade recente</Heading>
+        {data.recentEvents.length ? data.recentEvents.map((e, i) => {
+          const [ol, ot] = OUTCOME_LABELS[e.outcome] || [e.outcome, 'neutral'];
+          return (
+            <View key={`${e.occurredAt}-${i}`} style={[styles.eventRow, i === data.recentEvents.length - 1 && { borderBottomWidth: 0 }]}>
+              <Body muted style={{ fontSize: 13, minWidth: 130 }}>{fmtDateTime(e.occurredAt)}</Body>
+              <Text style={styles.eventName}>{eventLabel(e.event)}{e.byStaff ? ' (equipe)' : ''}</Text>
+              <StatusPill label={ol} tone={ot} />
+              <Body muted style={{ fontSize: 12 }}>{e.ip || ''}</Body>
+            </View>
+          );
+        }) : <Body muted>Sem atividade registrada.</Body>}
+      </Card>
+    </Shell>
+  );
+}
+
+function AuditPage({ navigation }) {
+  const { call, staff } = useStaff();
+  const [events, setEvents] = useState(null);
+  const [eventFilter, setEventFilter] = useState('');
+  const [error, setError] = useState('');
+  const [more, setMore] = useState(true);
+  const load = useCallback(async (append = false, ev = eventFilter) => {
+    setError('');
+    const params = new URLSearchParams();
+    if (ev) params.set('event', ev);
+    if (append && events?.length) params.set('before', events[events.length - 1].occurredAt);
+    try {
+      const d = await call(`/audit${params.toString() ? `?${params}` : ''}`);
+      setEvents((cur) => (append ? [...(cur || []), ...d.events] : d.events));
+      setMore(d.events.length === 100);
+    } catch (e) { setError(staffMessage(e)); }
+  }, [call, events, eventFilter]);
+  useEffect(() => { if (staff?.role === 'ADMIN') load(false, ''); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (staff?.role !== 'ADMIN') return <Shell active="Audit" title="Auditoria"><Notice kind="error">Apenas administradores acessam a auditoria.</Notice></Shell>;
+  const options = [{ value: '', label: 'Todos' }, ...['CUSTOMER_LOGIN', 'STAFF_LOGIN_MFA', 'STAFF_CUSTOMER_SEARCH', 'STAFF_CUSTOMER_VIEW', 'STAFF_KYC_DOCUMENT_VIEW', 'STAFF_KYC_DECISION', 'STAFF_COMPANY_DECISION', 'STAFF_CUSTOMER_BLOCK', 'STAFF_CUSTOMER_UNBLOCK', 'STAFF_AUDIT_VIEW'].map((v) => ({ value: v, label: EVENT_LABELS[v] }))];
+  return (
+    <Shell active="Audit" subtitle="Registro protegido de acessos e ações. Não pode ser alterado nem apagado; esta consulta também fica registrada." title="Auditoria">
+      <ChoiceGroup label="Filtrar por tipo" onChange={(v) => { setEventFilter(v); load(false, v); }} options={options} value={eventFilter} />
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {!events && !error ? <LoadingBlock /> : null}
+      {events ? (
+        <Card style={{ padding: 0 }}>
+          {events.length ? events.map((e, i) => {
+            const [ol, ot] = OUTCOME_LABELS[e.outcome] || [e.outcome, 'neutral'];
+            const details = describeDetails(e.details);
+            return (
+              <View key={e.id || i} style={[styles.eventRow, { paddingHorizontal: 18 }, i === events.length - 1 && { borderBottomWidth: 0 }]}>
+                <Body muted style={{ fontSize: 13, minWidth: 130 }}>{fmtDateTime(e.occurredAt)}</Body>
+                <View style={{ flex: 1, minWidth: 220 }}>
+                  <Text style={styles.eventName}>{eventLabel(e.event)}</Text>
+                  <Body muted style={{ fontSize: 12 }}>{[e.staffName ? `por ${e.staffName}` : e.customerId ? 'pelo cliente' : '', details, e.ip ? `IP ${e.ip}` : ''].filter(Boolean).join(' · ')}</Body>
+                </View>
+                <StatusPill label={ol} tone={ot} />
+                {e.customerId ? <LinkText onPress={() => navigation.navigate('Customer', { customerId: e.customerId })}>Cliente →</LinkText> : null}
+              </View>
+            );
+          }) : <View style={{ padding: 18 }}><Body muted>Nenhum registro.</Body></View>}
+        </Card>
+      ) : null}
+      {events?.length && more ? <View style={{ marginTop: 14 }}><Button onPress={() => load(true)} style={{ alignSelf: 'flex-start', minWidth: 200 }} title="Carregar mais" variant="ghost" /></View> : null}
+    </Shell>
+  );
+}
+
 function TeamPage() {
   const { call, staff } = useStaff();
   const [users, setUsers] = useState(null);
@@ -463,7 +688,11 @@ function Navigator() {
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: ca.bg } }}>
         {session ? (
           <>
+            <Stack.Screen component={OverviewPage} name="Overview" options={{ title: TITLES.Overview }} />
             <Stack.Screen component={QueuePage} name="Queue" options={{ title: TITLES.Queue }} />
+            <Stack.Screen component={CustomersPage} name="Customers" options={{ title: TITLES.Customers }} />
+            <Stack.Screen component={CustomerPage} name="Customer" options={{ title: TITLES.Customer }} />
+            <Stack.Screen component={AuditPage} name="Audit" options={{ title: TITLES.Audit }} />
             <Stack.Screen component={CasePage} name="Case" options={{ title: TITLES.Case }} />
             <Stack.Screen component={CompanyQueuePage} name="CompanyQueue" options={{ title: TITLES.CompanyQueue }} />
             <Stack.Screen component={CompanyCasePage} name="CompanyCase" options={{ title: TITLES.CompanyCase }} />
@@ -514,5 +743,11 @@ const styles = StyleSheet.create({
   docHead: { alignItems: 'baseline', flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between', marginBottom: 10 },
   docTitle: { color: ca.text, fontFamily: fonts.semibold, fontSize: 14 },
   watermark: { bottom: 10, color: 'rgba(244,244,242,0.55)', fontFamily: fonts.medium, fontSize: 11, left: 10, position: 'absolute', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
+  stat: { backgroundColor: ca.bgRaised, borderColor: ca.border, borderRadius: 14, borderWidth: 1, flexBasis: 200, flexGrow: 1, padding: 18 },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  statValue: { color: ca.goldTitle, fontFamily: fonts.semibold, fontSize: 34, lineHeight: 40 },
+  statLabel: { color: ca.text, fontFamily: fonts.semibold, fontSize: 14, marginTop: 4 },
+  eventRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 12 },
+  eventName: { color: ca.text, fontFamily: fonts.medium, fontSize: 14 },
   teamRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 14 },
 });

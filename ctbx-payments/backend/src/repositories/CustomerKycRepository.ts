@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, count, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerKyc, customerKycDocuments } from '../db/schema/index.js';
 
@@ -88,6 +88,7 @@ export interface CustomerKycRepository {
   listByStatus(status: KycStatus): Promise<CustomerKycRecord[]>;
   // Muda a situação só se ainda estiver em `from` (atômico). true = mudou.
   transitionStatus(customerId: string, from: KycStatus, patch: KycSectionPatch, now: Date): Promise<boolean>;
+  countByStatus(): Promise<Record<string, number>>;
 }
 
 export class PostgresCustomerKycRepository implements CustomerKycRepository {
@@ -125,6 +126,11 @@ export class PostgresCustomerKycRepository implements CustomerKycRepository {
     const rows = await this.db.update(customerKyc).set({ ...patch, updatedAt: now })
       .where(and(eq(customerKyc.customerId, customerId), eq(customerKyc.status, from))).returning({ id: customerKyc.id });
     return rows.length > 0;
+  }
+
+  async countByStatus(): Promise<Record<string, number>> {
+    const rows = await this.db.select({ status: customerKyc.status, n: count() }).from(customerKyc).groupBy(customerKyc.status);
+    return Object.fromEntries(rows.map((r) => [r.status, Number(r.n)]));
   }
 
   async listByStatus(status: KycStatus): Promise<CustomerKycRecord[]> {

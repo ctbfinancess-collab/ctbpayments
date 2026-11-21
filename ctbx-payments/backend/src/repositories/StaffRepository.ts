@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { kycReviews, staffSessions, staffTokens, staffUsers } from '../db/schema/index.js';
+import { customerStatusChanges, kycReviews, staffSessions, staffTokens, staffUsers } from '../db/schema/index.js';
 
 export type StaffRole = 'ADMIN' | 'ANALYST';
 export type StaffStatus = 'INVITED' | 'ACTIVE' | 'DISABLED';
@@ -28,6 +28,7 @@ export interface StaffUserRecord {
 export type StaffUserPatch = Partial<Omit<StaffUserRecord, 'id' | 'email' | 'createdAt'>>;
 
 export interface StaffSessionRecord { id: string; staffId: string; tokenHash: string; createdAt: Date; lastSeenAt: Date; expiresAt: Date; revokedAt: Date | null }
+export interface CustomerStatusChangeRecord { id: string; customerId: string; staffId: string; action: 'BLOCK' | 'UNBLOCK'; reason: string; createdAt: Date }
 export interface KycReviewRecord { id: string; customerId: string; staffId: string; decision: KycDecision; reason: string | null; createdAt: Date }
 
 export interface StaffRepository {
@@ -48,6 +49,8 @@ export interface StaffRepository {
   revokeAllSessions(staffId: string, now: Date): Promise<void>;
   addReview(review: Omit<KycReviewRecord, 'id'>): Promise<KycReviewRecord>;
   listReviews(customerId: string): Promise<KycReviewRecord[]>;
+  addStatusChange(change: Omit<CustomerStatusChangeRecord, 'id'>): Promise<void>;
+  listStatusChanges(customerId: string): Promise<CustomerStatusChangeRecord[]>;
 }
 
 export class PostgresStaffRepository implements StaffRepository {
@@ -105,6 +108,12 @@ export class PostgresStaffRepository implements StaffRepository {
     const [row] = await this.db.insert(kycReviews).values(review).returning();
     return row as KycReviewRecord;
   }
+  async addStatusChange(change: Omit<CustomerStatusChangeRecord, 'id'>) {
+    await this.db.insert(customerStatusChanges).values(change);
+  }
+  async listStatusChanges(customerId: string) {
+    return (await this.db.select().from(customerStatusChanges).where(eq(customerStatusChanges.customerId, customerId)).orderBy(desc(customerStatusChanges.createdAt))) as CustomerStatusChangeRecord[];
+  }
   async listReviews(customerId: string) {
     return (await this.db.select().from(kycReviews).where(eq(kycReviews.customerId, customerId)).orderBy(desc(kycReviews.createdAt))) as KycReviewRecord[];
   }
@@ -115,6 +124,7 @@ export class InMemoryStaffRepository implements StaffRepository {
   readonly tokens: { staffId: string; purpose: StaffTokenPurpose; tokenHash: string; expiresAt: Date; consumedAt: Date | null }[] = [];
   readonly sessions: StaffSessionRecord[] = [];
   readonly reviews: KycReviewRecord[] = [];
+  readonly statusChanges: CustomerStatusChangeRecord[] = [];
 
   async createUser(input: { name: string; email: string; role: StaffRole }, now: Date) {
     if (this.users.some((u) => u.email === input.email)) throw Object.assign(new Error('duplicate key'), { code: '23505' });
@@ -149,5 +159,7 @@ export class InMemoryStaffRepository implements StaffRepository {
   async revokeSession(tokenHash: string, now: Date) { const s = this.sessions.find((x) => x.tokenHash === tokenHash && !x.revokedAt); if (s) s.revokedAt = now; }
   async revokeAllSessions(staffId: string, now: Date) { for (const s of this.sessions) if (s.staffId === staffId && !s.revokedAt) s.revokedAt = now; }
   async addReview(review: Omit<KycReviewRecord, 'id'>) { const r = { ...review, id: randomUUID() }; this.reviews.push(r); return { ...r }; }
+  async addStatusChange(change: Omit<CustomerStatusChangeRecord, 'id'>) { this.statusChanges.push({ ...change, id: randomUUID() }); }
+  async listStatusChanges(customerId: string) { return this.statusChanges.filter((c) => c.customerId === customerId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); }
   async listReviews(customerId: string) { return this.reviews.filter((r) => r.customerId === customerId).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); }
 }

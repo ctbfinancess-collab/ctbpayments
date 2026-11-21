@@ -4,11 +4,12 @@ import { ApiError } from '../errors/ApiError.js';
 import type { SecurityAuditOutcome, SecurityAuditRepository } from '../repositories/SecurityAuditRepository.js';
 import type { KycReviewService } from '../services/kycReviewService.js';
 import type { CompanyReviewService } from '../services/companyReviewService.js';
+import type { StaffCustomerService } from '../services/staffCustomerService.js';
 import type { StaffAuthService } from '../services/staffAuthService.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
 
-export interface StaffRoutesOptions { auth: StaffAuthService; review: KycReviewService; companyReview: CompanyReviewService; audit: SecurityAuditRepository }
+export interface StaffRoutesOptions { auth: StaffAuthService; review: KycReviewService; companyReview: CompanyReviewService; staffCustomers: StaffCustomerService; audit: SecurityAuditRepository }
 
 // Toda ação do painel é auditada (inclusive LEITURAS de fichas e documentos),
 // com quem fez, sobre qual cliente, IP e resultado. Nunca o conteúdo.
@@ -30,6 +31,13 @@ const AUDITED: Record<string, string> = {
   'GET /companies/cases/:companyId': 'STAFF_COMPANY_CASE_VIEW',
   'GET /companies/cases/:companyId/documents/:documentId': 'STAFF_COMPANY_DOCUMENT_VIEW',
   'POST /companies/cases/:companyId/decision': 'STAFF_COMPANY_DECISION',
+  'GET /overview': 'STAFF_OVERVIEW_VIEW',
+  'GET /customers': 'STAFF_CUSTOMER_SEARCH',
+  'GET /customers/:customerId': 'STAFF_CUSTOMER_VIEW',
+  'POST /customers/:customerId/block': 'STAFF_CUSTOMER_BLOCK',
+  'POST /customers/:customerId/unblock': 'STAFF_CUSTOMER_UNBLOCK',
+  'POST /customers/:customerId/revoke-sessions': 'STAFF_CUSTOMER_SESSIONS_REVOKE',
+  'GET /audit': 'STAFF_AUDIT_VIEW',
 };
 
 function outcome(status: number): SecurityAuditOutcome {
@@ -43,7 +51,7 @@ const tokenOf = (request: FastifyRequest) => {
 };
 
 export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOptions): Promise<void> {
-  const { auth, review, companyReview, audit } = options;
+  const { auth, review, companyReview, staffCustomers, audit } = options;
   const prefix = app.prefix;
 
   app.addHook('onResponse', async (request, reply) => {
@@ -215,5 +223,57 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
     const result = await companyReview.decide(request.staffAuth!, companyId, decision, reason);
     request.auditDetails = { decision, notified: result.notified };
     return envelope(request, result);
+  });
+
+  // ---- Painel administrativo (Fase 6) -------------------------------------
+  app.get('/overview', { preValidation: requireStaff }, async (request) => envelope(request, { overview: await staffCustomers.overview() }));
+
+  // Busca: o termo pesquisado (nome, e-mail ou CPF) NUNCA vai para a
+  // auditoria — só o tipo de busca e quantos resultados vieram.
+  app.get('/customers', {
+    preValidation: requireStaff,
+    config: limit(60),
+    schema: { querystring: { type: 'object', additionalProperties: false, required: ['q'], properties: { q: { type: 'string', minLength: 1, maxLength: 120 } } } },
+  }, async (request) => {
+    const { q } = request.query as { q: string };
+    const items = await staffCustomers.search(q);
+    request.auditDetails = { kind: /\d{11}/.test(q.replace(/\D/g, '')) && !/[a-z@]/i.test(q) ? 'cpf' : q.includes('@') ? 'email' : 'name', results: items.length };
+    return envelope(request, { items });
+  });
+
+  const customerParams = { type: 'object', additionalProperties: false, required: ['customerId'], properties: { customerId: idSchema } } as const;
+  app.get('/customers/:customerId', { preValidation: requireStaff, schema: { params: customerParams } }, async (request) => {
+    const { customerId } = request.params as { customerId: string };
+    return envelope(request, { customer: await staffCustomers.detail(customerId) });
+  });
+
+  for (const [action, blocked] of [['block', true], ['unblock', false]] as const) {
+    app.post(`/customers/:customerId/${action}`, {
+      preValidation: requireAdmin,
+      config: limit(20),
+      schema: { params: customerParams, body: objectSchema(['reason'], { reason: { type: 'string', minLength: 1, maxLength: 500 } }) },
+    }, async (request) => {
+      const { customerId } = request.params as { customerId: string };
+      const result = await staffCustomers.setBlocked(request.staffAuth!, customerId, blocked, (request.body as { reason: string }).reason);
+      request.auditDetails = { notified: result.notified };
+      return envelope(request, result);
+    });
+  }
+
+  app.post('/customers/:customerId/revoke-sessions', { preValidation: requireAdmin, config: limit(20), schema: { params: customerParams, body: emptyObjectSchema } }, async (request, reply) => {
+    const { customerId } = request.params as { customerId: string };
+    await staffCustomers.revokeSessions(customerId);
+    return reply.status(204).send();
+  });
+
+  // Trilha de auditoria (só ADMIN). Consultar a trilha também é auditado.
+  app.get('/audit', {
+    preValidation: requireAdmin,
+    config: limit(60),
+    schema: { querystring: { type: 'object', additionalProperties: false, properties: { event: { type: 'string', maxLength: 80 }, customerId: idSchema, staffId: idSchema, from: { type: 'string', maxLength: 40 }, to: { type: 'string', maxLength: 40 }, before: { type: 'string', maxLength: 40 } } } },
+  }, async (request) => {
+    const filters = request.query as Record<string, string>;
+    request.auditDetails = { filters: Object.keys(filters).sort().join(',') || 'nenhum' };
+    return envelope(request, { events: await staffCustomers.auditLog(filters) });
   });
 }

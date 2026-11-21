@@ -13,6 +13,7 @@ export const requestEmailChange = (newEmail, currentPassword, client = apiClient
 // Mensagens para o cliente. Nunca revelam se um e-mail ou CPF existe.
 const MESSAGES = {
   CUSTOMER_LOGIN_INVALID: 'E-mail ou senha inválidos.',
+  CUSTOMER_BLOCKED: 'Sua conta está suspensa. Fale com o atendimento: contato@ctbxpayments.com.',
   CUSTOMER_EMAIL_NOT_VERIFIED: 'Confirme seu e-mail para entrar. Procure o link que enviamos no cadastro (veja também a caixa de spam).',
   CUSTOMER_LOGIN_RATE_LIMITED: 'Muitas tentativas seguidas. Aguarde um minuto e tente novamente.',
   CUSTOMER_REGISTER_RATE_LIMITED: 'Muitas tentativas seguidas. Aguarde um minuto e tente novamente.',

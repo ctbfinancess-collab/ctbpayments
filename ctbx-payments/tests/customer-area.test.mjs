@@ -135,3 +135,12 @@ test('company document upload goes to the right company path with the token, and
   for (const s of ['DRAFT', 'SUBMITTED', 'CHANGES_REQUESTED', 'APPROVED', 'REJECTED']) assert.ok(COMPANY_STATUS[s].label);
   assert.deepEqual(COMPANY_DOCUMENTS.map((d) => d.kind), ['SOCIAL_CONTRACT', 'ADDRESS_PROOF', 'POWER_OF_ATTORNEY', 'CNPJ_CARD']);
 });
+
+test('staff audit details are shown in Portuguese and never expose internal ids', async () => {
+  const { describeDetails, eventLabel } = (await import('../src/staff-area/events.js')).default || await import('../src/staff-area/events.js');
+  assert.equal(describeDetails({ statusCode: 200, kind: 'cpf', results: 1 }), 'tipo: CPF · resultados: 1');
+  assert.equal(describeDetails({ statusCode: 200, decision: 'APPROVED', notified: true }), 'decisão: aprovado · e-mail enviado: sim');
+  assert.equal(describeDetails({ companyId: 'x', documentId: 'y', kind: 'SELFIE', sizeBytes: 2048 }), 'tipo: SELFIE · tamanho: 2 KB');
+  assert.equal(eventLabel('STAFF_CUSTOMER_BLOCK'), 'Conta de cliente suspensa');
+  assert.equal(eventLabel('ALGO_NOVO'), 'ALGO_NOVO');
+});

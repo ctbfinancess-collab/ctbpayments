@@ -32,6 +32,12 @@ export class InMemoryCustomerKycRepository implements CustomerKycRepository {
     return true;
   }
 
+  async countByStatus(): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const k of this.byCustomerId.values()) out[k.status] = (out[k.status] ?? 0) + 1;
+    return out;
+  }
+
   async listByStatus(status: KycStatus): Promise<CustomerKycRecord[]> {
     return [...this.byCustomerId.values()].filter((k) => k.status === status).sort((a, b) => (a.submittedAt?.getTime() ?? 0) - (b.submittedAt?.getTime() ?? 0));
   }

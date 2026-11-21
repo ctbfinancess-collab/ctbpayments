@@ -78,6 +78,7 @@ import { InMemoryStaffRepository, PostgresStaffRepository, type StaffRepository 
 import { StaffAuthService } from './services/staffAuthService.js';
 import { KycReviewService } from './services/kycReviewService.js';
 import { CompanyReviewService } from './services/companyReviewService.js';
+import { StaffCustomerService } from './services/staffCustomerService.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 import { AdminAuthService } from './services/adminAuthService.js';
@@ -323,7 +324,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     const review = new KycReviewService(customerRepository, customerKycRepository, kycDocumentRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081');
     if (config.nodeEnv === 'test' && staffRepository instanceof InMemoryStaffRepository) app.decorate('testStaffRepo', staffRepository);
     const companyReview = new CompanyReviewService(companyRepository, companyRepresentativeRepository, customerRepository, customerKycRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081', options.cnpjLookup);
-    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, companyReview, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
+    const staffCustomers = new StaffCustomerService(customerRepository, customerSessionRepository, customerKycRepository, companyRepository, companyRepresentativeRepository, staffRepository, auditRepository, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081');
+    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, companyReview, staffCustomers, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
   }
 
   await app.register(async (adminApi) => {

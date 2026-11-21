@@ -66,3 +66,14 @@ export const companyReviews = pgTable('company_reviews', {
   reason: text('reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('company_reviews_company_idx').on(t.companyId, t.createdAt)]);
+
+// Fase 6 — histórico de suspensão/reativação de contas de cliente pela
+// equipe (só ADMIN), sempre com motivo.
+export const customerStatusChanges = pgTable('customer_status_changes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id),
+  staffId: uuid('staff_id').notNull().references(() => staffUsers.id),
+  action: text('action').notNull(), // BLOCK | UNBLOCK
+  reason: text('reason').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('customer_status_changes_customer_idx').on(t.customerId, t.createdAt)]);

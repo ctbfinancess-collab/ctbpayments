@@ -68,3 +68,12 @@ export function renderSubmissionReceivedTemplate(kind: 'KYC' | 'COMPANY', appLin
     : { title: 'Recebemos o seu pedido de conta PJ', p: [`Recebemos o pedido de conta PJ da empresa ${companyName ?? ''}. Nossa equipe vai analisar e você receberá um e-mail com o resultado.`, 'Enquanto a análise não for concluída, você pode retirar o pedido para corrigir algo pela Área do Cliente, em Empresas.'] };
   return { subject: `${copy.title} — CTBX Payments`, html: layout(copy.title, copy.p, { label: 'Acompanhar na Área do Cliente', url: appLink }), text: `${copy.title}\n\n${copy.p.join('\n\n')}\n\n${appLink}` };
 }
+
+// Fase 6 — avisos ao cliente quando a equipe suspende ou reativa a conta.
+// O motivo interno NÃO vai no e-mail.
+export function renderAccountStatusTemplate(kind: 'BLOCKED' | 'REACTIVATED', appLink: string): RenderedEmail {
+  const copy = kind === 'BLOCKED'
+    ? { title: 'Sua conta foi suspensa', p: ['Por segurança, o acesso à sua conta CTBX Payments foi suspenso e as sessões abertas foram encerradas.', 'Para entender o motivo ou pedir a reativação, fale com nosso atendimento: contato@ctbxpayments.com.'] }
+    : { title: 'Sua conta foi reativada', p: ['O acesso à sua conta CTBX Payments foi reativado. Você já pode entrar normalmente.', 'Se não reconhece esta mudança, fale com nosso atendimento: contato@ctbxpayments.com.'] };
+  return { subject: `${copy.title} — CTBX Payments`, html: layout(copy.title, copy.p, kind === 'REACTIVATED' ? { label: 'Entrar na Área do Cliente', url: appLink } : undefined), text: `${copy.title}\n\n${copy.p.join('\n\n')}` };
+}
