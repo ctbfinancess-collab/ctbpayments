@@ -2,6 +2,8 @@ import { ApiError } from '../errors/ApiError.js';
 import type { CustomerRepository } from '../repositories/CustomerRepository.js';
 import type { CustomerKycRecord, CustomerKycRepository, KycDocumentKind, KycDocumentRecord, KycDocumentRepository, KycStatus } from '../repositories/CustomerKycRepository.js';
 import { detectDocumentType, type EncryptedDocumentVault } from '../storage/EncryptedDocumentVault.js';
+import { renderSubmissionReceivedTemplate } from '../emails/staffAndKycTemplates.js';
+import type { EmailProvider } from '../providers/EmailProvider.js';
 
 export interface SavePersonalInfoInput {
   birthDate?: string;
@@ -79,6 +81,9 @@ export class CustomerKycService {
     private readonly documents?: KycDocumentRepository,
     private readonly vault?: EncryptedDocumentVault,
     private readonly uploadsEnabled = false,
+    // Confirmação "recebemos" ao enviar (falha de envio nunca afeta o cliente).
+    private readonly email?: EmailProvider,
+    private readonly appBaseUrl = 'http://localhost:8081',
   ) {}
 
   async getPersonalInfo(customerId: string): Promise<KycPersonalInfoView> {
@@ -217,6 +222,10 @@ export class CustomerKycService {
     }
     const now = this.now();
     await this.kyc.saveSection(customerId, { status: 'SUBMITTED', submittedAt: now }, now);
+    const customer = await this.customers.findById(customerId);
+    if (this.email && customer) {
+      await this.email.send({ to: customer.email, ...renderSubmissionReceivedTemplate('KYC', `${this.appBaseUrl.replace(/\/$/, '')}/verificacao`) }).catch(() => undefined);
+    }
     return this.getOverview(customerId);
   }
 

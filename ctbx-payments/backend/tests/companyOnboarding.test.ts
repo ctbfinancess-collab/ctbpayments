@@ -176,3 +176,16 @@ test('audit: every PJ step and staff access is recorded — never the CNPJ, comp
   const dump = JSON.stringify(audit.events);
   for (const secret of ['11222333000181', '11.222.333', 'Empresa Fictícia', 'Avenida Paulista', 'contrato-social-ficticio', 'financeiro@empresa.invalid']) assert.equal(dump.includes(secret), false, secret);
 });
+
+test('the customer gets a "we received it" e-mail when sending the identity verification and the PJ application', async (t) => {
+  const { app, staff } = await setup();
+  t.after(() => app.close());
+  const ana = await approvedCustomer(app, staff, ANA);
+  assert.ok(outbox(app).sent.some((m) => m.to === ANA.email && /Recebemos a sua verificação de identidade/.test(m.subject)));
+  const id = await fullApplication(app, ana.h);
+  await app.inject({ method: 'POST', url: `/v1/customers/companies/${id}/submit`, headers: ana.h, payload: {} });
+  const mail = outbox(app).sent.find((m) => m.to === ANA.email && /Recebemos o seu pedido de conta PJ/.test(m.subject));
+  assert.ok(mail);
+  assert.match(mail!.text!, /Fictícia/);
+  assert.match(mail!.text!, new RegExp(`/empresas/${id}`));
+});

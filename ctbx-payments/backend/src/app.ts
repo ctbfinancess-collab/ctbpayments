@@ -254,8 +254,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   if (kycKey && kycStorage) kycVault = new EncryptedDocumentVault(kycStorage, kycKey);
   const kycUploadsEnabled = isProduction ? Boolean(kycCfg?.uploadsEnabled && kycVault) : kycCfg?.uploadsEnabled !== false;
   if (config.nodeEnv === 'test' && kycStorage instanceof InMemoryDocumentStorage) app.decorate('testKycStorage', kycStorage);
-  const kycService = new CustomerKycService(customerRepository, customerKycRepository, undefined, kycDocumentRepository, kycVault, kycUploadsEnabled);
-  const companyService = new CompanyService(companyRepository, companyRepresentativeRepository, customerKycRepository, kycVault, kycUploadsEnabled);
+  const appBaseUrl = config.customerAppBaseUrl ?? 'http://localhost:8081';
+  const kycService = new CustomerKycService(customerRepository, customerKycRepository, undefined, kycDocumentRepository, kycVault, kycUploadsEnabled, emailProvider, appBaseUrl);
+  const companyService = new CompanyService(companyRepository, companyRepresentativeRepository, customerKycRepository, kycVault, kycUploadsEnabled, undefined, emailProvider, customerRepository, appBaseUrl);
   // Etapa 3 — mesmo EmailProvider criado na Etapa 1 (createEmailProvider):
   // Resend real em produção, InMemory em dev/test por padrão. Nenhuma
   // segunda integração com o Resend é feita em lugar nenhum.

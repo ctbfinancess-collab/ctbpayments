@@ -5,6 +5,9 @@ import type { CustomerKycRepository } from '../repositories/CustomerKycRepositor
 import { detectDocumentType, type EncryptedDocumentVault } from '../storage/EncryptedDocumentVault.js';
 import { isValidCnpj, onlyDigits } from '../utils/cnpj.js';
 import { MAX_DOCUMENT_BYTES } from './customerKycService.js';
+import { renderSubmissionReceivedTemplate } from '../emails/staffAndKycTemplates.js';
+import type { EmailProvider } from '../providers/EmailProvider.js';
+import type { CustomerRepository } from '../repositories/CustomerRepository.js';
 
 // Fase 5 — pedido de conta PJ (KYB), lado do cliente.
 // Regras antifraude:
@@ -49,6 +52,10 @@ export class CompanyService {
     private readonly vault?: EncryptedDocumentVault,
     private readonly uploadsEnabled = false,
     private readonly now: () => Date = () => new Date(),
+    // Confirmação "recebemos" ao enviar o pedido.
+    private readonly email?: EmailProvider,
+    private readonly customers?: CustomerRepository,
+    private readonly appBaseUrl = 'http://localhost:8081',
   ) {}
 
   async create(customerId: string, cnpjInput: string): Promise<CompanyOverview> {
@@ -146,6 +153,11 @@ export class CompanyService {
     const now = this.now();
     if (!(await this.companies.transitionStatus(c.id, c.status, { status: 'SUBMITTED', submittedAt: now }, now))) {
       throw new ApiError('COMPANY_LOCKED', 'Este pedido já foi enviado para análise.', { statusCode: 409 });
+    }
+    const customer = this.customers ? await this.customers.findById(customerId) : undefined;
+    if (this.email && customer) {
+      const mail = renderSubmissionReceivedTemplate('COMPANY', `${this.appBaseUrl.replace(/\/$/, '')}/empresas/${c.id}`, c.tradeName || c.legalName);
+      await this.email.send({ to: customer.email, ...mail }).catch(() => undefined);
     }
     return this.get(customerId, companyId);
   }

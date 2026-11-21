@@ -59,3 +59,12 @@ export function renderCompanyDecisionTemplate(kind: KycDecisionKind, companyName
   }[kind];
   return { subject: `${copy.title} — CTBX Payments`, html: layout(copy.title, copy.p, { label: 'Abrir a Área do Cliente', url: appLink }), text: `${copy.title}\n\n${copy.p.join('\n\n')}\n\n${appLink}` };
 }
+
+// Confirmação de recebimento (Fase 5, ajuste): enviada quando o cliente
+// envia a verificação de identidade ou um pedido de conta PJ.
+export function renderSubmissionReceivedTemplate(kind: 'KYC' | 'COMPANY', appLink: string, companyName?: string): RenderedEmail {
+  const copy = kind === 'KYC'
+    ? { title: 'Recebemos a sua verificação de identidade', p: ['Recebemos os seus dados e documentos. Nossa equipe vai analisar e você receberá um e-mail com o resultado.', 'Enquanto a análise não for concluída, você pode retirar o envio para corrigir algo pela Área do Cliente.'] }
+    : { title: 'Recebemos o seu pedido de conta PJ', p: [`Recebemos o pedido de conta PJ da empresa ${companyName ?? ''}. Nossa equipe vai analisar e você receberá um e-mail com o resultado.`, 'Enquanto a análise não for concluída, você pode retirar o pedido para corrigir algo pela Área do Cliente, em Empresas.'] };
+  return { subject: `${copy.title} — CTBX Payments`, html: layout(copy.title, copy.p, { label: 'Acompanhar na Área do Cliente', url: appLink }), text: `${copy.title}\n\n${copy.p.join('\n\n')}\n\n${appLink}` };
+}
