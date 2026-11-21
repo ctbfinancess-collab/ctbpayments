@@ -17,6 +17,7 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
-COPY package.json ./
-# O Railway define PORT; o servidor do Astro lê PORT e HOST.
-CMD ["node", "./dist/server/entry.mjs"]
+COPY package.json server.mjs ./
+# O Railway define PORT; server.mjs lê PORT e HOST, redireciona o domínio
+# sem "www" para o www e entrega o resto ao servidor do Astro.
+CMD ["node", "./server.mjs"]

@@ -11,7 +11,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "start": "HOST=${HOST:-0.0.0.0} node ./dist/server/entry.mjs"
+    "start": "HOST=${HOST:-0.0.0.0} node ./server.mjs"
   },
   "dependencies": {
     "@astrojs/node": "11.1.9",
