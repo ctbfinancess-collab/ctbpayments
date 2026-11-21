@@ -617,10 +617,11 @@ function AuditPage({ navigation }) {
                 <Body muted style={{ fontSize: 13, minWidth: 130 }}>{fmtDateTime(e.occurredAt)}</Body>
                 <View style={{ flex: 1, minWidth: 220 }}>
                   <Text style={styles.eventName}>{eventLabel(e.event)}</Text>
-                  <Body muted style={{ fontSize: 12 }}>{[e.staffName ? `por ${e.staffName}` : e.customerId ? 'pelo cliente' : '', details, e.ip ? `IP ${e.ip}` : ''].filter(Boolean).join(' · ')}</Body>
+                  {e.customerName ? <Text style={styles.eventCustomer}>Cliente: {e.customerName} · {e.customerEmail}</Text> : null}
+                  <Body muted style={{ fontSize: 12 }}>{[e.staffName ? `por ${e.staffName}` : e.customerId ? 'pelo próprio cliente' : 'sem conta identificada', details, e.ip ? `IP ${e.ip}` : ''].filter(Boolean).join(' · ')}</Body>
                 </View>
                 <StatusPill label={ol} tone={ot} />
-                {e.customerId ? <LinkText onPress={() => navigation.navigate('Customer', { customerId: e.customerId })}>Cliente →</LinkText> : null}
+                {e.customerId ? <LinkText onPress={() => navigation.navigate('Customer', { customerId: e.customerId })}>{e.customerName ? `${e.customerName.split(' ')[0]} →` : 'Cliente →'}</LinkText> : null}
               </View>
             );
           }) : <View style={{ padding: 18 }}><Body muted>Nenhum registro.</Body></View>}
@@ -749,5 +750,6 @@ const styles = StyleSheet.create({
   statLabel: { color: ca.text, fontFamily: fonts.semibold, fontSize: 14, marginTop: 4 },
   eventRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 12 },
   eventName: { color: ca.text, fontFamily: fonts.medium, fontSize: 14 },
+  eventCustomer: { color: ca.goldLight, fontFamily: fonts.medium, fontSize: 13, marginTop: 2 },
   teamRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 14 },
 });

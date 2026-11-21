@@ -180,6 +180,11 @@ export class CustomerAuthService {
     };
   }
 
+  // Só para a auditoria interna de logins que falharam (nunca exposto).
+  async findIdByEmail(email: string): Promise<string | undefined> {
+    return (await this.customers.findByEmail(email.trim().toLowerCase()))?.id;
+  }
+
   async validateSession(token: string): Promise<AuthenticatedCustomer | null> {
     const session = await this.sessions.findByTokenHash(hashToken(token));
     if (!session || session.revokedAt || session.expiresAt.getTime() < this.now().getTime()) return null;

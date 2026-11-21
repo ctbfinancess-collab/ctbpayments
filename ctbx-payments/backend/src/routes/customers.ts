@@ -166,10 +166,17 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   }, async (request) => {
     if (!customerAuthService) throw providerNotConfigured('de autenticação de clientes');
     const { email, password } = request.body as { email: string; password: string };
-    const result = await customerAuthService.login(email, password);
+    // Auditoria interna: em toda falha (senha errada, e-mail não confirmado,
+    // conta suspensa) registra DE QUAL conta foi a tentativa, se o e-mail
+    // existir. A busca acontece em todos os casos (exista ou não), e a
+    // resposta ao cliente continua idêntica — nada é revelado.
+    const markAttempt = async () => { const id = await customerAuthService.findIdByEmail(email); if (id) request.auditCustomerId = id; };
+    let result;
+    try { result = await customerAuthService.login(email, password); }
+    catch (error) { await markAttempt(); throw error; }
     // Mesma mensagem/código pra e-mail inexistente e senha errada — nunca
     // revela qual dos dois falhou.
-    if (!result) throw new ApiError('CUSTOMER_LOGIN_INVALID', 'E-mail ou senha inválidos.', { statusCode: 401 });
+    if (!result) { await markAttempt(); throw new ApiError('CUSTOMER_LOGIN_INVALID', 'E-mail ou senha inválidos.', { statusCode: 401 }); }
     request.auditCustomerId = result.customer.id;
     return envelope(request, { token: result.token, expiresAt: result.expiresAt.toISOString(), customer: result.customer });
   });

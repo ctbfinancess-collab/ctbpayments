@@ -104,9 +104,17 @@ export class StaffCustomerService {
       ...(date(filters.from) ? { from: date(filters.from)! } : {}), ...(date(filters.to) ? { to: date(filters.to)! } : {}), ...(date(filters.before) ? { before: date(filters.before)! } : {}),
       limit: 100,
     });
+    // Nomes buscados na hora de exibir (a trilha em si não guarda nomes).
     const staffNames = new Map<string, string>();
-    for (const r of rows) if (r.staffId && !staffNames.has(r.staffId)) staffNames.set(r.staffId, (await this.staff.findUserById(r.staffId))?.name ?? '—');
-    return rows.map((r) => ({ id: r.id, event: r.event, outcome: r.outcome, staffName: r.staffId ? staffNames.get(r.staffId) : null, staffId: r.staffId ?? null, customerId: r.customerId ?? null, ip: r.ip ?? null, details: r.details ?? null, occurredAt: r.occurredAt.toISOString() }));
+    const customerNames = new Map<string, { name: string; email: string } | null>();
+    for (const r of rows) {
+      if (r.staffId && !staffNames.has(r.staffId)) staffNames.set(r.staffId, (await this.staff.findUserById(r.staffId))?.name ?? '—');
+      if (r.customerId && !customerNames.has(r.customerId)) { const c = await this.customers.findById(r.customerId); customerNames.set(r.customerId, c ? { name: c.name, email: c.email } : null); }
+    }
+    return rows.map((r) => {
+      const cust = r.customerId ? customerNames.get(r.customerId) : null;
+      return { id: r.id, event: r.event, outcome: r.outcome, staffName: r.staffId ? staffNames.get(r.staffId) : null, staffId: r.staffId ?? null, customerId: r.customerId ?? null, customerName: cust?.name ?? null, customerEmail: cust?.email ?? null, ip: r.ip ?? null, details: r.details ?? null, occurredAt: r.occurredAt.toISOString() };
+    });
   }
 
   private async require(customerId: string): Promise<CustomerRecord> {

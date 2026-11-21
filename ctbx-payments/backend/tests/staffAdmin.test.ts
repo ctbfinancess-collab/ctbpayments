@@ -143,3 +143,25 @@ test('audit trail: admin can filter it, the consultation itself is audited, and 
   const dump = JSON.stringify(audit.events);
   for (const secret of ['Ana Fictícia', '11144477735']) assert.equal(dump.includes(secret), false, secret);
 });
+
+test('audit shows WHO each customer event is about (name and e-mail at read time), including failed and blocked logins', async (t) => {
+  const { app, admin, audit } = await setup();
+  t.after(() => app.close());
+  const ana = await customerSession(app, ANA);
+  await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: ANA.email, password: 'errada-999' } });
+  await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: 'ninguem@sandbox.invalid', password: 'errada-999' } });
+  await app.inject({ method: 'POST', url: `/v1/staff/customers/${ana.id}/block`, headers: admin, payload: { reason: 'Teste de suspensão para a auditoria.' } });
+  const blocked = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: ANA.email, password: ANA.password } });
+  assert.equal(blocked.json().error.code, 'CUSTOMER_BLOCKED');
+  const logins = (await app.inject({ method: 'GET', url: '/v1/staff/audit?event=CUSTOMER_LOGIN', headers: admin })).json().data.events;
+  const [blockedLogin, unknown, wrongPw] = logins;
+  assert.equal(blockedLogin.outcome, 'BLOCKED');
+  assert.equal(blockedLogin.customerName, ANA.name);
+  assert.equal(unknown.customerId, null); // e-mail inexistente: sem conta
+  assert.equal(wrongPw.customerName, ANA.name); // senha errada: sabemos de qual conta foi a tentativa
+  assert.equal(wrongPw.customerEmail, ANA.email);
+  // (A resposta idêntica para e-mail existente/inexistente é coberta em customerAuthHardening.test.ts.)
+  // A trilha gravada continua sem nomes nem e-mails.
+  const dump = JSON.stringify(audit.events);
+  assert.equal(dump.includes(ANA.name) || dump.includes(ANA.email), false);
+});
