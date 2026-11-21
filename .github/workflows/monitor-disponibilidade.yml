@@ -41,8 +41,8 @@ jobs:
           para=$(printf '%s' "$DESTINOS" | jq -R 'split(",") | map(gsub("^ +| +$";""))')
           status=$(jq -n --argjson to "$para" --arg quando "$(date -u +%Y-%m-%dT%H:%MZ)" \
             '{from:"CTBX Payments <no-reply@ctbxpayments.com>", to:$to, subject:"[CTBX · teste] Alerta do monitoramento funcionando", text:("Este é um e-mail de TESTE do monitoramento automático da CTBX Payments.\nNada está fora do ar.\nQuando: " + $quando + "\nSe um serviço cair, um aviso como este chega em até cerca de 10 minutos.")}' \
-            | curl -sS --max-time 20 -o /dev/null -w '%{http_code}' -X POST https://api.resend.com/emails -H "Authorization: Bearer $RESEND_KEY" -H 'Content-Type: application/json' -d @-)
-          echo "Resposta do Resend: HTTP $status"
+            | curl -sS --max-time 20 -o /tmp/resend.json -w '%{http_code}' -X POST https://api.resend.com/emails -H "Authorization: Bearer $RESEND_KEY" -H 'Content-Type: application/json' -d @-)
+          echo "Resposta do Resend: HTTP $status — $(jq -r '(.name // "") + " " + (.message // "")' /tmp/resend.json 2>/dev/null)"
           [ "$status" -ge 200 ] && [ "$status" -lt 300 ]
 
   verificar:
