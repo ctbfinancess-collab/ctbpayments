@@ -6,6 +6,7 @@ import type { KycReviewService } from '../services/kycReviewService.js';
 import type { CompanyReviewService } from '../services/companyReviewService.js';
 import type { StaffCustomerService } from '../services/staffCustomerService.js';
 import type { StaffAuthService } from '../services/staffAuthService.js';
+import { safeError } from '../observability/logger.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
 
@@ -73,7 +74,7 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
         details: { statusCode: reply.statusCode, ...(params.companyId ? { companyId: params.companyId } : {}), ...(request.auditDetails ?? {}) },
       });
     } catch (error) {
-      request.log.error({ event, err: (error as Error).message }, 'falha ao gravar o registro de auditoria');
+      request.log.error({ event, err: safeError(error) }, 'falha ao gravar o registro de auditoria');
     }
   });
 
@@ -171,7 +172,9 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
     const { staffId } = request.params as { staffId: string };
     const { reason, code } = request.body as { reason: string; code: string };
     request.auditDetails = { targetStaffId: staffId, reason: reason.trim().slice(0, 500) };
-    return envelope(request, await auth.resetAccess(request.staffAuth!, staffId, reason, code));
+    const result = await auth.resetAccess(request.staffAuth!, staffId, reason, code);
+    request.auditDetails = { ...request.auditDetails, linkEmailed: result.linkEmailed, notifiedAdmins: result.notifiedAdmins };
+    return envelope(request, result);
   });
 
   app.post('/users/:staffId/resend-invite', { preValidation: requireAdmin, config: limit(10), schema: { params: staffIdParams, body: emptyObjectSchema } }, async (request, reply) => {

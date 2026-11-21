@@ -10,11 +10,14 @@ export async function healthRoutes(app: FastifyInstance, options: HealthOptions 
   // de 3 segundos. Não revela detalhes do erro, só se está de pé.
   app.get('/health/deep', async (request, reply) => {
     if (!options.databasePing) return envelope(request, { status: 'UP', database: 'NOT_CONFIGURED' });
+    let timer: NodeJS.Timeout | undefined;
     try {
-      await Promise.race([options.databasePing(), new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))]);
+      await Promise.race([options.databasePing(), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), 3000); })]);
       return envelope(request, { status: 'UP', database: 'UP' });
     } catch {
       return reply.status(503).send(envelope(request, { status: 'DOWN', database: 'DOWN' }));
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   });
   app.get('/ready', async (request) => envelope(request, {

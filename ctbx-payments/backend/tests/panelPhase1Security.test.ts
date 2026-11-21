@@ -40,6 +40,8 @@ const lastMailTo = (app: App, to: string) => outbox(app).sent.filter((m) => m.to
 // testado à parte e não deve interferir nos demais cenários.
 let ip = 0;
 const post = (app: App, url: string, payload: object, token?: string) => app.inject({ method: 'POST', url, payload, remoteAddress: `10.0.${Math.floor(++ip / 250)}.${ip % 250}`, ...(token ? { headers: { authorization: `Bearer ${token}` } } : {}) });
+// Espera o trabalho em segundo plano (link e e-mail da senha esquecida).
+const settle = async (app: App) => { await new Promise((r) => setTimeout(r, 30)); void app; };
 const events = async (app: App) => (await auditLog(app).query({ limit: 500 })).map((e) => e.event);
 
 async function acceptInvite(app: App, email: string, password = PASSWORD) {
@@ -86,7 +88,7 @@ test('senha esquecida: resposta igual para e-mail que existe e que não existe; 
   assert.equal(unknown.statusCode, 202);
   assert.equal(known.statusCode, 202);
   assert.equal(unknown.json().data.message, known.json().data.message);
-  await new Promise((r) => setImmediate(r));
+  await settle(app);
   const sent = outbox(app).sent.slice(before);
   assert.equal(sent.length, 1);
   assert.equal(sent[0]!.to, 'carla@sandbox.invalid');
@@ -99,7 +101,7 @@ test('senha esquecida: exige o código do autenticador, encerra as sessões, avi
   const app = await buildApp({ config, providers: {}, logger: false });
   const { carla } = await team(app);
   await post(app, '/v1/staff/auth/password/forgot', { email: 'carla@sandbox.invalid' });
-  await new Promise((r) => setImmediate(r));
+  await settle(app);
   const token = linkToken(lastMailTo(app, 'carla@sandbox.invalid').text!);
 
   const wrongCode = await post(app, '/v1/staff/auth/password/reset', { token, password: NEW_PASSWORD, code: '000000' });
@@ -128,7 +130,7 @@ test('senha esquecida: 5 códigos errados bloqueiam a conta por 15 minutos', asy
   const app = await buildApp({ config, providers: {}, logger: false });
   const { carla } = await team(app);
   await post(app, '/v1/staff/auth/password/forgot', { email: 'carla@sandbox.invalid' });
-  await new Promise((r) => setImmediate(r));
+  await settle(app);
   const token = linkToken(lastMailTo(app, 'carla@sandbox.invalid').text!);
   for (let i = 0; i < 5; i += 1) assert.equal((await post(app, '/v1/staff/auth/password/reset', { token, password: NEW_PASSWORD, code: '000000' })).statusCode, 401);
   allowFreshCode(app, 'carla@sandbox.invalid');
@@ -173,7 +175,7 @@ test('redefinir acesso: invalida senha e autenticador, encerra sessões, envia l
   assert.match(mail.subject, /Seu acesso ao painel foi redefinido/);
   assert.equal(linkPath(mail.text!), '/convite');
   for (const admin of ['ana@sandbox.invalid', 'beto@sandbox.invalid']) {
-    await new Promise((r) => setImmediate(r));
+    await settle(app);
     const notice = lastMailTo(app, admin);
     assert.match(notice.subject, /Acesso de um membro da equipe redefinido/);
     assert.match(notice.text!, /Perdeu o celular do autenticador/);
@@ -295,4 +297,47 @@ test('limite de tentativas por IP nas rotas novas: 3 pedidos de link por minuto;
   for (let i = 0; i < 4; i += 1) statuses.push((await same('/v1/staff/auth/password/forgot', { email: `x${i}@sandbox.invalid` })).statusCode);
   assert.deepEqual(statuses, [202, 202, 202, 429]);
   await app.close();
+});
+
+test('senha esquecida: no máximo 1 link a cada 2 minutos por pessoa (pedidos repetidos não cancelam o link válido)', async () => {
+  const app = await buildApp({ config, providers: {}, logger: false });
+  await team(app);
+  const count = () => outbox(app).sent.filter((m) => m.to === 'carla@sandbox.invalid' && /Redefinir a senha/.test(m.subject)).length;
+  await post(app, '/v1/staff/auth/password/forgot', { email: 'carla@sandbox.invalid' });
+  await settle(app);
+  const first = linkToken(lastMailTo(app, 'carla@sandbox.invalid').text!);
+  await post(app, '/v1/staff/auth/password/forgot', { email: 'carla@sandbox.invalid' });
+  await settle(app);
+  assert.equal(count(), 1);
+  // O primeiro link continua valendo.
+  const repo = staffRepo(app);
+  assert.ok(repo.tokens.some((t) => t.purpose === 'PASSWORD_RESET' && !t.consumedAt));
+  void first;
+  await app.close();
+});
+
+test('redefinir acesso: se o e-mail com o link falhar, a resposta avisa (sem erro 500) e a auditoria registra', async () => {
+  const app = await buildApp({ config, providers: {}, logger: false });
+  const { ana, carla } = await team(app);
+  const box = outbox(app);
+  const original = box.send.bind(box);
+  box.send = async (m) => { if (m.to === 'carla@sandbox.invalid') throw new Error('falha simulada no envio'); return original(m); };
+  allowFreshCode(app, 'ana@sandbox.invalid');
+  const r = await post(app, `/v1/staff/users/${carla.id}/reset-access`, { reason: 'Teste de falha no envio do e-mail', code: code(ana.secret) }, ana.token);
+  assert.equal(r.statusCode, 200, r.body);
+  assert.equal(r.json().data.linkEmailed, false);
+  const ev = (await auditLog(app).query({ limit: 500 })).find((e) => e.event === 'STAFF_USER_ACCESS_RESET')!;
+  assert.equal(ev.outcome, 'SUCCESS');
+  assert.equal((ev.details as Record<string, unknown>).linkEmailed, false);
+  await app.close();
+});
+
+test('log de requisições não grava parâmetros de busca (ex.: CPF pesquisado no painel)', async () => {
+  const { loggerOptions } = await import('../src/observability/logger.js');
+  const opts = loggerOptions('info');
+  assert.ok(opts);
+  const out = (opts as { serializers: { req: (r: { method: string; url: string; ip?: string }) => { url: string } } }).serializers.req({ method: 'GET', url: '/v1/staff/customers?q=11144477735', ip: '10.0.0.1' });
+  assert.equal(out.url, '/v1/staff/customers');
+  assert.equal(scrubText('invalid input syntax for type uuid: "maria@x.com"'), 'invalid input syntax for type uuid: "[valor]"');
+  assert.equal(scrubText('CEP 12246190 não encontrado'), 'CEP [número] não encontrado');
 });

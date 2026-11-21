@@ -18,7 +18,8 @@ const app = await buildApp({ config });
 process.on('unhandledRejection', (reason) => {
   const err = safeError(reason);
   app.log.error({ err }, 'unhandled rejection');
-  void app.criticalAlerter?.notify({ kind: 'PROCESS_ERROR', type: err.type, code: err.code });
+  // Mantém o comportamento seguro do Node (encerrar): o Railway reinicia.
+  void Promise.resolve(app.criticalAlerter?.notify({ kind: 'PROCESS_ERROR', type: err.type, code: err.code })).finally(() => setTimeout(() => process.exit(1), 2000).unref());
 });
 process.on('uncaughtException', (error) => {
   const err = safeError(error);

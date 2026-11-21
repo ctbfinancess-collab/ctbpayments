@@ -1,3 +1,4 @@
+import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance } from 'fastify';
 
 // Relatórios de Política de Segurança de Conteúdo (CSP) enviados pelo
@@ -13,15 +14,16 @@ const originOf = (value: unknown): string => {
 const pathOf = (value: unknown): string => { try { return typeof value === 'string' ? new URL(value).pathname.slice(0, 80) : ''; } catch { return ''; } };
 
 export async function cspReportRoutes(app: FastifyInstance): Promise<void> {
+  await app.register(rateLimit, { global: false });
   for (const type of ['application/csp-report', 'application/reports+json']) {
     app.addContentTypeParser(type, { parseAs: 'string', bodyLimit: 16 * 1024 }, (_req, body, done) => {
       try { done(null, JSON.parse(body as string)); } catch { done(null, {}); }
     });
   }
-  app.post('/security/csp-report', { bodyLimit: 16 * 1024 }, async (request, reply) => {
+  app.post('/security/csp-report', { bodyLimit: 16 * 1024, config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request, reply) => {
     const body = request.body as Record<string, unknown> | Record<string, unknown>[] | undefined;
     const items = Array.isArray(body) ? body.map((r) => (r?.body ?? {}) as Record<string, unknown>) : [((body?.['csp-report'] ?? body ?? {}) as Record<string, unknown>)];
-    for (const r of items.slice(0, 20)) {
+    for (const r of items.slice(0, 5)) {
       request.log.warn({
         csp: {
           directive: String(r['effective-directive'] ?? r.effectiveDirective ?? r['violated-directive'] ?? '').slice(0, 60),

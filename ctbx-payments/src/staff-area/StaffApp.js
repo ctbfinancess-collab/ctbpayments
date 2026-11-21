@@ -17,7 +17,16 @@ const Stack = createNativeStackNavigator();
 const linking = { prefixes: [], config: { screens: { Login: 'entrar', ForgotPassword: 'esqueci-minha-senha', ResetPassword: 'redefinir-senha', Invite: 'convite', Overview: 'inicio', Customers: 'clientes', Customer: 'clientes/:customerId', Audit: 'auditoria', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
 const TITLES = { Login: 'Entrar', ForgotPassword: 'Esqueci minha senha', ResetPassword: 'Redefinir senha', Invite: 'Aceitar convite', Overview: 'Visão geral', Customers: 'Clientes', Customer: 'Cliente', Audit: 'Auditoria', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
 const theme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: ca.bg, card: ca.bgRaised, primary: ca.gold, text: ca.text, border: ca.border } };
-const tokenFromUrl = () => { try { return new URL(window.location.href).searchParams.get('token') || ''; } catch { return ''; } };
+// Lê o código do link (convite/redefinição) e o tira da barra de endereço,
+// para não ficar no histórico do navegador.
+const tokenFromUrl = () => {
+  try {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('token') || '';
+    if (token) { url.searchParams.delete('token'); window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash); }
+    return token;
+  } catch { return ''; }
+};
 const STATUS = { SUBMITTED: ['Em análise', 'neutral'], CHANGES_REQUESTED: ['Ajustes solicitados', 'warning'], APPROVED: ['Aprovada', 'success'], REJECTED: ['Não aprovada', 'danger'], IN_PROGRESS: ['Em preenchimento', 'warning'], NOT_STARTED: ['Não iniciada', 'warning'] };
 const DECISION_LABEL = { APPROVED: 'Aprovada', CHANGES_REQUESTED: 'Ajustes solicitados', REJECTED: 'Não aprovada' };
 const fmtDateTime = (iso) => { if (!iso) return '—'; const d = new Date(iso); return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`; };

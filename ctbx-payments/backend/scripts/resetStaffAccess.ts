@@ -26,9 +26,9 @@ try {
   const repo = new PostgresStaffRepository(db);
   const email$ = createEmailProvider({ nodeEnv: config.nodeEnv, resendApiKey: config.resendApiKey, emailFrom: config.emailFrom });
   const service = new StaffAuthService(repo, key, email$, config.staff.appBaseUrl);
-  const { staffId, notifiedAdmins } = await service.emergencyResetAccess(email, reason);
-  await new PostgresSecurityAuditRepository(db).record({ event: 'STAFF_USER_ACCESS_RESET_CLI', outcome: 'SUCCESS', staffId, details: { reason: reason.trim().slice(0, 500) } });
-  console.log(`Acesso redefinido. A pessoa recebeu um link de 24 horas; ${notifiedAdmins} administrador(es) avisado(s).`);
+  const { staffId, notifiedAdmins, linkEmailed } = await service.emergencyResetAccess(email, reason);
+  await new PostgresSecurityAuditRepository(db).record({ event: 'STAFF_USER_ACCESS_RESET_CLI', outcome: 'SUCCESS', staffId, details: { reason: reason.trim().slice(0, 500), linkEmailed } });
+  console.log(linkEmailed ? `Acesso redefinido. A pessoa recebeu um link de 24 horas; ${notifiedAdmins} administrador(es) avisado(s).` : 'Acesso redefinido, mas o e-mail com o link falhou: reenvie o convite (inviteStaff).');
 } catch (error) {
   console.error('Falhou:', (error as Error).message);
   process.exitCode = 1;
