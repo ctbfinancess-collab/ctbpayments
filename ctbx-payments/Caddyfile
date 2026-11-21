@@ -17,10 +17,13 @@
 		X-Robots-Tag {$X_ROBOTS_TAG:noindex}
 		-Server
 	}
+	# Arquivos com versão no nome (o nome muda a cada publicação): cache longo.
 	@hashed path /_expo/static/*
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
-	@html path / /index.html
-	header @html Cache-Control "no-cache"
+	# Todo o resto (inclusive /fila, /painel... que devolvem o index.html):
+	# sempre conferir a versão mais nova.
+	@notHashed not path /_expo/static/*
+	header @notHashed Cache-Control "no-cache"
 	# Rotas do app (ex.: /verify-email, /reset-password) caem no index.html.
 	try_files {path} /index.html
 	file_server
