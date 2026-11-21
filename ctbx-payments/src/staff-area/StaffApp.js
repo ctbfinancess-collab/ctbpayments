@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { DarkTheme, NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
@@ -7,12 +8,21 @@ import { CormorantGaramond_500Medium, CormorantGaramond_600SemiBold } from '@exp
 import QRCode from 'qrcode';
 import { COMPANY_DOCUMENTS, COMPANY_POSITION_OPTIONS, COMPANY_REVENUE_OPTIONS, documentTypeLabel, DOCUMENT_KINDS, formatBytes, formatCnpj, formatDate, incomeLabel, maskCepInput, maskPhoneInput, optionLabel } from '../customer-area/logic';
 import { ca, fonts } from '../customer-area/theme';
-import { Body, Brand, Button, Card, ChoiceGroup, DataRow, Eyebrow, Field, Heading, LinkText, LoadingBlock, Notice, Page, StatusPill, useLayout } from '../customer-area/ui';
+import { Body, Brand, Button, Card as BaseCard, ChoiceGroup, DataRow, Eyebrow, Field, Heading, LinkText, LoadingBlock, Notice, Page, StatusPill, useLayout } from '../customer-area/ui';
 import { StaffSessionProvider, staffApi, staffMessage, useStaff } from './api';
 import { describeDetails, eventLabel, EVENT_LABELS, OUTCOME_LABELS } from './events';
 
 // Painel da equipe (análise de KYC) — serviço próprio, separado da Área do
 // Cliente. Acesso só com convite, senha forte e verificação em duas etapas.
+
+// Marca-d'água: o globo da CTBX (imagem original, fundo transparente), atrás
+// do conteúdo. Grande à direita no Dashboard; no canto nas páginas internas;
+// nunca nas telas de análise (documentos e selfie).
+const GLOBE = require('../../assets/brand/globo-ctbx.png');
+// Cartões levemente translúcidos para o globo aparecer por trás sem
+// prejudicar a leitura (aprovado na prévia 1).
+const CARD_BG = 'rgba(28,30,33,0.82)';
+const Card = ({ style, ...rest }) => <BaseCard style={[{ backgroundColor: CARD_BG }, style]} {...rest} />;
 const Stack = createNativeStackNavigator();
 const linking = { prefixes: [], config: { screens: { Login: 'entrar', ForgotPassword: 'esqueci-minha-senha', ResetPassword: 'redefinir-senha', Invite: 'convite', Overview: 'inicio', Customers: 'clientes', Customer: 'clientes/:customerId', Audit: 'auditoria', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
 const TITLES = { Login: 'Entrar', ForgotPassword: 'Esqueci minha senha', ResetPassword: 'Redefinir senha', Invite: 'Aceitar convite', Overview: 'Visão geral', Customers: 'Clientes', Customer: 'Cliente', Audit: 'Auditoria', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
@@ -199,15 +209,48 @@ function InvitePage({ navigation }) {
   );
 }
 
-function Shell({ active, title, subtitle, children }) {
-  const { staff, signOut } = useStaff();
+function Watermark({ variant }) {
+  if (!variant) return null;
+  const style = variant === 'dashboard'
+    ? { position: 'absolute', right: -150, top: 110, width: 1000, height: 667, opacity: 0.32 }
+    : { position: 'absolute', right: -160, bottom: -120, width: 820, height: 547, opacity: 0.16 };
+  return <Image accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" resizeMode="contain" source={GLOBE} style={style} />;
+}
+
+const NAV_GROUPS = [
+  { title: null, items: [{ route: 'Overview', label: 'Dashboard' }] },
+  { title: 'Análise', items: [{ route: 'Queue', label: 'Fila de análise KYC', badge: 'kyc' }, { route: 'CompanyQueue', label: 'Empresas (PJ)', badge: 'companies' }] },
+  { title: 'Clientes', items: [{ route: 'Customers', label: 'Clientes' }] },
+  { title: 'Controle', admin: true, items: [{ route: 'Audit', label: 'Auditoria' }, { route: 'Team', label: 'Equipe' }] },
+];
+
+function Shell({ active, title, subtitle, eyebrow, children, watermark = 'corner' }) {
+  const { staff, signOut, call } = useStaff();
   const navigation = useNavigation();
   const { isDesktop } = useLayout();
-  const nav = [{ route: 'Overview', label: 'Visão geral' }, { route: 'Queue', label: 'Fila de análise' }, { route: 'CompanyQueue', label: 'Empresas (PJ)' }, { route: 'Customers', label: 'Clientes' }, ...(staff?.role === 'ADMIN' ? [{ route: 'Audit', label: 'Auditoria' }, { route: 'Team', label: 'Equipe' }] : [])];
-  const items = nav.map((n) => (
-    <Pressable accessibilityRole="link" key={n.route} onPress={() => navigation.navigate(n.route)} style={({ hovered }) => [styles.navItem, active === n.route && styles.navActive, hovered && active !== n.route && { backgroundColor: 'rgba(191,194,199,0.06)' }]}>
-      <Text style={[styles.navText, active === n.route && { color: ca.goldLight }]}>{n.label}</Text>
-    </Pressable>
+  const [badges, setBadges] = useState(null);
+  useEffect(() => { let alive = true; call('/badges').then((d) => { if (alive) setBadges(d.badges); }).catch(() => {}); return () => { alive = false; }; }, [call, active]);
+  const groups = NAV_GROUPS.filter((g) => !g.admin || staff?.role === 'ADMIN');
+  const item = (n) => {
+    const on = active === n.route;
+    const count = n.badge && badges ? badges[n.badge] : 0;
+    const inner = (
+      <>
+        <Text style={[styles.navText, on && styles.navTextOn]}>{n.label}</Text>
+        {count ? <View style={[styles.badge, on && styles.badgeOn]}><Text style={[styles.badgeText, on && styles.badgeTextOn]}>{count}</Text></View> : null}
+      </>
+    );
+    return (
+      <Pressable accessibilityRole="link" accessibilityState={{ selected: on }} key={n.route} onPress={() => navigation.navigate(n.route)} style={({ hovered }) => [styles.navItem, hovered && !on && { backgroundColor: 'rgba(191,194,199,0.06)' }]}>
+        {on ? <LinearGradient colors={['#A98A52', '#E6CC97', '#C5A46C']} end={{ x: 1, y: 0 }} locations={[0, 0.55, 1]} start={{ x: 0, y: 0 }} style={styles.navActiveFill}>{inner}</LinearGradient> : <View style={styles.navInner}>{inner}</View>}
+      </Pressable>
+    );
+  };
+  const nav = groups.map((g, i) => (
+    <View key={g.title || i} style={{ gap: 2 }}>
+      {g.title ? <Text style={styles.navGroup}>{g.title.toUpperCase()}</Text> : null}
+      {g.items.map(item)}
+    </View>
   ));
   const who = (
     <View style={isDesktop ? styles.sideFooter : styles.topWho}>
@@ -216,20 +259,34 @@ function Shell({ active, title, subtitle, children }) {
       <Pressable accessibilityRole="button" onPress={() => signOut()} style={styles.logout}><Text style={styles.logoutText}>Sair</Text></Pressable>
     </View>
   );
-  const header = <View style={{ marginBottom: 24 }}><Text accessibilityRole="header" style={styles.pageTitle}>{title}</Text>{subtitle ? <Body style={{ marginTop: 6 }}>{subtitle}</Body> : null}</View>;
+  const header = (
+    <View style={{ marginBottom: 24 }}>
+      {eyebrow ? <Text style={styles.headerEyebrow}>{eyebrow.toUpperCase()}</Text> : null}
+      <Text accessibilityRole="header" style={styles.pageTitle}>{title}</Text>
+      {subtitle ? <Body style={{ marginTop: 6 }}>{subtitle}</Body> : null}
+    </View>
+  );
+  const content = (pad) => (
+    <View style={styles.mainArea}>
+      <Watermark variant={watermark} />
+      <ScrollView contentContainerStyle={{ flexGrow: 1, padding: pad }} keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
+        <View style={{ maxWidth: 1180, width: '100%' }}>{header}{children}</View>
+      </ScrollView>
+    </View>
+  );
   if (isDesktop) {
     return (
       <View style={styles.row}>
-        <View style={styles.sidebar}><Brand size="sm" /><Eyebrow style={{ marginTop: 18 }}>Painel da equipe</Eyebrow><View style={{ gap: 4, marginTop: 26 }}>{items}</View>{who}</View>
-        <Page contentStyle={{ padding: 40 }}><View style={{ maxWidth: 1100, width: '100%' }}>{header}{children}</View></Page>
+        <View style={styles.sidebar}><Brand size="sm" /><Eyebrow style={{ marginTop: 18 }}>Painel da equipe</Eyebrow><View style={{ gap: 18, marginTop: 24 }}>{nav}</View>{who}</View>
+        {content(40)}
       </View>
     );
   }
   return (
     <View style={{ backgroundColor: ca.bg, flex: 1 }}>
       <View style={styles.topBar}><Brand size="sm" /></View>
-      <View style={styles.mobileNav}>{items}{who}</View>
-      <Page contentStyle={{ padding: 18 }}>{header}{children}</Page>
+      <View style={styles.mobileNav}>{groups.flatMap((g) => g.items).map(item)}{who}</View>
+      {content(18)}
     </View>
   );
 }
@@ -327,12 +384,12 @@ function CasePage({ route, navigation }) {
   const load = useCallback(() => { call(`/kyc/cases/${customerId}`).then((d) => setData(d.case)).catch((e) => setError(staffMessage(e))); }, [call, customerId]);
   useEffect(() => { load(); }, [load]);
   const { isDesktop } = useLayout();
-  if (error) return <Shell active="Queue" title="Análise"><Notice kind="error">{error}</Notice><Button onPress={() => navigation.navigate('Queue')} title="Voltar para a fila" variant="ghost" /></Shell>;
-  if (!data) return <Shell active="Queue" title="Análise"><LoadingBlock /></Shell>;
+  if (error) return <Shell active="Queue" title="Análise" watermark={false}><Notice kind="error">{error}</Notice><Button onPress={() => navigation.navigate('Queue')} title="Voltar para a fila" variant="ghost" /></Shell>;
+  if (!data) return <Shell active="Queue" title="Análise" watermark={false}><LoadingBlock /></Shell>;
   const c = data.customer; const k = data.kyc; const a = k.address;
   const [label, tone] = STATUS[k.status] || [k.status, 'neutral'];
   return (
-    <Shell active="Queue" subtitle={`Enviado em ${fmtDateTime(k.submittedAt)}`} title={c.name}>
+    <Shell active="Queue" watermark={false} subtitle={`Enviado em ${fmtDateTime(k.submittedAt)}`} title={c.name}>
       <View style={{ alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 18 }}><Body muted>Situação:</Body><StatusPill label={label} tone={tone} /></View>
       {done ? <Notice kind="success" title="Decisão registrada">{`${DECISION_LABEL[done.status]}. ${done.notified ? 'O cliente foi avisado por e-mail.' : 'Atenção: o e-mail ao cliente não pôde ser enviado.'}`}</Notice> : null}
       <View style={[styles.cols, !isDesktop && { flexDirection: 'column' }]}>
@@ -409,14 +466,14 @@ function CompanyCasePage({ route, navigation }) {
   const { isDesktop } = useLayout();
   const load = useCallback(() => { call(`/companies/cases/${companyId}`).then((d) => setData(d.case)).catch((e) => setError(staffMessage(e))); }, [call, companyId]);
   useEffect(() => { load(); }, [load]);
-  if (error) return <Shell active="CompanyQueue" title="Análise PJ"><Notice kind="error">{error}</Notice><Button onPress={() => navigation.navigate('CompanyQueue')} title="Voltar para a fila" variant="ghost" /></Shell>;
-  if (!data) return <Shell active="CompanyQueue" title="Análise PJ"><LoadingBlock /></Shell>;
+  if (error) return <Shell active="CompanyQueue" title="Análise PJ" watermark={false}><Notice kind="error">{error}</Notice><Button onPress={() => navigation.navigate('CompanyQueue')} title="Voltar para a fila" variant="ghost" /></Shell>;
+  if (!data) return <Shell active="CompanyQueue" title="Análise PJ" watermark={false}><LoadingBlock /></Shell>;
   const c = data.company; const a = c.address; const r = data.receita; const ap = data.applicant;
   const [label, tone] = STATUS[c.status] || [c.status, 'neutral'];
   const kycLabel = (STATUS[ap?.kycStatus] || [ap?.kycStatus])[0];
   const nameMatch = r?.socios?.some((s) => ap && s.toUpperCase().includes(ap.name.split(' ')[0].toUpperCase()));
   return (
-    <Shell active="CompanyQueue" subtitle={`CNPJ ${formatCnpj(c.cnpj)} · enviado em ${fmtDateTime(c.submittedAt)}`} title={c.tradeName || c.legalName}>
+    <Shell active="CompanyQueue" watermark={false} subtitle={`CNPJ ${formatCnpj(c.cnpj)} · enviado em ${fmtDateTime(c.submittedAt)}`} title={c.tradeName || c.legalName}>
       <View style={{ alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 18 }}><Body muted>Situação:</Body><StatusPill label={label} tone={tone} /></View>
       {done ? <Notice kind="success" title="Decisão registrada">{`${DECISION_LABEL[done.status]}. ${done.notified ? 'O cliente foi avisado por e-mail.' : 'Atenção: o e-mail ao cliente não pôde ser enviado.'}`}</Notice> : null}
       {data.conflicts.approvedElsewhere ? <Notice kind="error" title="Atenção: CNPJ já aprovado">Já existe outra conta PJ APROVADA para este CNPJ. Uma segunda aprovação será bloqueada.</Notice> : null}
@@ -475,47 +532,131 @@ function CompanyCasePage({ route, navigation }) {
   );
 }
 
-function StatCard({ label, value, hint, onPress }) {
+
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const ago = (iso) => {
+  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (min < 60) return `há ${min} min`;
+  const h = Math.round(min / 60); if (h < 48) return `há ${h} h`;
+  return `há ${Math.round(h / 24)} dias`;
+};
+const duration = (hours) => {
+  if (hours == null) return '—';
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))} min`;
+  if (hours < 48) return `${hours.toFixed(hours < 10 ? 1 : 0).replace('.', ',')} h`;
+  return `${(hours / 24).toFixed(1).replace('.', ',')} dias`;
+};
+const ACTIVITY_TEXT = {
+  STAFF_KYC_DECISION: { APPROVED: 'aprovou a verificação de', CHANGES_REQUESTED: 'pediu ajuste na verificação de', REJECTED: 'recusou a verificação de' },
+  STAFF_COMPANY_DECISION: { APPROVED: 'aprovou a conta PJ de', CHANGES_REQUESTED: 'pediu ajuste na conta PJ de', REJECTED: 'recusou a conta PJ de' },
+  STAFF_CUSTOMER_BLOCK: 'suspendeu a conta de', STAFF_CUSTOMER_UNBLOCK: 'reativou a conta de',
+  STAFF_USER_INVITE: 'convidou uma pessoa para a equipe', STAFF_USER_DISABLE: 'desativou o acesso de', STAFF_USER_ACCESS_RESET: 'redefiniu o acesso de',
+};
+const activityText = (a) => { const t = ACTIVITY_TEXT[a.event]; const verb = typeof t === 'object' ? t[a.decision] || 'registrou uma decisão para' : t || a.event; return a.subject ? `${verb} ${a.subject}` : verb; };
+
+// Gráfico de novos cadastros (12 meses): desenhado em SVG, na escala dos dados.
+function SignupChart({ series }) {
+  if (Platform.OS !== 'web') return null;
+  const W = 640, H = 220, L = 34, R = 14, T = 16, B = 30;
+  const max = Math.max(4, ...series.map((p) => Math.max(p.pf, p.pj)));
+  const step = Math.max(1, Math.ceil(max / 4)); const top = step * 4;
+  const x = (i) => L + (i * (W - L - R)) / (series.length - 1);
+  const y = (v) => T + (H - T - B) * (1 - v / top);
+  const line = (k) => series.map((p, i) => `${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join(' ');
+  const area = `M${x(0)} ${y(0)} L${line('pf').replace(/ /g, ' L')} L${x(series.length - 1)} ${y(0)} Z`;
+  const h = React.createElement;
+  return h('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Novos cadastros por mês nos últimos 12 meses, pessoas físicas e empresas', style: { width: '100%', height: 'auto', display: 'block' } },
+    h('defs', null, h('linearGradient', { id: 'ctbxArea', x1: 0, x2: 0, y1: 0, y2: 1 }, h('stop', { offset: 0, stopColor: '#C5A46C', stopOpacity: 0.35 }), h('stop', { offset: 1, stopColor: '#C5A46C', stopOpacity: 0 }))),
+    [0, 1, 2, 3, 4].map((t) => h('g', { key: `g${t}` }, h('line', { x1: L, x2: W - R, y1: y(t * step), y2: y(t * step), stroke: 'rgba(191,194,199,0.12)' }), h('text', { x: L - 8, y: y(t * step) + 4, fill: '#8E9298', fontSize: 11, textAnchor: 'end', fontFamily: 'Inter_400Regular, Inter, sans-serif' }, String(t * step)))),
+    h('path', { d: area, fill: 'url(#ctbxArea)' }),
+    h('polyline', { points: line('pj'), fill: 'none', stroke: '#9AA3AD', strokeWidth: 2, strokeDasharray: '5 4' }),
+    h('polyline', { points: line('pf'), fill: 'none', stroke: '#E6CD9C', strokeWidth: 2.4, strokeLinejoin: 'round' }),
+    series.map((p, i) => h('g', { key: p.month },
+      h('circle', { cx: x(i), cy: y(p.pf), r: i === series.length - 1 ? 4 : 2.5, fill: '#E6CD9C' }, h('title', null, `${MONTHS[Number(p.month.slice(5)) - 1]}/${p.month.slice(2, 4)}: ${p.pf} PF, ${p.pj} PJ`)),
+      h('text', { x: x(i), y: H - 8, fill: '#8E9298', fontSize: 11, textAnchor: 'middle', fontFamily: 'Inter_400Regular, Inter, sans-serif' }, MONTHS[Number(p.month.slice(5)) - 1]))));
+}
+
+function Kpi({ value, label, hint, alert, onPress }) {
   return (
-    <Pressable accessibilityRole={onPress ? 'link' : undefined} disabled={!onPress} onPress={onPress} style={({ hovered }) => [styles.stat, hovered && onPress && { borderColor: ca.borderStrong }]}>
-      <Text style={styles.statValue}>{value}</Text>
+    <Pressable accessibilityRole={onPress ? 'link' : undefined} disabled={!onPress} onPress={onPress} style={({ hovered }) => [styles.stat, alert && styles.statAlert, hovered && onPress && { borderColor: ca.borderStrong }]}>
+      <Text style={[styles.statValue, !alert && { color: ca.text }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
-      {hint ? <Body muted style={{ fontSize: 12, marginTop: 4 }}>{hint}</Body> : null}
+      {hint ? <Body muted style={[{ fontSize: 12, marginTop: 4 }, alert && { color: ca.goldLight }]}>{hint}</Body> : null}
     </Pressable>
   );
 }
 
 function OverviewPage({ navigation }) {
   const { call, staff } = useStaff();
-  const [o, setO] = useState(null);
+  const [d, setD] = useState(null);
   const [error, setError] = useState('');
-  useEffect(() => { call('/overview').then((d) => setO(d.overview)).catch((e) => setError(staffMessage(e))); }, [call]);
-  const k = o?.kyc || {}; const c = o?.companies || {};
+  useEffect(() => { call('/dashboard').then((r) => setD(r.dashboard)).catch((e) => setError(staffMessage(e))); }, [call]);
+  const k = d?.kyc || {}; const c = d?.companies || {};
+  const segments = [
+    { key: 'APPROVED', label: 'Aprovadas', color: '#C5A46C' }, { key: 'SUBMITTED', label: 'Em análise', color: '#E6CD9C' },
+    { key: 'CHANGES_REQUESTED', label: 'Ajustes pedidos', color: '#9AA3AD' }, { key: 'IN_PROGRESS', label: 'Em preenchimento', color: '#5C6168' },
+    { key: 'REJECTED', label: 'Não aprovadas', color: '#B06B62' },
+  ];
+  const totalKyc = segments.reduce((a, sgm) => a + (k[sgm.key] || 0), 0);
+  const first = (staff?.name || '').split(' ')[0];
   return (
-    <Shell active="Overview" subtitle={`Olá, ${staff?.name || ''}. Resumo do ambiente.`} title="Visão geral">
+    <Shell active="Overview" eyebrow="Visão geral" subtitle={`Olá, ${first}. Cadastros, verificações e pendências da CTBX Payments.`} title="Painel da Equipe" watermark="dashboard">
       {error ? <Notice kind="error">{error}</Notice> : null}
-      {!o && !error ? <LoadingBlock /> : null}
-      {o ? (
-        <>
-          <Heading level={2} style={{ marginBottom: 12 }}>Pendências</Heading>
+      {!d && !error ? <LoadingBlock /> : null}
+      {d ? (
+        <View style={{ gap: 18 }}>
           <View style={styles.statsRow}>
-            <StatCard hint="Verificações de identidade aguardando" label="Fila de análise (KYC)" onPress={() => navigation.navigate('Queue')} value={o.pending.kyc} />
-            <StatCard hint="Pedidos de conta PJ aguardando" label="Empresas (PJ)" onPress={() => navigation.navigate('CompanyQueue')} value={o.pending.companies} />
+            <Kpi hint={`+${d.newCustomers30d} nos últimos 30 dias`} label="Clientes PF" onPress={() => navigation.navigate('Customers')} value={d.customers} />
+            <Kpi hint={`${c.APPROVED || 0} aprovadas`} label="Empresas PJ" onPress={() => navigation.navigate('CompanyQueue')} value={d.companiesTotal} />
+            <Kpi alert={d.pending.kyc > 0} hint={d.pending.kyc > 0 && d.pending.oldestKycSubmittedAt ? `o mais antigo ${ago(d.pending.oldestKycSubmittedAt)}` : 'nenhuma na fila'} label="KYC aguardando análise" onPress={() => navigation.navigate('Queue')} value={d.pending.kyc} />
+            <Kpi hint={`envio → decisão, ${d.review.last30Days} nos últimos 30 dias`} label="Tempo médio de análise" value={duration(d.review.avgHours)} />
+            <Kpi hint="aguardando o cliente" label="Ajustes pedidos" value={(k.CHANGES_REQUESTED || 0) + (c.CHANGES_REQUESTED || 0)} />
           </View>
-          <Heading level={2} style={{ marginBottom: 12, marginTop: 24 }}>Clientes e verificações</Heading>
-          <View style={styles.statsRow}>
-            <StatCard label="Clientes cadastrados" onPress={() => navigation.navigate('Customers')} value={o.customers} />
-            <StatCard label="KYC aprovados" value={k.APPROVED || 0} />
-            <StatCard label="KYC com ajustes pedidos" value={k.CHANGES_REQUESTED || 0} />
-            <StatCard label="KYC recusados" value={k.REJECTED || 0} />
+
+          <View style={styles.dashRow}>
+            <Card style={[styles.dashCard, { flexGrow: 2, flexBasis: 520 }]}>
+              <View style={styles.dashHead}><Text style={styles.dashTitle}>Novos cadastros</Text><Body muted style={{ fontSize: 13 }}>últimos 12 meses · <Text style={{ color: ca.goldTitle }}>— PF</Text> · <Text style={{ color: '#9AA3AD' }}>- - PJ</Text></Body></View>
+              <SignupChart series={d.series} />
+            </Card>
+            <Card style={[styles.dashCard, { backgroundColor: 'rgba(28,30,33,0.94)', flexBasis: 300 }]}>
+              <Text style={[styles.dashTitle, { marginBottom: 14 }]}>Situação das verificações (KYC)</Text>
+              {totalKyc ? (
+                <View style={styles.kycBar}>{segments.filter((sg) => k[sg.key]).map((sg) => <View key={sg.key} style={{ backgroundColor: sg.color, flexGrow: k[sg.key] }} />)}</View>
+              ) : <Body muted style={{ fontSize: 13, marginBottom: 12 }}>Nenhuma verificação ainda.</Body>}
+              <View style={styles.legend}>{segments.map((sg) => <View key={sg.key} style={styles.legendItem}><View style={[styles.dot, { backgroundColor: sg.color }]} /><Text style={styles.legendText}>{sg.label} · {k[sg.key] || 0}</Text></View>)}</View>
+              <Body muted style={{ fontSize: 12, marginTop: 'auto', paddingTop: 14 }}>A aprovação verifica a identidade; não libera operações financeiras.</Body>
+            </Card>
           </View>
-          <View style={[styles.statsRow, { marginTop: 12 }]}>
-            <StatCard label="Contas PJ aprovadas" value={c.APPROVED || 0} />
-            <StatCard label="PJ com ajustes pedidos" value={c.CHANGES_REQUESTED || 0} />
-            <StatCard label="PJ em preenchimento" value={c.DRAFT || 0} />
-            <StatCard label="PJ recusadas" value={c.REJECTED || 0} />
+
+          <View style={styles.dashRow}>
+            <Card style={styles.dashCard}>
+              <Text style={[styles.dashTitle, { marginBottom: 8 }]}>Pendências prioritárias</Text>
+              {d.priorities.length ? d.priorities.map((p, i) => (
+                <Pressable accessibilityRole="link" key={`${p.kind}${p.id}`} onPress={() => navigation.navigate(p.kind === 'PJ' ? 'CompanyCase' : 'Case', p.kind === 'PJ' ? { companyId: p.id } : { customerId: p.id })} style={[styles.prioRow, i === d.priorities.length - 1 && { borderBottomWidth: 0 }]}>
+                  <Text numberOfLines={1} style={styles.prioName}>{p.name} · {p.kind}</Text><Text style={styles.prioAge}>{ago(p.submittedAt)}</Text>
+                </Pressable>
+              )) : <Body muted style={{ fontSize: 14 }}>Nada aguardando análise.</Body>}
+            </Card>
+            <Card style={styles.dashCard}>
+              <Text style={[styles.dashTitle, { marginBottom: 8 }]}>Atividade recente da equipe</Text>
+              {d.activity.length ? d.activity.map((a, i) => (
+                <View key={`${a.occurredAt}${i}`} style={{ marginBottom: 10 }}>
+                  <Text style={styles.actText}><Text style={{ color: ca.goldLight }}>{a.staffName.split(' ')[0]}</Text> {activityText(a)}</Text>
+                  <Body muted style={{ fontSize: 12 }}>{fmtDateTime(a.occurredAt)}</Body>
+                </View>
+              )) : <Body muted style={{ fontSize: 14 }}>Nenhuma decisão registrada ainda.</Body>}
+              <Body muted style={{ fontSize: 12, marginTop: 4 }}>Só decisões e ações da equipe; sem IP.</Body>
+            </Card>
+            <Card style={styles.dashCard}>
+              <Text style={[styles.dashTitle, { marginBottom: 12 }]}>Ações rápidas</Text>
+              <View style={{ gap: 10 }}>
+                {[['Queue', 'Analisar verificações (KYC)'], ['CompanyQueue', 'Analisar empresas (PJ)'], ['Customers', 'Buscar cliente'], ...(staff?.role === 'ADMIN' ? [['Team', 'Convidar pessoa da equipe']] : [])].map(([r, label]) => (
+                  <Pressable accessibilityRole="link" key={r} onPress={() => navigation.navigate(r)} style={({ hovered }) => [styles.quick, hovered && { borderColor: ca.gold }]}><Text style={styles.quickText}>{label}</Text></Pressable>
+                ))}
+              </View>
+            </Card>
           </View>
-        </>
+        </View>
       ) : null}
     </Shell>
   );
@@ -815,9 +956,18 @@ const styles = StyleSheet.create({
   secret: { backgroundColor: ca.bgRaised, borderColor: ca.border, borderRadius: 10, borderWidth: 1, color: ca.goldLight, fontFamily: fonts.medium, fontSize: 15, letterSpacing: 1, marginBottom: 18, padding: 12 },
   row: { backgroundColor: ca.bg, flex: 1, flexDirection: 'row' },
   sidebar: { backgroundColor: ca.bgRaised, borderRightColor: ca.border, borderRightWidth: 1, padding: 26, width: 260 },
-  navItem: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
-  navActive: { backgroundColor: 'rgba(197,164,108,0.08)' },
-  navText: { color: ca.textSoft, fontFamily: fonts.medium, fontSize: 15 },
+  navItem: { borderRadius: 12, overflow: 'hidden' },
+  navInner: { alignItems: 'center', flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 11 },
+  navActiveFill: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingVertical: 11 },
+  navText: { color: ca.textSoft, flex: 1, fontFamily: fonts.medium, fontSize: 15 },
+  navTextOn: { color: ca.bg, fontFamily: fonts.semibold },
+  navGroup: { color: ca.textMuted, fontFamily: fonts.semibold, fontSize: 11, letterSpacing: 1.6, marginBottom: 4, paddingHorizontal: 14 },
+  badge: { backgroundColor: ca.gold, borderRadius: 999, minWidth: 24, paddingHorizontal: 8, paddingVertical: 2 },
+  badgeOn: { backgroundColor: ca.bg },
+  badgeText: { color: ca.bg, fontFamily: fonts.bold, fontSize: 12, textAlign: 'center' },
+  badgeTextOn: { color: ca.goldLight },
+  mainArea: { flex: 1, overflow: 'hidden', position: 'relative' },
+  headerEyebrow: { color: ca.gold, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 1.9, marginBottom: 6 },
   sideFooter: { borderTopColor: ca.border, borderTopWidth: 1, marginTop: 'auto', paddingTop: 16 },
   topWho: { alignItems: 'center', flexDirection: 'row', gap: 8, marginLeft: 'auto' },
   who: { color: ca.text, fontFamily: fonts.medium, fontSize: 14 },
@@ -826,7 +976,7 @@ const styles = StyleSheet.create({
   logoutText: { color: ca.goldLight, fontFamily: fonts.medium, fontSize: 14 },
   topBar: { backgroundColor: ca.bgRaised, borderBottomColor: ca.border, borderBottomWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
   mobileNav: { alignItems: 'center', backgroundColor: ca.bgRaised, borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 4, paddingHorizontal: 10, paddingVertical: 6 },
-  pageTitle: { color: ca.text, fontFamily: fonts.semibold, fontSize: 28, letterSpacing: -0.3 },
+  pageTitle: { color: ca.goldTitle, fontFamily: fonts.serifSemibold, fontSize: 38, lineHeight: 44 },
   queueRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingHorizontal: 22, paddingVertical: 16, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
   queueName: { color: ca.text, fontFamily: fonts.semibold, fontSize: 15 },
   queueOpen: { color: ca.goldLight, fontFamily: fonts.medium, fontSize: 14 },
@@ -836,8 +986,24 @@ const styles = StyleSheet.create({
   docHead: { alignItems: 'baseline', flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between', marginBottom: 10 },
   docTitle: { color: ca.text, fontFamily: fonts.semibold, fontSize: 14 },
   watermark: { bottom: 10, color: 'rgba(244,244,242,0.55)', fontFamily: fonts.medium, fontSize: 11, left: 10, position: 'absolute', textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 3 },
-  stat: { backgroundColor: ca.bgRaised, borderColor: ca.border, borderRadius: 14, borderWidth: 1, flexBasis: 200, flexGrow: 1, padding: 18 },
-  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  stat: { backgroundColor: CARD_BG, borderColor: ca.border, borderRadius: 16, borderWidth: 1, flexBasis: 180, flexGrow: 1, padding: 20 },
+  statsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
+  statAlert: { backgroundColor: 'rgba(197,164,108,0.10)', borderColor: 'rgba(197,164,108,0.55)' },
+  dashRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
+  dashCard: { flexBasis: 280, flexGrow: 1, minWidth: 0, padding: 22 },
+  dashHead: { alignItems: 'baseline', flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', marginBottom: 12 },
+  dashTitle: { color: ca.text, fontFamily: fonts.semibold, fontSize: 17 },
+  kycBar: { borderRadius: 999, flexDirection: 'row', height: 12, marginBottom: 14, overflow: 'hidden' },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  legendItem: { alignItems: 'center', flexBasis: '45%', flexDirection: 'row', flexGrow: 1, gap: 8 },
+  dot: { borderRadius: 5, height: 10, width: 10 },
+  legendText: { color: ca.textSoft, fontFamily: fonts.regular, fontSize: 13 },
+  prioRow: { borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', gap: 10, justifyContent: 'space-between', paddingVertical: 12 },
+  prioName: { color: ca.text, flex: 1, fontFamily: fonts.regular, fontSize: 14 },
+  prioAge: { color: ca.goldLight, fontFamily: fonts.medium, fontSize: 13 },
+  actText: { color: ca.text, fontFamily: fonts.regular, fontSize: 14, lineHeight: 20 },
+  quick: { borderColor: 'rgba(197,164,108,0.45)', borderRadius: 12, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 12 },
+  quickText: { color: ca.text, fontFamily: fonts.medium, fontSize: 14 },
   statValue: { color: ca.goldTitle, fontFamily: fonts.semibold, fontSize: 34, lineHeight: 40 },
   statLabel: { color: ca.text, fontFamily: fonts.semibold, fontSize: 14, marginTop: 4 },
   eventRow: { alignItems: 'center', borderBottomColor: ca.border, borderBottomWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 12 },

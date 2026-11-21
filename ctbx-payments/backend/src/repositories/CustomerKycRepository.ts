@@ -1,4 +1,4 @@
-import { and, asc, count, eq } from 'drizzle-orm';
+import { and, asc, count, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerKyc, customerKycDocuments } from '../db/schema/index.js';
 
@@ -89,6 +89,9 @@ export interface CustomerKycRepository {
   // Muda a situação só se ainda estiver em `from` (atômico). true = mudou.
   transitionStatus(customerId: string, from: KycStatus, patch: KycSectionPatch, now: Date): Promise<boolean>;
   countByStatus(): Promise<Record<string, number>>;
+  // Painel: análises concluídas desde a data dada e o tempo médio (horas)
+  // entre o envio e a decisão.
+  reviewStats(since: Date): Promise<{ reviewed: number; avgHours: number | null }>;
 }
 
 export class PostgresCustomerKycRepository implements CustomerKycRepository {
@@ -131,6 +134,15 @@ export class PostgresCustomerKycRepository implements CustomerKycRepository {
   async countByStatus(): Promise<Record<string, number>> {
     const rows = await this.db.select({ status: customerKyc.status, n: count() }).from(customerKyc).groupBy(customerKyc.status);
     return Object.fromEntries(rows.map((r) => [r.status, Number(r.n)]));
+  }
+
+  async reviewStats(since: Date): Promise<{ reviewed: number; avgHours: number | null }> {
+    const [row] = await this.db.select({
+      n: count(),
+      avg: sql<string | null>`avg(extract(epoch from (${customerKyc.reviewedAt} - ${customerKyc.submittedAt})) / 3600)`,
+    }).from(customerKyc).where(and(gte(customerKyc.reviewedAt, since), isNotNull(customerKyc.submittedAt)));
+    const avg = row?.avg == null ? null : Number(row.avg);
+    return { reviewed: Number(row?.n ?? 0), avgHours: avg != null && Number.isFinite(avg) ? avg : null };
   }
 
   async listByStatus(status: KycStatus): Promise<CustomerKycRecord[]> {

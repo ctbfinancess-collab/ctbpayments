@@ -1,3 +1,4 @@
+import { monthKey } from '../utils/monthKey.js';
 import { renderAccountStatusTemplate } from '../emails/staffAndKycTemplates.js';
 import { ApiError } from '../errors/ApiError.js';
 import type { EmailProvider } from '../providers/EmailProvider.js';
@@ -45,6 +46,57 @@ export class StaffCustomerService {
   async overview() {
     const [customers, kyc, companies] = await Promise.all([this.customers.countAll(), this.kyc.countByStatus(), this.companies.countByStatus()]);
     return { customers, kyc, companies, pending: { kyc: kyc.SUBMITTED ?? 0, companies: companies.SUBMITTED ?? 0 } };
+  }
+
+  // Dashboard (Etapa A): tudo lido do banco; nada de dado pessoal além do
+  // nome do cliente ou da empresa nas pendências (que o painel já mostra) e
+  // nenhum IP.
+  async dashboard() {
+    const now = this.now();
+    const start = new Date(now); start.setUTCDate(1); start.setUTCHours(0, 0, 0, 0); start.setUTCMonth(start.getUTCMonth() - 12);
+    const days30 = new Date(now.getTime() - 30 * 24 * 3_600_000);
+    const [customers, kyc, companies, pfByMonth, pjByMonth, review, kycQueue, pjQueue, staffUsers, events] = await Promise.all([
+      this.customers.countAll(), this.kyc.countByStatus(), this.companies.countByStatus(),
+      this.customers.countCreatedByMonth(start), this.companies.countCreatedByMonth(start), this.kyc.reviewStats(days30),
+      this.kyc.listByStatus('SUBMITTED'), this.companies.listByStatus('SUBMITTED'), this.staff.listUsers(),
+      this.audit.query({ limit: 300 }),
+    ]);
+    const months = lastMonths(now, 12);
+    const series = months.map((m) => ({ month: m, pf: pfByMonth[m] ?? 0, pj: pjByMonth[m] ?? 0 }));
+    const pending = [
+      ...kycQueue.filter((k) => k.submittedAt).map((k) => ({ kind: 'KYC' as const, id: k.customerId, submittedAt: k.submittedAt! })),
+      ...pjQueue.filter((c) => c.submittedAt).map((c) => ({ kind: 'PJ' as const, id: c.id, submittedAt: c.submittedAt!, name: c.tradeName || c.legalName })),
+    ].sort((a, b) => a.submittedAt.getTime() - b.submittedAt.getTime());
+    const top = await Promise.all(pending.slice(0, 5).map(async (p) => ({
+      kind: p.kind, id: p.id, submittedAt: p.submittedAt.toISOString(),
+      name: p.kind === 'PJ' ? (p as { name: string }).name : ((await this.customers.findById(p.id))?.name ?? 'Cliente'),
+    })));
+    const staffNames = new Map(staffUsers.map((u) => [u.id, u.name]));
+    const ACTIVITY = new Set(['STAFF_KYC_DECISION', 'STAFF_COMPANY_DECISION', 'STAFF_CUSTOMER_BLOCK', 'STAFF_CUSTOMER_UNBLOCK', 'STAFF_USER_INVITE', 'STAFF_USER_DISABLE', 'STAFF_USER_ACCESS_RESET']);
+    const picked = events.filter((e) => e.staffId && e.outcome === 'SUCCESS' && ACTIVITY.has(e.event)).slice(0, 6);
+    const activity = await Promise.all(picked.map(async (e) => {
+      const d = (e.details ?? {}) as Record<string, unknown>;
+      const companyId = typeof d.companyId === 'string' ? d.companyId : null;
+      const subject = e.customerId ? ((await this.customers.findById(e.customerId))?.name ?? null)
+        : companyId ? ((await this.companies.findById(companyId))?.legalName ?? null)
+        : typeof d.targetStaffId === 'string' ? (staffNames.get(d.targetStaffId) ?? null) : null;
+      return { event: e.event, staffName: staffNames.get(e.staffId!) ?? 'Equipe', subject, decision: typeof d.decision === 'string' ? d.decision : null, occurredAt: e.occurredAt.toISOString() };
+    }));
+    const oldestKyc = kycQueue.filter((k) => k.submittedAt).sort((a, b) => a.submittedAt!.getTime() - b.submittedAt!.getTime())[0];
+    return {
+      customers, kyc, companies,
+      companiesTotal: Object.values(companies).reduce((a, b) => a + b, 0),
+      pending: { kyc: kyc.SUBMITTED ?? 0, companies: companies.SUBMITTED ?? 0, oldestKycSubmittedAt: oldestKyc?.submittedAt?.toISOString() ?? null },
+      newCustomers30d: Object.values(await this.customers.countCreatedByMonth(days30)).reduce((a, b) => a + b, 0),
+      review: { last30Days: review.reviewed, avgHours: review.avgHours },
+      series, priorities: top, activity,
+    };
+  }
+
+  // Contadores do menu (leve, sem auditoria: só números).
+  async badges() {
+    const [kyc, companies] = await Promise.all([this.kyc.countByStatus(), this.companies.countByStatus()]);
+    return { kyc: kyc.SUBMITTED ?? 0, companies: companies.SUBMITTED ?? 0 };
   }
 
   async search(raw: string) {
@@ -122,4 +174,12 @@ export class StaffCustomerService {
     if (!c) throw new ApiError('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.', { statusCode: 404 });
     return c;
   }
+}
+
+// Os últimos N meses (fuso de Brasília), do mais antigo ao atual: "2026-11".
+function lastMonths(now: Date, n: number): string[] {
+  const cur = monthKey(now); const [y, m] = cur.split('-').map(Number) as [number, number];
+  const out: string[] = [];
+  for (let i = n - 1; i >= 0; i -= 1) { const t = (y * 12 + (m - 1)) - i; out.push(`${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, '0')}`); }
+  return out;
 }

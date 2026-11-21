@@ -38,6 +38,11 @@ export class InMemoryCustomerKycRepository implements CustomerKycRepository {
     return out;
   }
 
+  async reviewStats(since: Date): Promise<{ reviewed: number; avgHours: number | null }> {
+    const hours = [...this.byCustomerId.values()].filter((k) => k.reviewedAt && k.submittedAt && k.reviewedAt >= since).map((k) => (k.reviewedAt!.getTime() - k.submittedAt!.getTime()) / 3_600_000);
+    return { reviewed: hours.length, avgHours: hours.length ? hours.reduce((a, b) => a + b, 0) / hours.length : null };
+  }
+
   async listByStatus(status: KycStatus): Promise<CustomerKycRecord[]> {
     return [...this.byCustomerId.values()].filter((k) => k.status === status).sort((a, b) => (a.submittedAt?.getTime() ?? 0) - (b.submittedAt?.getTime() ?? 0));
   }
