@@ -26,7 +26,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 # Railway entrega o tráfego por um proxy e exige escutar em 0.0.0.0.
 ENV HOST=0.0.0.0
-ENV TRUST_PROXY=1
+# O Railway põe DOIS proxies na frente da API (borda + roteador interno).
+# Com 2, request.ip é o IP real do cliente; um X-Forwarded-For forjado pelo
+# cliente é ignorado (validado no ambiente de teste em 2026-11-21).
+ENV TRUST_PROXY=2
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
