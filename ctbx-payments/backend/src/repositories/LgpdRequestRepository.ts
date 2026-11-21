@@ -63,7 +63,8 @@ export class PostgresLgpdRequestRepository implements LgpdRequestRepository {
   async countOpen(now: Date) {
     const [row] = await this.db.select({
       open: count(),
-      overdue: sql<number>`count(*) filter (where ${lgpdRequests.dueAt} < ${now})`,
+      // data como texto ISO + cast: o driver não serializa Date em SQL cru.
+      overdue: sql<number>`count(*) filter (where ${lgpdRequests.dueAt} < ${now.toISOString()}::timestamptz)`,
     }).from(lgpdRequests).where(inArray(lgpdRequests.status, LGPD_OPEN));
     return { open: Number(row?.open ?? 0), overdue: Number(row?.overdue ?? 0) };
   }
