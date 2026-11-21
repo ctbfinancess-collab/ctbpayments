@@ -50,14 +50,18 @@ export class CustomerEmailVerificationService {
   // não precisa (nem ajuda) diferenciar pro cliente qual dos três
   // aconteceu; internamente cada caso já é auditável pela linha em
   // customer_email_verifications (consumedAt/expiresAt).
-  async confirm(token: string): Promise<void> {
+  // Devolve o id do titular (só para o registro de auditoria).
+  async confirm(token: string): Promise<string> {
     const record = await this.verifications.findByTokenHash(hashToken(token));
     if (!record || record.consumedAt || record.expiresAt.getTime() < this.now().getTime()) {
       throw new ApiError('CUSTOMER_EMAIL_VERIFICATION_INVALID', 'Link de verificação inválido ou expirado.', { statusCode: 400 });
     }
     const consumedAt = this.now();
-    await this.verifications.markConsumed(record.tokenHash, consumedAt);
+    if (!(await this.verifications.markConsumed(record.tokenHash, consumedAt))) {
+      throw new ApiError('CUSTOMER_EMAIL_VERIFICATION_INVALID', 'Link de verificação inválido ou expirado.', { statusCode: 400 });
+    }
     await this.customers.markEmailVerified(record.customerId, consumedAt);
+    return record.customerId;
   }
 
   // Sempre "silencioso": nunca lança, nunca diferencia e-mail inexistente
@@ -70,6 +74,8 @@ export class CustomerEmailVerificationService {
     if (!customer || customer.emailVerifiedAt) return;
     const latest = await this.verifications.findLatestByCustomer(customer.id);
     if (latest && this.now().getTime() - latest.createdAt.getTime() < RESEND_COOLDOWN_MS) return;
-    await this.sendVerification(customer.id);
+    // Falha de envio nunca vira erro aqui (a resposta tem que ser a mesma
+    // exista ou não o e-mail).
+    await this.sendVerification(customer.id).catch(() => undefined);
   }
 }

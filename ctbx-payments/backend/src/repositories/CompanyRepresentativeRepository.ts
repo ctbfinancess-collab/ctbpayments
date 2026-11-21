@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { companyRepresentatives } from '../db/schema/index.js';
 
-export type RepresentativeStatus = 'ACTIVE' | 'REMOVED';
+export type RepresentativeStatus = 'PENDING' | 'ACTIVE' | 'REMOVED';
 
 export interface CompanyRepresentativeRecord {
   id: string;
@@ -25,6 +25,7 @@ export interface CompanyRepresentativeRepository {
   findByCompanyAndCustomer(companyId: string, customerId: string): Promise<CompanyRepresentativeRecord | undefined>;
   listByCustomer(customerId: string): Promise<CompanyRepresentativeRecord[]>;
   listByCompany(companyId: string): Promise<CompanyRepresentativeRecord[]>;
+  setStatusForCompany(companyId: string, status: RepresentativeStatus, now: Date): Promise<void>;
 }
 
 export class PostgresCompanyRepresentativeRepository implements CompanyRepresentativeRepository {
@@ -50,5 +51,9 @@ export class PostgresCompanyRepresentativeRepository implements CompanyRepresent
   async listByCompany(companyId: string): Promise<CompanyRepresentativeRecord[]> {
     const rows = await this.db.select().from(companyRepresentatives).where(eq(companyRepresentatives.companyId, companyId));
     return rows as CompanyRepresentativeRecord[];
+  }
+
+  async setStatusForCompany(companyId: string, status: RepresentativeStatus, now: Date): Promise<void> {
+    await this.db.update(companyRepresentatives).set({ status, updatedAt: now }).where(eq(companyRepresentatives.companyId, companyId));
   }
 }

@@ -325,7 +325,7 @@ export default function HomeScreen({ navigation }) {
             </View>
             <View>
               <Text style={styles.greeting}>Olá, {homeData.summary.displayName}</Text>
-              <Text style={styles.greetingSubtitle}>Bem-vinda de volta!</Text>
+              <Text style={styles.greetingSubtitle}>Que bom ter você aqui!</Text>
             </View>
           </View>
           <TouchableOpacity accessibilityLabel="Notificações" activeOpacity={0.7} style={styles.headerAction}>

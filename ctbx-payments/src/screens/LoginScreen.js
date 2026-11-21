@@ -29,6 +29,10 @@ export default function LoginScreen({ navigation }) {
       // pros dois, cada modo só produz o seu próprio código.
       const message = error.code === 'AUTH_INVALID_CREDENTIALS' || error.code === 'CUSTOMER_LOGIN_INVALID'
         ? 'E-mail ou senha inválidos.'
+        : error.code === 'CUSTOMER_EMAIL_NOT_VERIFIED'
+          ? 'Confirme seu e-mail para entrar. Procure o link que enviamos no cadastro (veja também a caixa de spam).'
+        : error.code === 'CUSTOMER_LOGIN_RATE_LIMITED'
+          ? 'Muitas tentativas seguidas. Aguarde um minuto e tente novamente.'
         : error.code === 'NETWORK_ERROR' || error.code === 'TIMEOUT'
           ? 'Não foi possível acessar o serviço. Verifique sua conexão.'
           : error.status === 503 ? 'O serviço está temporariamente indisponível.' : 'Não foi possível iniciar a sessão.';
@@ -37,7 +41,7 @@ export default function LoginScreen({ navigation }) {
   };
 
   return (
-    <AuthLayout backgroundSource={require('../../assets/ctbx-login-background.png')} eyebrow="CTBX PAYMENTS" footer={false} premium subtitle="Seu mundo financeiro em um só lugar." title="Bem-vinda de volta.">
+    <AuthLayout backgroundSource={require('../../assets/ctbx-login-background.png')} eyebrow="CTBX PAYMENTS" footer={false} premium subtitle="Seu mundo financeiro em um só lugar." title="Acesse sua conta.">
       <View style={styles.formCard}>
         <FormField autoCapitalize="none" autoComplete="off" autoCorrect={false} error={emailError} icon="mail-outline" keyboardType="email-address" label="E-mail" onChangeText={setEmail} onSubmitEditing={() => passwordInputRef.current?.focus()} placeholder="seu@email.com" premium returnKeyType="next" value={email} />
         <FormField error={passwordError} icon="lock-closed-outline" inputRef={passwordInputRef} keyboardType={isDemoMode ? 'numeric' : 'default'} label="Senha" maxLength={isDemoMode ? 6 : undefined} onChangeText={setSenha} onRightAction={() => { setMostrarSenha((current) => !current); requestAnimationFrame(() => passwordInputRef.current?.focus()); }} placeholder="Digite sua senha" premium rightActionLabel={mostrarSenha ? 'Ocultar' : 'Mostrar'} secureTextEntry={!mostrarSenha} value={senha} />

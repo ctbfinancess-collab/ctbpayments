@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../src/app.js';
+import { verifyEmail } from './helpers/verifyEmail.js';
 import type { AppConfig } from '../src/config/env.js';
 
 const baseConfig: AppConfig = {
@@ -12,6 +13,7 @@ const REGISTER_PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', 
 
 async function registerAndLogin(app: Awaited<ReturnType<typeof buildApp>>, payload = REGISTER_PAYLOAD) {
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload });
+  await verifyEmail(app, payload.email);
   const login = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: payload.email, password: payload.password } });
   return login.json().data as { token: string; expiresAt: string; customer: { id: string; email: string } };
 }
@@ -19,30 +21,68 @@ async function registerAndLogin(app: Awaited<ReturnType<typeof buildApp>>, paylo
 // Customer Identity — Etapa 1 (cadastro real PF), em nível de rota HTTP.
 // Diferente do admin, esta rota NUNCA é fail-closed: funciona mesmo sem
 // DATABASE_URL (cai pro InMemoryCustomerRepository) — ver app.ts.
-test('POST /v1/customers/register creates a customer and never leaks the password/hash in the response', async (t) => {
+test('POST /v1/customers/register answers 202 with a generic message, never leaks the password/hash, and the customer can log in after confirming the e-mail', async (t) => {
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   const response = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: REGISTER_PAYLOAD });
-  assert.equal(response.statusCode, 201);
+  assert.equal(response.statusCode, 202);
   const body = response.json();
-  assert.equal(body.data.customer.email, 'cliente@sandbox.invalid');
-  assert.equal(body.data.customer.status, 'ACTIVE');
-  assert.match(body.data.customer.documentMasked, /^\*\*\*\.\d{3}\.\*\*\*-\*\*$/);
+  assert.equal(body.data.customer, undefined);
+  assert.match(body.data.message, /link de confirmação/);
   const raw = JSON.stringify(body).toLowerCase();
   assert.equal(raw.includes('senha-forte'), false);
   assert.equal(raw.includes('passwordhash'), false);
   assert.equal(raw.includes('$argon2'), false);
+  await verifyEmail(app, REGISTER_PAYLOAD.email);
+  const login = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: REGISTER_PAYLOAD.email, password: REGISTER_PAYLOAD.password } });
+  assert.equal(login.statusCode, 200);
+  assert.equal(login.json().data.customer.status, 'ACTIVE');
 });
 
-test('POST /v1/customers/register rejects a duplicate e-mail with 409', async (t) => {
+test('POST /v1/customers/register never reveals a duplicate e-mail or CPF: identical 202 answer, no new account, and the e-mail owner gets a notice', async (t) => {
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
+  const outbox = (app as unknown as { testEmailOutbox: { sent: { to: string; subject: string }[] } }).testEmailOutbox;
   const payload = { name: 'Cliente', document: '111.444.777-35', email: 'duplicado@sandbox.invalid', phone: '11999990000', password: 'senha-forte-123' };
   const first = await app.inject({ method: 'POST', url: '/v1/customers/register', payload });
-  assert.equal(first.statusCode, 201);
-  const second = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: { ...payload, document: '529.982.247-25' } });
-  assert.equal(second.statusCode, 409);
-  assert.equal(second.json().error.code, 'CUSTOMER_EMAIL_ALREADY_REGISTERED');
+  const sameEmail = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: { ...payload, document: '529.982.247-25', password: 'outra-senha-456' } });
+  const sameCpf = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: { ...payload, email: 'outro@sandbox.invalid', password: 'outra-senha-456' } });
+  assert.equal(first.statusCode, 202);
+  assert.equal(sameEmail.statusCode, 202);
+  assert.equal(sameCpf.statusCode, 202);
+  assert.equal(sameEmail.json().data.message, first.json().data.message);
+  assert.equal(sameCpf.json().data.message, first.json().data.message);
+  // O dono do e-mail recebe o aviso; o CPF duplicado não cria conta nem envia nada.
+  assert.ok(outbox.sent.some((m) => m.to === payload.email && /Tentativa de cadastro/.test(m.subject)));
+  assert.equal(outbox.sent.some((m) => m.to === 'outro@sandbox.invalid'), false);
+  // A senha original continua valendo (o segundo cadastro não sobrescreveu nada).
+  await verifyEmail(app, payload.email);
+  const original = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: payload.email, password: payload.password } });
+  assert.equal(original.statusCode, 200);
+});
+
+test('POST /v1/customers/login before confirming the e-mail returns 403 CUSTOMER_EMAIL_NOT_VERIFIED (only with the right password)', async (t) => {
+  const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
+  t.after(() => app.close());
+  await app.inject({ method: 'POST', url: '/v1/customers/register', payload: REGISTER_PAYLOAD });
+  const right = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: REGISTER_PAYLOAD.email, password: REGISTER_PAYLOAD.password } });
+  assert.equal(right.statusCode, 403);
+  assert.equal(right.json().error.code, 'CUSTOMER_EMAIL_NOT_VERIFIED');
+  const wrong = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: REGISTER_PAYLOAD.email, password: 'senha-errada-999' } });
+  assert.equal(wrong.statusCode, 401);
+  assert.equal(wrong.json().error.code, 'CUSTOMER_LOGIN_INVALID');
+});
+
+test('POST /v1/customers/register is rate-limited per IP with its own code', async (t) => {
+  const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
+  t.after(() => app.close());
+  const codes: number[] = [];
+  for (let i = 0; i < 4; i += 1) {
+    const r = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: { ...REGISTER_PAYLOAD, email: `limite${i}@sandbox.invalid` } });
+    codes.push(r.statusCode);
+    if (r.statusCode === 429) assert.equal(r.json().error.code, 'CUSTOMER_REGISTER_RATE_LIMITED');
+  }
+  assert.deepEqual(codes, [202, 202, 202, 429]);
 });
 
 test('POST /v1/customers/register rejects an invalid CPF with 422', async (t) => {
@@ -79,6 +119,7 @@ test('POST /v1/customers/login with correct credentials returns a token and neve
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: REGISTER_PAYLOAD });
+  await verifyEmail(app, REGISTER_PAYLOAD.email);
   const response = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: REGISTER_PAYLOAD.email, password: REGISTER_PAYLOAD.password } });
   assert.equal(response.statusCode, 200);
   const body = response.json();
@@ -94,6 +135,7 @@ test('POST /v1/customers/login normalizes the e-mail (different case still logs 
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: REGISTER_PAYLOAD });
+  await verifyEmail(app, REGISTER_PAYLOAD.email);
   const response = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: 'Cliente@Sandbox.Invalid', password: REGISTER_PAYLOAD.password } });
   assert.equal(response.statusCode, 200);
 });
@@ -197,7 +239,8 @@ test('a session created before a simulated backend restart is still valid after 
   const customers = new InMemoryCustomerRepository();
   const sessions = new InMemoryCustomerSessionRepository();
   const before = new CustomerAuthService(customers, sessions);
-  await before.register(REGISTER_PAYLOAD);
+  const { customer } = await before.register(REGISTER_PAYLOAD);
+  await customers.markEmailVerified(customer!.id, new Date());
   const login = await before.login(REGISTER_PAYLOAD.email, REGISTER_PAYLOAD.password);
   assert.ok(login);
 

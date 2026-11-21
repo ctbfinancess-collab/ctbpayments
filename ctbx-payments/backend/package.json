@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "test": "node --import tsx --test tests/**/*.test.ts",
@@ -16,6 +16,7 @@
     "validate:openapi": "node --import tsx scripts/validate-openapi.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:migrate:deploy": "node dist/scripts/migrate.js",
     "db:seed-admin": "node --import tsx scripts/seedAdminUser.ts",
     "db:seed-banners": "node --import tsx scripts/seedBanners.ts",
     "db:seed-services": "node --import tsx scripts/seedServices.ts",
@@ -26,6 +27,7 @@
     "db:seed-sections": "node --import tsx scripts/seedCmsSections.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1174.0",
     "@fastify/cookie": "^11.1.2",
     "@fastify/cors": "^11.0.0",
     "@fastify/helmet": "^13.0.0",

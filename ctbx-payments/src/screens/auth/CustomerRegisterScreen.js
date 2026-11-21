@@ -15,8 +15,9 @@ const backgroundSource = require('../../../assets/ctbx-onboarding-background.png
 // PublicStack troca a rota "Onboarding" por esta tela em PRODUCTION);
 // nunca standalone, por isso `navigation` está sempre disponível aqui.
 const ERROR_MESSAGES = {
-  CUSTOMER_EMAIL_ALREADY_REGISTERED: 'Este e-mail já está cadastrado.',
-  CUSTOMER_DOCUMENT_ALREADY_REGISTERED: 'Este CPF já está cadastrado.',
+  // O backend nunca informa se o e-mail ou o CPF já existem (proteção de
+  // dados); só limita tentativas seguidas.
+  CUSTOMER_REGISTER_RATE_LIMITED: 'Muitas tentativas seguidas. Aguarde um minuto e tente novamente.',
   CUSTOMER_DOCUMENT_INVALID: 'CPF inválido.',
   CUSTOMER_NAME_INVALID: 'Informe seu nome completo.',
   CUSTOMER_PHONE_INVALID: 'Telefone inválido.',
@@ -53,7 +54,7 @@ export default function CustomerRegisterScreen({ navigation }) {
 
   if (state === 'success') {
     return (
-      <AuthLayout backgroundSource={backgroundSource} footer={false} subtitle="Enviamos um link de verificação para o seu e-mail. Confirme para ativar sua conta." title="Cadastro realizado">
+      <AuthLayout backgroundSource={backgroundSource} footer={false} subtitle="Se os dados estiverem corretos, enviamos um link de confirmação para o seu e-mail. Confirme para ativar sua conta. Se você já tem conta, entre ou use “Esqueci minha senha”." title="Verifique seu e-mail">
         <View style={styles.notice}>
           <Icon color={colors.purple400} name="checkmark-circle" size={40} />
         </View>

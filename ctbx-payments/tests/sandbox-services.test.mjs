@@ -53,6 +53,33 @@ function readMode(mode) {
   }));
 }
 
+function readConfig(extraEnv) {
+  const code = "import('./src/config/env.js').then((r) => { const m = r.default || r; console.log(JSON.stringify({ configError: m.configError, appMode: m.env.appMode, adminEnabled: m.env.adminEnabled })); })";
+  const env = { ...process.env };
+  delete env.EXPO_PUBLIC_APP_MODE; delete env.EXPO_PUBLIC_API_BASE_URL; delete env.EXPO_PUBLIC_ENABLE_ADMIN;
+  return JSON.parse(execFileSync(process.execPath, ['--import', './backend/node_modules/tsx/dist/loader.mjs', '-e', code], {
+    cwd: process.cwd(), env: { ...env, ...extraEnv }, encoding: 'utf8',
+  }));
+}
+
+test('a published build WITHOUT EXPO_PUBLIC_APP_MODE never falls back to DEMO: it reports a config error instead', () => {
+  const config = readConfig({});
+  assert.equal(config.appMode, null);
+  assert.ok(config.configError);
+});
+
+test('PRODUCTION without EXPO_PUBLIC_API_BASE_URL is a config error; with it, the build is valid', () => {
+  assert.ok(readConfig({ EXPO_PUBLIC_APP_MODE: 'PRODUCTION' }).configError);
+  const ok = readConfig({ EXPO_PUBLIC_APP_MODE: 'PRODUCTION', EXPO_PUBLIC_API_BASE_URL: 'https://api.example.invalid' });
+  assert.equal(ok.configError, null);
+  assert.equal(ok.appMode, 'PRODUCTION');
+});
+
+test('the embedded admin panel is OFF unless EXPO_PUBLIC_ENABLE_ADMIN=true', () => {
+  assert.equal(readConfig({ EXPO_PUBLIC_APP_MODE: 'DEMO' }).adminEnabled, false);
+  assert.equal(readConfig({ EXPO_PUBLIC_APP_MODE: 'DEMO', EXPO_PUBLIC_ENABLE_ADMIN: 'true' }).adminEnabled, true);
+});
+
 test('config distinguishes DEMO, SANDBOX and PRODUCTION', () => {
   assert.equal(readMode('DEMO').isDemoMode, true);
   assert.equal(readMode('SANDBOX').isSandboxMode, true);

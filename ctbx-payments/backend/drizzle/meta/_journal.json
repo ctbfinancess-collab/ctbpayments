@@ -127,6 +127,48 @@
       "when": 1787342903049,
       "tag": "0017_little_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795218605396,
+      "tag": "0018_security_audit_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795222929564,
+      "tag": "0019_kyc_phase4",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795224337585,
+      "tag": "0020_staff_kyc_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795224338329,
+      "tag": "0021_audit_append_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795228038110,
+      "tag": "0022_company_onboarding",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795230063587,
+      "tag": "0023_staff_admin_phase6",
+      "breakpoints": true
     }
   ]
 }

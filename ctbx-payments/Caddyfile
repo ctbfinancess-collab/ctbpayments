@@ -1,0 +1,30 @@
+# Servidor estático da Área do Cliente (ctbx-app). O Railway define $PORT.
+{
+	admin off
+	auto_https off
+}
+
+:{$PORT:8080} {
+	root * /srv
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000"
+		# Ambiente de testes não divulgado: fora dos buscadores.
+		X-Robots-Tag {$X_ROBOTS_TAG:noindex}
+		-Server
+	}
+	# Arquivos com versão no nome (o nome muda a cada publicação): cache longo.
+	@hashed path /_expo/static/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	# Todo o resto (inclusive /fila, /painel... que devolvem o index.html):
+	# sempre conferir a versão mais nova.
+	@notHashed not path /_expo/static/*
+	header @notHashed Cache-Control "no-cache"
+	# Rotas do app (ex.: /verify-email, /reset-password) caem no index.html.
+	try_files {path} /index.html
+	file_server
+}

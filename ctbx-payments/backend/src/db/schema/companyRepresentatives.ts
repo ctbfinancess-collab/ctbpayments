@@ -12,7 +12,8 @@ export const companyRepresentatives = pgTable('company_representatives', {
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   customerId: uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),
   role: text('role').notNull().default('ADMIN'), // papel/permissão dentro da empresa
-  status: text('status').notNull().default('ACTIVE'),
+  // PENDING até a empresa ser aprovada; ACTIVE depois; REMOVED se desfeito.
+  status: text('status').notNull().default('PENDING'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [

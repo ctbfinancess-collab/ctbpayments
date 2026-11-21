@@ -6,6 +6,11 @@
   },
   "deploy": {
     "startCommand": "node dist/src/server.js",
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "preDeployCommand": [
+      "node dist/scripts/migrate.js"
+    ],
+    "healthcheckPath": "/health",
+    "restartPolicyMaxRetries": 5
   }
 }

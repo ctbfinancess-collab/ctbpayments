@@ -1,0 +1,26 @@
+# Área do Cliente (ctbx-app) — build web estático (Fase 2).
+# As variáveis EXPO_PUBLIC_* são gravadas no bundle NA HORA DO BUILD (o
+# Railway as entrega como build args). Sem EXPO_PUBLIC_APP_MODE válido o app
+# mostra "serviço indisponível" — nunca cai no modo demonstração.
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY . .
+ARG EXPO_PUBLIC_APP_MODE
+ARG EXPO_PUBLIC_API_BASE_URL
+ARG EXPO_PUBLIC_API_TIMEOUT_MS
+ARG EXPO_PUBLIC_SITE_URL
+ARG EXPO_PUBLIC_APP_TARGET
+ENV EXPO_PUBLIC_APP_MODE=$EXPO_PUBLIC_APP_MODE \
+    EXPO_PUBLIC_API_BASE_URL=$EXPO_PUBLIC_API_BASE_URL \
+    EXPO_PUBLIC_API_TIMEOUT_MS=$EXPO_PUBLIC_API_TIMEOUT_MS \
+    EXPO_PUBLIC_SITE_URL=$EXPO_PUBLIC_SITE_URL \
+    EXPO_PUBLIC_APP_TARGET=$EXPO_PUBLIC_APP_TARGET \
+    EXPO_NO_DOTENV=1 \
+    EXPO_NO_TELEMETRY=1
+RUN npx expo export --platform web --output-dir web-dist
+
+FROM caddy:2.10-alpine AS runtime
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /app/web-dist /srv

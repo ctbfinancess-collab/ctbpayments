@@ -24,9 +24,17 @@ RUN npm prune --omit=dev
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+# Railway entrega o tráfego por um proxy e exige escutar em 0.0.0.0.
+ENV HOST=0.0.0.0
+# O Railway põe DOIS proxies na frente da API (borda + roteador interno).
+# Com 2, request.ip é o IP real do cliente; um X-Forwarded-For forjado pelo
+# cliente é ignorado (validado no ambiente de teste em 2026-11-21).
+ENV TRUST_PROXY=2
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
+# Migrações SQL (Fase 2): aplicadas pelo pre-deploy (dist/scripts/migrate.js).
+COPY --from=build /app/drizzle ./drizzle
 # Mesmo caminho que o Railway já usa hoje via RAILPACK — dist/src/server.js
 # (tsconfig.json tem rootDir ".", então src/server.ts vira dist/src/server.js,
 # nunca dist/server.js — foi exatamente o que o "Diagnose" do Railway

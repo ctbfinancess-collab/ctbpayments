@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../src/app.js';
+import { verifyEmail } from './helpers/verifyEmail.js';
 import type { AppConfig } from '../src/config/env.js';
 
 const baseConfig: AppConfig = {
@@ -17,7 +18,9 @@ test('POST /v1/customers/register triggers a verification e-mail automatically (
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   const response = await app.inject({ method: 'POST', url: '/v1/customers/register', payload: PAYLOAD });
-  assert.equal(response.statusCode, 201);
+  assert.equal(response.statusCode, 202);
+  const outbox = (app as unknown as { testEmailOutbox: { sent: { to: string; text?: string }[] } }).testEmailOutbox;
+  assert.ok(outbox.sent.some((m) => m.to === PAYLOAD.email && /verify-email\?token=/.test(m.text ?? '')));
 });
 
 // O token nunca vem na resposta HTTP de /register (correto — só existe
@@ -73,6 +76,7 @@ test('the login rate limit and the resend-verification rate limit are tracked in
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: PAYLOAD });
+  await verifyEmail(app, PAYLOAD.email);
 
   // 3 chamadas de resend não devem consumir o teto de 5/min do login.
   for (let i = 0; i < 3; i += 1) await app.inject({ method: 'POST', url: '/v1/customers/verify-email/resend', payload: { email: PAYLOAD.email } });

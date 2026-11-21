@@ -34,7 +34,7 @@ import { CmsItemsRepository } from './repositories/CmsItemsRepository.js';
 import { CmsSectionsRepository } from './repositories/CmsSectionsRepository.js';
 import { PostgresCompanyRepository, type CompanyRepository } from './repositories/CompanyRepository.js';
 import { PostgresCompanyRepresentativeRepository, type CompanyRepresentativeRepository } from './repositories/CompanyRepresentativeRepository.js';
-import { PostgresCustomerKycRepository, type CustomerKycRepository } from './repositories/CustomerKycRepository.js';
+import { PostgresCustomerKycRepository, PostgresKycDocumentRepository, type CustomerKycRepository, type KycDocumentRepository } from './repositories/CustomerKycRepository.js';
 import { PostgresCustomerEmailChangeRepository, type CustomerEmailChangeRepository } from './repositories/CustomerEmailChangeRepository.js';
 import { PostgresCustomerEmailVerificationRepository, type CustomerEmailVerificationRepository } from './repositories/CustomerEmailVerificationRepository.js';
 import { PostgresCustomerPasswordResetRepository, type CustomerPasswordResetRepository } from './repositories/CustomerPasswordResetRepository.js';
@@ -42,13 +42,17 @@ import { PostgresCustomerRepository, type CustomerRepository } from './repositor
 import { PostgresCustomerSessionRepository, type CustomerSessionRepository } from './repositories/CustomerSessionRepository.js';
 import { InMemoryCompanyRepository } from './repositories/InMemoryCompanyRepository.js';
 import { InMemoryCompanyRepresentativeRepository } from './repositories/InMemoryCompanyRepresentativeRepository.js';
-import { InMemoryCustomerKycRepository } from './repositories/InMemoryCustomerKycRepository.js';
+import { InMemoryCustomerKycRepository, InMemoryKycDocumentRepository } from './repositories/InMemoryCustomerKycRepository.js';
+import { randomBytes } from 'node:crypto';
+import { InMemoryDocumentStorage, S3DocumentStorage, type DocumentStorage } from './storage/DocumentStorage.js';
+import { EncryptedDocumentVault, parseEncryptionKey } from './storage/EncryptedDocumentVault.js';
 import { InMemoryCustomerEmailChangeRepository } from './repositories/InMemoryCustomerEmailChangeRepository.js';
 import { InMemoryCustomerEmailVerificationRepository } from './repositories/InMemoryCustomerEmailVerificationRepository.js';
 import { InMemoryCustomerPasswordResetRepository } from './repositories/InMemoryCustomerPasswordResetRepository.js';
 import { InMemoryCustomerRepository } from './repositories/InMemoryCustomerRepository.js';
 import { InMemoryCustomerSessionRepository } from './repositories/InMemoryCustomerSessionRepository.js';
 import { MediaRepository } from './repositories/MediaRepository.js';
+import { InMemorySecurityAuditRepository, PostgresSecurityAuditRepository, type SecurityAuditRepository } from './repositories/SecurityAuditRepository.js';
 import { PostgresPhysicalCardRepository, type PhysicalCardRepository } from './repositories/PhysicalCardRepository.js';
 import { PostgresSandboxAccountRepository, type SandboxAccountRepository } from './repositories/SandboxAccountRepository.js';
 import { PostgresSandboxBillingRepository, type SandboxBillingRepository } from './repositories/SandboxBillingRepository.js';
@@ -69,6 +73,12 @@ import { InMemorySandboxValidationRepository } from './providers/sandbox/InMemor
 import { InMemoryTransportCardRepository } from './providers/sandbox/InMemoryTransportCardRepository.js';
 import { VirtualCardRepository } from './repositories/VirtualCardRepository.js';
 import { customerRoutes } from './routes/customers.js';
+import { staffRoutes } from './routes/staff.js';
+import { InMemoryStaffRepository, PostgresStaffRepository, type StaffRepository } from './repositories/StaffRepository.js';
+import { StaffAuthService } from './services/staffAuthService.js';
+import { KycReviewService } from './services/kycReviewService.js';
+import { CompanyReviewService } from './services/companyReviewService.js';
+import { StaffCustomerService } from './services/staffCustomerService.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 import { AdminAuthService } from './services/adminAuthService.js';
@@ -78,9 +88,11 @@ import { CustomerKycService } from './services/customerKycService.js';
 import { CustomerEmailChangeService } from './services/customerEmailChangeService.js';
 import { CustomerEmailVerificationService } from './services/customerEmailVerificationService.js';
 import { CustomerPasswordResetService } from './services/customerPasswordResetService.js';
+import { InMemoryEmailProvider } from './providers/InMemoryEmailProvider.js';
 import { createEmailProvider } from './providers/createEmailProvider.js';
 
-export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean }
+// cnpjLookup: só para testes (evita chamar a Receita de verdade).
+export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean; cnpjLookup?: (cnpj: string) => Promise<import('./services/cnpjLookup.js').CnpjLookupResult> }
 
 // virtualCards/cardEncryptionKey são opcionais de propósito: sem
 // DATABASE_URL configurado, o cartão virtual falha fechado
@@ -129,6 +141,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const app = Fastify({
     logger: loggerOptions(config.logLevel, options.logger ?? config.nodeEnv !== 'test'),
     genReqId: requestIdFactory,
+    trustProxy: config.trustProxy ?? false,
   });
 
   // Cartão virtual sandbox e sessão do cliente sandbox são os dois
@@ -177,6 +190,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // KYC (Etapa 1 — dados pessoais complementares) — mesmo par real+
   // fallback dos demais domínios de Customer Identity.
   let customerKycRepository: CustomerKycRepository = new InMemoryCustomerKycRepository();
+  let kycDocumentRepository: KycDocumentRepository = new InMemoryKycDocumentRepository();
+  let staffRepository: StaffRepository = new InMemoryStaffRepository();
+  // Registro de auditoria de segurança (Fase 2) — mesmo par real+fallback.
+  let auditRepository: SecurityAuditRepository = new InMemorySecurityAuditRepository();
   if (!options.providers && config.databaseUrl) {
     const { db, close } = createDbConnection(config.databaseUrl);
     app.addHook('onClose', async () => { await close(); });
@@ -199,18 +216,48 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     companyRepository = new PostgresCompanyRepository(db);
     companyRepresentativeRepository = new PostgresCompanyRepresentativeRepository(db);
     customerKycRepository = new PostgresCustomerKycRepository(db);
+    kycDocumentRepository = new PostgresKycDocumentRepository(db);
+    staffRepository = new PostgresStaffRepository(db);
+    auditRepository = new PostgresSecurityAuditRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
-  const customerAuthService = new CustomerAuthService(customerRepository, customerSessionRepository);
+  // E-mail (Resend real em produção, memória em dev/test). Em produção só
+  // existe com RESEND_API_KEY, EMAIL_FROM e CUSTOMER_APP_BASE_URL — sem a
+  // URL do app, os links dos e-mails apontariam para localhost.
+  const emailConfigured = config.nodeEnv !== 'production' || Boolean(config.resendApiKey && config.emailFrom && config.customerAppBaseUrl);
+  const emailProvider = emailConfigured
+    ? createEmailProvider({ nodeEnv: config.nodeEnv, resendApiKey: config.resendApiKey, emailFrom: config.emailFrom })
+    : undefined;
+  // Só em testes: expõe a caixa de saída simulada, para os testes lerem o
+  // link de confirmação como um usuário real faria.
+  if (config.nodeEnv === 'test' && emailProvider instanceof InMemoryEmailProvider) app.decorate('testEmailOutbox', emailProvider);
+  if (config.nodeEnv === 'test' && auditRepository instanceof InMemorySecurityAuditRepository) app.decorate('testAuditLog', auditRepository);
+  const customerAuthService = new CustomerAuthService(customerRepository, customerSessionRepository, undefined, emailProvider);
   // Estrutura PJ — nunca fail-closed sem DATABASE_URL, mesmo par real+
   // fallback de tudo em Customer Identity. Sem EmailProvider nenhum
   // (empresa nunca recebe e-mail própria — quem recebe é sempre um
   // customer/representante).
-  const companyService = new CompanyService(companyRepository, companyRepresentativeRepository);
+  // Conta PJ (Fase 5): criada mais abaixo, junto do cofre de documentos.
   // KYC — nunca fail-closed sem DATABASE_URL, mesmo par real+fallback de
   // tudo em Customer Identity (ver comentário acima em
   // customerKycRepository).
-  const kycService = new CustomerKycService(customerRepository, customerKycRepository);
+  // Documentos do KYC (Fase 4). Produção: só com
+  // KYC_DOCUMENT_UPLOADS_ENABLED=true + bucket privado + chave de
+  // criptografia; faltando qualquer um, o envio responde "indisponível".
+  // Fora de produção: bucket em memória e chave temporária (testes).
+  const isProduction = config.nodeEnv === 'production';
+  const kycCfg = config.kyc;
+  let kycVault: EncryptedDocumentVault | undefined;
+  const kycKey = parseEncryptionKey(kycCfg?.encryptionKey) ?? (isProduction ? undefined : randomBytes(32));
+  const kycStorage: DocumentStorage | undefined = kycCfg?.bucket
+    ? new S3DocumentStorage({ endpoint: kycCfg.bucket.endpoint, region: kycCfg.bucket.region, bucket: kycCfg.bucket.name, accessKeyId: kycCfg.bucket.accessKeyId, secretAccessKey: kycCfg.bucket.secretAccessKey, forcePathStyle: kycCfg.bucket.forcePathStyle })
+    : (isProduction ? undefined : new InMemoryDocumentStorage());
+  if (kycKey && kycStorage) kycVault = new EncryptedDocumentVault(kycStorage, kycKey);
+  const kycUploadsEnabled = isProduction ? Boolean(kycCfg?.uploadsEnabled && kycVault) : kycCfg?.uploadsEnabled !== false;
+  if (config.nodeEnv === 'test' && kycStorage instanceof InMemoryDocumentStorage) app.decorate('testKycStorage', kycStorage);
+  const appBaseUrl = config.customerAppBaseUrl ?? 'http://localhost:8081';
+  const kycService = new CustomerKycService(customerRepository, customerKycRepository, undefined, kycDocumentRepository, kycVault, kycUploadsEnabled, emailProvider, appBaseUrl);
+  const companyService = new CompanyService(companyRepository, companyRepresentativeRepository, customerKycRepository, kycVault, kycUploadsEnabled, undefined, emailProvider, customerRepository, appBaseUrl);
   // Etapa 3 — mesmo EmailProvider criado na Etapa 1 (createEmailProvider):
   // Resend real em produção, InMemory em dev/test por padrão. Nenhuma
   // segunda integração com o Resend é feita em lugar nenhum.
@@ -227,11 +274,10 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   let emailVerificationService: CustomerEmailVerificationService | undefined;
   let passwordResetService: CustomerPasswordResetService | undefined;
   let emailChangeService: CustomerEmailChangeService | undefined;
-  if (config.nodeEnv !== 'production' || (config.resendApiKey && config.emailFrom)) {
-    const emailProvider = createEmailProvider({ nodeEnv: config.nodeEnv, resendApiKey: config.resendApiKey, emailFrom: config.emailFrom });
+  if (emailProvider) {
     emailVerificationService = new CustomerEmailVerificationService(customerRepository, customerEmailVerificationRepository, emailProvider, config.customerAppBaseUrl);
     passwordResetService = new CustomerPasswordResetService(customerRepository, customerPasswordResetRepository, customerSessionRepository, emailProvider, config.customerAppBaseUrl);
-    emailChangeService = new CustomerEmailChangeService(customerRepository, customerEmailChangeRepository, emailProvider, config.customerAppBaseUrl);
+    emailChangeService = new CustomerEmailChangeService(customerRepository, customerEmailChangeRepository, emailProvider, config.customerAppBaseUrl, undefined, customerSessionRepository);
   }
 
   await app.register(helmet, { contentSecurityPolicy: false });
@@ -265,7 +311,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // Customer Identity — rota isolada, fora do ProviderRegistry sandbox
   // (não implementa nenhuma das interfaces de ports.ts). Etapa 1: só
   // cadastro PF, sem sessão/login próprios ainda.
-  await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService }), { prefix: `/${config.apiVersion}/customers` });
+  await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService, audit: auditRepository }), { prefix: `/${config.apiVersion}/customers` });
+
+  // Painel da equipe (análise de KYC). Produção: só com
+  // STAFF_PANEL_ENABLED=true, a chave do autenticador e o endereço do painel.
+  // Fora de produção: chave temporária (testes).
+  const staffCfg = config.staff;
+  const staffKey = parseEncryptionKey(staffCfg?.totpEncryptionKey) ?? (isProduction ? undefined : randomBytes(32));
+  const staffEnabled = isProduction ? Boolean(staffCfg?.enabled && staffKey && staffCfg?.appBaseUrl) : staffCfg?.enabled !== false;
+  if (staffEnabled && staffKey) {
+    const staffAuth = new StaffAuthService(staffRepository, staffKey, emailProvider, staffCfg?.appBaseUrl ?? 'http://localhost:8082');
+    const review = new KycReviewService(customerRepository, customerKycRepository, kycDocumentRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081');
+    if (config.nodeEnv === 'test' && staffRepository instanceof InMemoryStaffRepository) app.decorate('testStaffRepo', staffRepository);
+    const companyReview = new CompanyReviewService(companyRepository, companyRepresentativeRepository, customerRepository, customerKycRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081', options.cnpjLookup);
+    const staffCustomers = new StaffCustomerService(customerRepository, customerSessionRepository, customerKycRepository, companyRepository, companyRepresentativeRepository, staffRepository, auditRepository, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081');
+    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, companyReview, staffCustomers, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
+  }
 
   await app.register(async (adminApi) => {
     // Persistência real do CMS (Etapa 1 — fundação). Fail closed: sem

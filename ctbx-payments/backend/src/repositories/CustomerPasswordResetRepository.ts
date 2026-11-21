@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerPasswordResets } from '../db/schema/index.js';
 
@@ -20,7 +20,9 @@ export interface CreateCustomerPasswordResetInput {
 export interface CustomerPasswordResetRepository {
   create(input: CreateCustomerPasswordResetInput): Promise<CustomerPasswordResetRecord>;
   findByTokenHash(tokenHash: string): Promise<CustomerPasswordResetRecord | undefined>;
-  markConsumed(tokenHash: string, consumedAt: Date): Promise<void>;
+  // Atômico: só marca se ainda não foi usado. Devolve true se ESTA
+  // chamada consumiu o token (false = já usado, mesmo em pedidos simultâneos).
+  markConsumed(tokenHash: string, consumedAt: Date): Promise<boolean>;
   // Usado pelo cooldown do pedido de reset — o mais recente emitido pra
   // essa conta, consumido ou não.
   findLatestByCustomer(customerId: string): Promise<CustomerPasswordResetRecord | undefined>;
@@ -40,8 +42,11 @@ export class PostgresCustomerPasswordResetRepository implements CustomerPassword
     return row as CustomerPasswordResetRecord | undefined;
   }
 
-  async markConsumed(tokenHash: string, consumedAt: Date): Promise<void> {
-    await this.db.update(customerPasswordResets).set({ consumedAt }).where(eq(customerPasswordResets.tokenHash, tokenHash));
+  async markConsumed(tokenHash: string, consumedAt: Date): Promise<boolean> {
+    const rows = await this.db.update(customerPasswordResets).set({ consumedAt })
+      .where(and(eq(customerPasswordResets.tokenHash, tokenHash), isNull(customerPasswordResets.consumedAt)))
+      .returning({ id: customerPasswordResets.id });
+    return rows.length > 0;
   }
 
   async findLatestByCustomer(customerId: string): Promise<CustomerPasswordResetRecord | undefined> {

@@ -24,7 +24,12 @@
       "package": "com.ctbx.payments"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/brand/favicon.png",
+      "name": "Área do Cliente · CTBX Payments",
+      "shortName": "CTBX Payments",
+      "lang": "pt-BR",
+      "themeColor": "#141619",
+      "backgroundColor": "#141619"
     },
     "extra": {
       "eas": {

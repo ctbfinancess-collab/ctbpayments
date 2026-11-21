@@ -14,6 +14,20 @@ export interface AppConfig {
   resendApiKey: string | undefined;
   emailFrom: string | undefined;
   customerAppBaseUrl: string | undefined;
+  // Quantos proxies confiáveis existem na frente da API (Railway = 1).
+  // Sem isso, atrás de um proxy todo cliente parece ter o mesmo IP e o
+  // limite de tentativas por IP vira um bloqueio coletivo.
+  trustProxy?: boolean | number;
+  // Fase 4 — documentos do KYC. O envio só liga com
+  // KYC_DOCUMENT_UPLOADS_ENABLED=true E com bucket + chave configurados.
+  // Painel da equipe (análise de KYC). Em produção só liga com
+  // STAFF_PANEL_ENABLED=true e a chave do autenticador configurada.
+  staff?: { enabled: boolean; appBaseUrl: string | undefined; totpEncryptionKey: string | undefined };
+  kyc?: {
+    uploadsEnabled: boolean;
+    encryptionKey: string | undefined;
+    bucket: { endpoint: string; region: string; name: string; accessKeyId: string; secretAccessKey: string; forcePathStyle: boolean } | undefined;
+  };
 }
 
 const environments = new Set<Environment>(['development', 'test', 'staging', 'production']);
@@ -61,8 +75,31 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   // services/customerEmailVerificationService.ts). Nunca inventado aqui.
   const customerAppBaseUrl = source.CUSTOMER_APP_BASE_URL?.trim() || undefined;
 
+  const rawTrustProxy = source.TRUST_PROXY?.trim().toLowerCase();
+  const trustProxy: boolean | number = !rawTrustProxy || rawTrustProxy === 'false' || rawTrustProxy === '0'
+    ? false
+    : rawTrustProxy === 'true' ? true : Number(rawTrustProxy);
+  if (typeof trustProxy === 'number' && (!Number.isInteger(trustProxy) || trustProxy < 1)) throw new Error('TRUST_PROXY must be true, false or a positive integer');
+
+  const bucketVars = [source.KYC_BUCKET_ENDPOINT, source.KYC_BUCKET_NAME, source.KYC_BUCKET_ACCESS_KEY_ID, source.KYC_BUCKET_SECRET_ACCESS_KEY].map((v) => v?.trim() || undefined);
+  const kyc = {
+    uploadsEnabled: source.KYC_DOCUMENT_UPLOADS_ENABLED?.trim().toLowerCase() === 'true',
+    encryptionKey: source.KYC_DOCUMENT_ENCRYPTION_KEY?.trim() || undefined,
+    bucket: bucketVars.every(Boolean)
+      ? { endpoint: bucketVars[0]!, name: bucketVars[1]!, accessKeyId: bucketVars[2]!, secretAccessKey: bucketVars[3]!, region: source.KYC_BUCKET_REGION?.trim() || 'auto', forcePathStyle: source.KYC_BUCKET_URL_STYLE?.trim().toLowerCase() === 'path' }
+      : undefined,
+  };
+
+  const staff = {
+    enabled: source.STAFF_PANEL_ENABLED?.trim().toLowerCase() === 'true',
+    appBaseUrl: source.STAFF_APP_BASE_URL?.trim() || undefined,
+    totpEncryptionKey: source.STAFF_TOTP_ENCRYPTION_KEY?.trim() || undefined,
+  };
+
   return {
+    kyc,
+    staff,
     nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins,
-    adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl,
+    adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl, trustProxy,
   };
 }

@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { renderResetPasswordTemplate } from '../emails/resetPasswordTemplate.js';
+import { renderSecurityNoticeTemplate } from '../emails/securityNoticeTemplate.js';
 import { ApiError } from '../errors/ApiError.js';
 import type { EmailProvider } from '../providers/EmailProvider.js';
 import type { CustomerPasswordResetRepository } from '../repositories/CustomerPasswordResetRepository.js';
@@ -50,20 +51,32 @@ export class CustomerPasswordResetService {
     await this.resets.create({ customerId: customer.id, tokenHash: hashToken(token), expiresAt });
     const resetUrl = `${this.appBaseUrl || DEV_FALLBACK_BASE_URL}/reset-password?token=${token}`;
     const { subject, html, text } = renderResetPasswordTemplate({ resetUrl, expiresInMinutes: RESET_TTL_MS / 60_000 });
-    await this.emailProvider.send({ to: customer.email, subject, html, text });
+    // Falha de envio nunca vira erro para quem chamou: senão a resposta
+    // seria diferente só quando o e-mail existe (revelaria a conta).
+    await this.emailProvider.send({ to: customer.email, subject, html, text }).catch(() => undefined);
   }
 
   // Token inválido, expirado OU já usado devolvem o MESMO erro genérico —
   // mesmo espírito de CustomerEmailVerificationService.confirm.
-  async confirmReset(token: string, newPassword: string): Promise<void> {
+  // Devolve o id do titular (só para o registro de auditoria).
+  async confirmReset(token: string, newPassword: string): Promise<string> {
     const record = await this.resets.findByTokenHash(hashToken(token));
     if (!record || record.consumedAt || record.expiresAt.getTime() < this.now().getTime()) {
       throw new ApiError('CUSTOMER_PASSWORD_RESET_INVALID', 'Link de redefinição inválido ou expirado.', { statusCode: 400 });
     }
     const consumedAt = this.now();
     const passwordHash = await argon2.hash(newPassword);
-    await this.resets.markConsumed(record.tokenHash, consumedAt);
+    // Uso único de verdade: só segue quem consumiu o token nesta chamada.
+    if (!(await this.resets.markConsumed(record.tokenHash, consumedAt))) {
+      throw new ApiError('CUSTOMER_PASSWORD_RESET_INVALID', 'Link de redefinição inválido ou expirado.', { statusCode: 400 });
+    }
     await this.customers.updatePasswordHash(record.customerId, passwordHash, consumedAt);
     await this.sessions.revokeAllForCustomer(record.customerId);
+    const customer = await this.customers.findById(record.customerId);
+    if (customer) {
+      const notice = renderSecurityNoticeTemplate('PASSWORD_CHANGED');
+      await this.emailProvider.send({ to: customer.email, ...notice }).catch(() => undefined);
+    }
+    return record.customerId;
   }
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../src/app.js';
+import { verifyEmail } from './helpers/verifyEmail.js';
 import type { AppConfig } from '../src/config/env.js';
 
 const baseConfig: AppConfig = {
@@ -12,6 +13,7 @@ const PAYLOAD = { name: 'Cliente Exemplo', document: '111.444.777-35', email: 'a
 
 async function registerAndLogin(app: Awaited<ReturnType<typeof buildApp>>, payload = PAYLOAD) {
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload });
+  await verifyEmail(app, payload.email);
   const login = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: payload.email, password: payload.password } });
   return login.json().data as { token: string; expiresAt: string; customer: { id: string; email: string } };
 }

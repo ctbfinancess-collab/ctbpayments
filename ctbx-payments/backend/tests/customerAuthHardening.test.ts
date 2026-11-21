@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildApp } from '../src/app.js';
+import { verifyEmail } from './helpers/verifyEmail.js';
 import type { AppConfig } from '../src/config/env.js';
 import { InMemoryCustomerRepository } from '../src/repositories/InMemoryCustomerRepository.js';
 import { InMemoryCustomerSessionRepository } from '../src/repositories/InMemoryCustomerSessionRepository.js';
@@ -66,6 +67,7 @@ test('a revoked (logged out) token is rejected with CUSTOMER_SESSION_INVALID (40
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: PAYLOAD });
+  await verifyEmail(app, PAYLOAD.email);
   const login = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: PAYLOAD.email, password: PAYLOAD.password } });
   const token = login.json().data.token;
   await app.inject({ method: 'POST', url: '/v1/customers/logout', headers: { authorization: `Bearer ${token}` }, payload: {} });
@@ -79,7 +81,8 @@ test('an expired token is rejected with CUSTOMER_SESSION_INVALID (401) — using
   const sessions = new InMemoryCustomerSessionRepository();
   const realNow = Date.now();
   const authAtLogin = new CustomerAuthService(customers, sessions, () => new Date(realNow));
-  await authAtLogin.register(PAYLOAD);
+  const { customer } = await authAtLogin.register(PAYLOAD);
+  await customers.markEmailVerified(customer!.id, new Date(realNow));
   const login = await authAtLogin.login(PAYLOAD.email, PAYLOAD.password);
   assert.ok(login);
 
@@ -93,6 +96,7 @@ test('the correctly authenticated customer is identified — session reflects ex
   const app = await buildApp({ config: baseConfig, providers: {}, logger: false });
   t.after(() => app.close());
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: PAYLOAD });
+  await verifyEmail(app, PAYLOAD.email);
   const login = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: PAYLOAD.email, password: PAYLOAD.password } });
   const { token, customer } = login.json().data;
   const session = await app.inject({ method: 'GET', url: '/v1/customers/session', headers: { authorization: `Bearer ${token}` } });
@@ -107,6 +111,8 @@ test('a customer can never see another customer\'s identity — session always r
   const payloadB = { name: 'Outro Cliente', document: '529.982.247-25', email: 'outro@sandbox.invalid', phone: '11988880000', password: 'outra-senha-123' };
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: payloadA });
   await app.inject({ method: 'POST', url: '/v1/customers/register', payload: payloadB });
+  await verifyEmail(app, payloadA.email);
+  await verifyEmail(app, payloadB.email);
   const loginA = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: payloadA.email, password: payloadA.password } });
   const loginB = await app.inject({ method: 'POST', url: '/v1/customers/login', payload: { email: payloadB.email, password: payloadB.password } });
   const tokenA = loginA.json().data.token;
