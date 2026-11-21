@@ -11,6 +11,7 @@ import { DOCUMENT_KINDS, ID_DOCUMENT_TYPES, INCOME_RANGES, MAX_DOCUMENT_BYTES, t
 import { COMPANY_DOCUMENT_KINDS, COMPANY_POSITIONS, COMPANY_REVENUE_RANGES } from '../services/companyService.js';
 import type { CustomerPasswordResetService } from '../services/customerPasswordResetService.js';
 import type { SecurityAuditOutcome, SecurityAuditRepository } from '../repositories/SecurityAuditRepository.js';
+import { safeError } from '../observability/logger.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
 
@@ -97,7 +98,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
           details: { statusCode: reply.statusCode, ...(request.auditDetails ?? {}) },
         });
       } catch (error) {
-        request.log.error({ event, err: (error as Error).message }, 'falha ao gravar o registro de auditoria');
+        request.log.error({ event, err: safeError(error) }, 'falha ao gravar o registro de auditoria');
       }
     });
   }

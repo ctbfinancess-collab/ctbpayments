@@ -14,10 +14,19 @@ import { describeDetails, eventLabel, EVENT_LABELS, OUTCOME_LABELS } from './eve
 // Painel da equipe (análise de KYC) — serviço próprio, separado da Área do
 // Cliente. Acesso só com convite, senha forte e verificação em duas etapas.
 const Stack = createNativeStackNavigator();
-const linking = { prefixes: [], config: { screens: { Login: 'entrar', Invite: 'convite', Overview: 'inicio', Customers: 'clientes', Customer: 'clientes/:customerId', Audit: 'auditoria', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
-const TITLES = { Login: 'Entrar', Invite: 'Aceitar convite', Overview: 'Visão geral', Customers: 'Clientes', Customer: 'Cliente', Audit: 'Auditoria', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
+const linking = { prefixes: [], config: { screens: { Login: 'entrar', ForgotPassword: 'esqueci-minha-senha', ResetPassword: 'redefinir-senha', Invite: 'convite', Overview: 'inicio', Customers: 'clientes', Customer: 'clientes/:customerId', Audit: 'auditoria', Queue: 'fila', Case: 'analise/:customerId', CompanyQueue: 'empresas', CompanyCase: 'empresas/:companyId', Team: 'equipe' } } };
+const TITLES = { Login: 'Entrar', ForgotPassword: 'Esqueci minha senha', ResetPassword: 'Redefinir senha', Invite: 'Aceitar convite', Overview: 'Visão geral', Customers: 'Clientes', Customer: 'Cliente', Audit: 'Auditoria', Queue: 'Fila de análise', Case: 'Análise', CompanyQueue: 'Empresas (PJ)', CompanyCase: 'Análise PJ', Team: 'Equipe' };
 const theme = { ...DarkTheme, colors: { ...DarkTheme.colors, background: ca.bg, card: ca.bgRaised, primary: ca.gold, text: ca.text, border: ca.border } };
-const tokenFromUrl = () => { try { return new URL(window.location.href).searchParams.get('token') || ''; } catch { return ''; } };
+// Lê o código do link (convite/redefinição) e o tira da barra de endereço,
+// para não ficar no histórico do navegador.
+const tokenFromUrl = () => {
+  try {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('token') || '';
+    if (token) { url.searchParams.delete('token'); window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash); }
+    return token;
+  } catch { return ''; }
+};
 const STATUS = { SUBMITTED: ['Em análise', 'neutral'], CHANGES_REQUESTED: ['Ajustes solicitados', 'warning'], APPROVED: ['Aprovada', 'success'], REJECTED: ['Não aprovada', 'danger'], IN_PROGRESS: ['Em preenchimento', 'warning'], NOT_STARTED: ['Não iniciada', 'warning'] };
 const DECISION_LABEL = { APPROVED: 'Aprovada', CHANGES_REQUESTED: 'Ajustes solicitados', REJECTED: 'Não aprovada' };
 const fmtDateTime = (iso) => { if (!iso) return '—'; const d = new Date(iso); return `${d.toLocaleDateString('pt-BR')} ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`; };
@@ -37,7 +46,7 @@ function CenterCard({ eyebrow, title, subtitle, children }) {
   );
 }
 
-function LoginPage() {
+function LoginPage({ navigation }) {
   const { signIn, notice } = useStaff();
   const [step, setStep] = useState('password');
   const [form, setForm] = useState({ email: '', password: '', code: '' });
@@ -66,6 +75,7 @@ function LoginPage() {
           <Field autoComplete="username" inputMode="email" keyboardType="email-address" label="E-mail" onChangeText={set('email')} value={form.email} />
           <Field autoComplete="current-password" label="Senha" onChangeText={set('password')} onSubmitEditing={submitPassword} secure value={form.password} />
           <Button loading={busy} onPress={submitPassword} title="Continuar" />
+          <View style={{ alignItems: 'center', marginTop: 18 }}><LinkText onPress={() => navigation.navigate('ForgotPassword')}>Esqueci minha senha</LinkText></View>
         </>
       ) : (
         <>
@@ -74,6 +84,64 @@ function LoginPage() {
           <View style={{ marginTop: 16 }}><Button onPress={() => { setStep('password'); setMfaToken(''); setError(''); }} title="Voltar" variant="ghost" /></View>
         </>
       )}
+    </CenterCard>
+  );
+}
+
+// Senha esquecida: com o celular do autenticador em mãos. Sem o celular,
+// só outro administrador redefine o acesso (página Equipe).
+function ForgotPasswordPage({ navigation }) {
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
+  const submit = async () => {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError('Digite o seu e-mail da equipe.'); return; }
+    setBusy(true); setError('');
+    try { await staffApi('/auth/password/forgot', { method: 'POST', body: { email: email.trim() } }); setSent(true); }
+    catch (e) { setError(staffMessage(e)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <CenterCard eyebrow="Painel da equipe" subtitle={sent ? undefined : 'Enviaremos um link para o seu e-mail. Para concluir, você vai precisar do código do seu aplicativo autenticador.'} title="Esqueci minha senha">
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {sent ? (
+        <Notice kind="success" title="Pedido recebido">Se este e-mail for de alguém da equipe, enviamos um link para redefinir a senha. Ele vale por 30 minutos (veja também o spam).</Notice>
+      ) : (
+        <>
+          <Field autoComplete="username" inputMode="email" keyboardType="email-address" label="E-mail da equipe" onChangeText={setEmail} onSubmitEditing={submit} value={email} />
+          <Button loading={busy} onPress={submit} title="Enviar link" />
+        </>
+      )}
+      <View style={{ marginTop: 18 }}><Notice kind="info" title="Perdeu o celular do autenticador?">Peça a outro administrador para redefinir o seu acesso na página Equipe. Por segurança, isso não pode ser feito por e-mail.</Notice></View>
+      <Button onPress={() => navigation.navigate('Login')} title="Voltar para o login" variant="ghost" />
+    </CenterCard>
+  );
+}
+
+function ResetPasswordPage({ navigation }) {
+  const token = useRef(tokenFromUrl()).current;
+  const [form, setForm] = useState({ password: '', confirm: '', code: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [state, setState] = useState(token ? 'form' : 'invalid');
+  const set = (k) => (v) => setForm((f) => ({ ...f, [k]: k === 'code' ? v.replace(/\D/g, '').slice(0, 6) : v }));
+  const submit = async () => {
+    if (form.password !== form.confirm) { setError('As senhas não conferem.'); return; }
+    setBusy(true); setError('');
+    try { await staffApi('/auth/password/reset', { method: 'POST', body: { token, password: form.password, code: form.code } }); setState('done'); }
+    catch (e) { setError(staffMessage(e)); if (e.code === 'STAFF_RESET_INVALID') setState('invalid'); }
+    finally { setBusy(false); }
+  };
+  if (state === 'invalid') return <CenterCard eyebrow="Painel da equipe" title="Link inválido"><Notice kind="error">{error || 'Este link é inválido, expirou ou já foi usado. Peça um novo em "Esqueci minha senha".'}</Notice><Button onPress={() => navigation.navigate('ForgotPassword')} title="Pedir novo link" /></CenterCard>;
+  if (state === 'done') return <CenterCard eyebrow="Painel da equipe" title="Senha redefinida"><Notice kind="success" title="Tudo pronto">Sua nova senha já vale. Por segurança, todas as sessões abertas foram encerradas e você recebeu um aviso por e-mail.</Notice><Button onPress={() => navigation.navigate('Login')} title="Ir para o login" /></CenterCard>;
+  return (
+    <CenterCard eyebrow="Painel da equipe" subtitle="Crie uma nova senha e confirme com o código do seu aplicativo autenticador." title="Redefinir senha">
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      <Field autoComplete="new-password" hint="Mínimo de 12 caracteres, com letras, números e símbolo." label="Nova senha" onChangeText={set('password')} secure value={form.password} />
+      <Field autoComplete="new-password" label="Confirme a nova senha" onChangeText={set('confirm')} secure value={form.confirm} />
+      <Field autoComplete="one-time-code" inputMode="numeric" keyboardType="number-pad" label="Código do autenticador" maxLength={6} onChangeText={set('code')} onSubmitEditing={submit} placeholder="000000" value={form.code} />
+      <Button loading={busy} onPress={submit} title="Redefinir senha" />
     </CenterCard>
   );
 }
@@ -646,6 +714,19 @@ function TeamPage() {
     catch (e) { setResult({ kind: 'error', text: staffMessage(e) }); }
     finally { setBusy(false); }
   };
+  const [resetFor, setResetFor] = useState(null);
+  const [resetForm, setResetForm] = useState({ reason: '', code: '' });
+  const resetAccess = async (u) => {
+    if (resetForm.reason.trim().length < 10) { setResult({ kind: 'error', text: 'Explique o motivo (pelo menos 10 caracteres).' }); return; }
+    if (resetForm.code.length !== 6) { setResult({ kind: 'error', text: 'Digite o código de 6 dígitos do SEU aplicativo autenticador.' }); return; }
+    setBusy(true); setResult(null);
+    try {
+      const r = await call(`/users/${u.id}/reset-access`, { method: 'POST', body: { reason: resetForm.reason.trim(), code: resetForm.code } });
+      setResult({ kind: 'success', text: `Acesso de ${u.name} redefinido: senha e autenticador antigos não valem mais e as sessões foram encerradas. ${u.name} recebeu um link de 24 horas para criar o acesso de novo; ${r.notifiedAdmins} administrador(es) avisado(s) por e-mail.` });
+      setResetFor(null); setResetForm({ reason: '', code: '' }); load();
+    } catch (e) { setResult({ kind: 'error', text: staffMessage(e) }); }
+    finally { setBusy(false); }
+  };
   const act = async (path, text) => {
     setResult(null);
     try { await call(path, { method: 'POST', body: {} }); setResult({ kind: 'success', text }); load(); }
@@ -664,7 +745,16 @@ function TeamPage() {
               <View style={{ flex: 1, minWidth: 220 }}><Text style={styles.queueName}>{u.name}</Text><Body muted style={{ fontSize: 13 }}>{u.email} · {u.role === 'ADMIN' ? 'Administrador(a)' : 'Analista'} · último acesso {u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : '—'}</Body></View>
               <StatusPill label={l} tone={t} />
               {u.status === 'INVITED' ? <Button onPress={() => act(`/users/${u.id}/resend-invite`, 'Convite reenviado.')} title="Reenviar convite" variant="ghost" /> : null}
+              {u.status === 'ACTIVE' && u.id !== staff.id ? <Button onPress={() => { setResetFor(resetFor === u.id ? null : u.id); setResetForm({ reason: '', code: '' }); setResult(null); }} title={resetFor === u.id ? 'Cancelar' : 'Redefinir acesso'} variant="ghost" /> : null}
               {u.status !== 'DISABLED' && u.id !== staff.id ? <Button onPress={() => act(`/users/${u.id}/disable`, 'Acesso desativado e sessões encerradas.')} title="Desativar" variant="ghost" /> : null}
+              {resetFor === u.id ? (
+                <View style={{ flexBasis: '100%', marginTop: 8, maxWidth: 560 }}>
+                  <Notice kind="info" title="Redefinir o acesso de outra pessoa">Use quando a pessoa perdeu o celular do autenticador (ou a senha e o celular). A senha e o autenticador atuais deixam de valer, as sessões são encerradas, a pessoa recebe um link de 24 horas para criar o acesso de novo e todos os administradores são avisados.</Notice>
+                  <Field label="Motivo (fica na auditoria e vai no aviso aos administradores)" multiline numberOfLines={3} onChangeText={(v) => setResetForm((f) => ({ ...f, reason: v }))} value={resetForm.reason} />
+                  <Field autoComplete="one-time-code" inputMode="numeric" keyboardType="number-pad" label="O SEU código do autenticador (confirmação)" maxLength={6} onChangeText={(v) => setResetForm((f) => ({ ...f, code: v.replace(/\D/g, '').slice(0, 6) }))} placeholder="000000" value={resetForm.code} />
+                  <Button loading={busy} onPress={() => resetAccess(u)} style={{ alignSelf: 'flex-start', minWidth: 240 }} title="Confirmar redefinição" />
+                </View>
+              ) : null}
             </View>
           );
         })}
@@ -702,6 +792,8 @@ function Navigator() {
         ) : (
           <>
             <Stack.Screen component={LoginPage} name="Login" options={{ title: TITLES.Login }} />
+            <Stack.Screen component={ForgotPasswordPage} name="ForgotPassword" options={{ title: TITLES.ForgotPassword }} />
+            <Stack.Screen component={ResetPasswordPage} name="ResetPassword" options={{ title: TITLES.ResetPassword }} />
             <Stack.Screen component={InvitePage} name="Invite" options={{ title: TITLES.Invite }} />
           </>
         )}

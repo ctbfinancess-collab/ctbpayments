@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gt, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerStatusChanges, kycReviews, staffSessions, staffTokens, staffUsers } from '../db/schema/index.js';
 
 export type StaffRole = 'ADMIN' | 'ANALYST';
 export type StaffStatus = 'INVITED' | 'ACTIVE' | 'DISABLED';
-export type StaffTokenPurpose = 'INVITE' | 'MFA_ENROLL' | 'MFA_LOGIN';
+export type StaffTokenPurpose = 'INVITE' | 'MFA_ENROLL' | 'MFA_LOGIN' | 'PASSWORD_RESET';
 export type KycDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
 
 export interface StaffUserRecord {
@@ -42,6 +42,12 @@ export interface StaffRepository {
   peekToken(tokenHash: string, purpose: StaffTokenPurpose, now: Date): Promise<string | null>;
   // Uso único atômico: devolve o staffId só para quem consumiu agora.
   consumeToken(tokenHash: string, purpose: StaffTokenPurpose, now: Date): Promise<string | null>;
+  // Invalida links pendentes do usuário (todos ou só de uma finalidade).
+  invalidateTokens(staffId: string, now: Date, purpose?: StaffTokenPurpose): Promise<void>;
+  // Quando foi criado o último link desta finalidade (para o intervalo mínimo).
+  latestTokenCreatedAt(staffId: string, purpose: StaffTokenPurpose): Promise<Date | null>;
+  // Soma 1 erro de forma atômica (vários pedidos ao mesmo tempo contam todos).
+  incrementFailures(id: string, now: Date): Promise<number>;
   createSession(staffId: string, tokenHash: string, expiresAt: Date, now: Date): Promise<void>;
   findSession(tokenHash: string): Promise<StaffSessionRecord | undefined>;
   touchSession(tokenHash: string, now: Date): Promise<void>;
@@ -88,6 +94,20 @@ export class PostgresStaffRepository implements StaffRepository {
       .returning({ staffId: staffTokens.staffId });
     return rows[0]?.staffId ?? null;
   }
+  async invalidateTokens(staffId: string, now: Date, purpose?: StaffTokenPurpose) {
+    const conds = [eq(staffTokens.staffId, staffId), isNull(staffTokens.consumedAt)];
+    if (purpose) conds.push(eq(staffTokens.purpose, purpose));
+    await this.db.update(staffTokens).set({ consumedAt: now }).where(and(...conds));
+  }
+  async latestTokenCreatedAt(staffId: string, purpose: StaffTokenPurpose) {
+    const [row] = await this.db.select({ createdAt: staffTokens.createdAt }).from(staffTokens)
+      .where(and(eq(staffTokens.staffId, staffId), eq(staffTokens.purpose, purpose))).orderBy(desc(staffTokens.createdAt)).limit(1);
+    return row?.createdAt ?? null;
+  }
+  async incrementFailures(id: string, now: Date) {
+    const rows = await this.db.update(staffUsers).set({ failedAttempts: sql`${staffUsers.failedAttempts} + 1`, updatedAt: now }).where(eq(staffUsers.id, id)).returning({ n: staffUsers.failedAttempts });
+    return rows[0]?.n ?? 0;
+  }
   async createSession(staffId: string, tokenHash: string, expiresAt: Date, now: Date) {
     await this.db.insert(staffSessions).values({ staffId, tokenHash, expiresAt, createdAt: now, lastSeenAt: now });
   }
@@ -121,7 +141,7 @@ export class PostgresStaffRepository implements StaffRepository {
 
 export class InMemoryStaffRepository implements StaffRepository {
   readonly users: StaffUserRecord[] = [];
-  readonly tokens: { staffId: string; purpose: StaffTokenPurpose; tokenHash: string; expiresAt: Date; consumedAt: Date | null }[] = [];
+  readonly tokens: { staffId: string; purpose: StaffTokenPurpose; tokenHash: string; expiresAt: Date; consumedAt: Date | null; createdAt: Date }[] = [];
   readonly sessions: StaffSessionRecord[] = [];
   readonly reviews: KycReviewRecord[] = [];
   readonly statusChanges: CustomerStatusChangeRecord[] = [];
@@ -140,7 +160,7 @@ export class InMemoryStaffRepository implements StaffRepository {
     if (u) Object.assign(u, patch, { updatedAt: now });
   }
   async createToken(staffId: string, purpose: StaffTokenPurpose, tokenHash: string, expiresAt: Date) {
-    this.tokens.push({ staffId, purpose, tokenHash, expiresAt, consumedAt: null });
+    this.tokens.push({ staffId, purpose, tokenHash, expiresAt, consumedAt: null, createdAt: new Date() });
   }
   async peekToken(tokenHash: string, purpose: StaffTokenPurpose, now: Date) {
     return this.tokens.find((x) => x.tokenHash === tokenHash && x.purpose === purpose && !x.consumedAt && x.expiresAt > now)?.staffId ?? null;
@@ -150,6 +170,19 @@ export class InMemoryStaffRepository implements StaffRepository {
     if (!t) return null;
     t.consumedAt = now;
     return t.staffId;
+  }
+  async latestTokenCreatedAt(staffId: string, purpose: StaffTokenPurpose) {
+    const list = this.tokens.filter((t) => t.staffId === staffId && t.purpose === purpose);
+    return list.length ? list[list.length - 1]!.createdAt : null;
+  }
+  async incrementFailures(id: string, now: Date) {
+    const u = this.users.find((x) => x.id === id);
+    if (!u) return 0;
+    u.failedAttempts += 1; u.updatedAt = now;
+    return u.failedAttempts;
+  }
+  async invalidateTokens(staffId: string, now: Date, purpose?: StaffTokenPurpose) {
+    for (const t of this.tokens) if (t.staffId === staffId && !t.consumedAt && (!purpose || t.purpose === purpose)) t.consumedAt = now;
   }
   async createSession(staffId: string, tokenHash: string, expiresAt: Date, now: Date) {
     this.sessions.push({ id: randomUUID(), staffId, tokenHash, createdAt: now, lastSeenAt: now, expiresAt, revokedAt: null });

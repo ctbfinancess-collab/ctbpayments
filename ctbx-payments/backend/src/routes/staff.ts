@@ -6,6 +6,7 @@ import type { KycReviewService } from '../services/kycReviewService.js';
 import type { CompanyReviewService } from '../services/companyReviewService.js';
 import type { StaffCustomerService } from '../services/staffCustomerService.js';
 import type { StaffAuthService } from '../services/staffAuthService.js';
+import { safeError } from '../observability/logger.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
 
@@ -17,12 +18,15 @@ const AUDITED: Record<string, string> = {
   'POST /auth/login': 'STAFF_LOGIN_PASSWORD',
   'POST /auth/mfa': 'STAFF_LOGIN_MFA',
   'POST /auth/logout': 'STAFF_LOGOUT',
+  'POST /auth/password/forgot': 'STAFF_PASSWORD_RESET_REQUEST',
+  'POST /auth/password/reset': 'STAFF_PASSWORD_RESET',
   'POST /invites/accept': 'STAFF_INVITE_ACCEPT',
   'POST /invites/confirm': 'STAFF_MFA_ENROLL',
   'GET /users': 'STAFF_USERS_VIEW',
   'POST /users': 'STAFF_USER_INVITE',
   'POST /users/:staffId/disable': 'STAFF_USER_DISABLE',
   'POST /users/:staffId/resend-invite': 'STAFF_USER_INVITE_RESEND',
+  'POST /users/:staffId/reset-access': 'STAFF_USER_ACCESS_RESET',
   'GET /kyc/queue': 'STAFF_KYC_QUEUE_VIEW',
   'GET /kyc/cases/:customerId': 'STAFF_KYC_CASE_VIEW',
   'GET /kyc/cases/:customerId/documents/:documentId': 'STAFF_KYC_DOCUMENT_VIEW',
@@ -70,7 +74,7 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
         details: { statusCode: reply.statusCode, ...(params.companyId ? { companyId: params.companyId } : {}), ...(request.auditDetails ?? {}) },
       });
     } catch (error) {
-      request.log.error({ event, err: (error as Error).message }, 'falha ao gravar o registro de auditoria');
+      request.log.error({ event, err: safeError(error) }, 'falha ao gravar o registro de auditoria');
     }
   });
 
@@ -115,6 +119,22 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
 
   app.get('/auth/session', { preValidation: requireStaff }, async (request) => envelope(request, { staff: request.staffAuth }));
 
+  // ---- Senha esquecida (com o autenticador em mãos) -----------------------
+  // Resposta sempre igual (202), exista ou não o e-mail na equipe.
+  app.post('/auth/password/forgot', { config: limit(3), schema: { body: objectSchema(['email'], { email: str(3, 254) }) } }, async (request, reply) => {
+    const { email } = request.body as { email: string };
+    const { staffId } = await auth.requestPasswordReset(email);
+    if (staffId) request.auditStaffId = staffId;
+    return reply.status(202).send(envelope(request, { message: 'Se este e-mail for de alguém da equipe, enviamos um link para redefinir a senha. Ele vale por 30 minutos.' }));
+  });
+
+  app.post('/auth/password/reset', { config: limit(5), schema: { body: objectSchema(['token', 'password', 'code'], { token: str(1, 128), password: str(1, 256), code: str(6, 6) }) } }, async (request, reply) => {
+    const { token, password, code } = request.body as { token: string; password: string; code: string };
+    const { staffId } = await auth.resetPassword(token, password, code);
+    request.auditStaffId = staffId;
+    return reply.status(204).send();
+  });
+
   // ---- Convite e autenticador -------------------------------------------
   app.post('/invites/accept', { config: limit(5), schema: { body: objectSchema(['token', 'password'], { token: str(1, 128), password: str(1, 256) }) } }, async (request) => {
     const { token, password } = request.body as { token: string; password: string };
@@ -143,6 +163,18 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
     request.auditDetails = { targetStaffId: staffId };
     await auth.disableUser(request.staffAuth!, staffId);
     return reply.status(204).send();
+  });
+
+  // Redefinição de acesso por outro administrador (celular perdido): exige
+  // o código do autenticador de quem redefine e o motivo, que fica na
+  // auditoria e vai no aviso aos administradores.
+  app.post('/users/:staffId/reset-access', { preValidation: requireAdmin, config: limit(3), schema: { params: staffIdParams, body: objectSchema(['reason', 'code'], { reason: str(1, 600), code: str(6, 6) }) } }, async (request) => {
+    const { staffId } = request.params as { staffId: string };
+    const { reason, code } = request.body as { reason: string; code: string };
+    request.auditDetails = { targetStaffId: staffId, reason: reason.trim().slice(0, 500) };
+    const result = await auth.resetAccess(request.staffAuth!, staffId, reason, code);
+    request.auditDetails = { ...request.auditDetails, linkEmailed: result.linkEmailed, notifiedAdmins: result.notifiedAdmins };
+    return envelope(request, result);
   });
 
   app.post('/users/:staffId/resend-invite', { preValidation: requireAdmin, config: limit(10), schema: { params: staffIdParams, body: emptyObjectSchema } }, async (request, reply) => {

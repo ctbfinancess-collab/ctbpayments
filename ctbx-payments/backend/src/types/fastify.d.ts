@@ -4,7 +4,12 @@ import type { AuthenticatedAdmin } from '../services/adminAuthService.js';
 import type { AuthenticatedCustomer } from '../services/customerAuthService.js';
 import type { AuthenticatedStaff } from '../services/staffAuthService.js';
 
+import type { CriticalAlerter } from '../observability/alerts.js';
+
 declare module 'fastify' {
+  interface FastifyInstance {
+    criticalAlerter?: CriticalAlerter;
+  }
   interface FastifyRequest {
     auth?: AuthContext;
     adminAuth?: AuthenticatedAdmin;

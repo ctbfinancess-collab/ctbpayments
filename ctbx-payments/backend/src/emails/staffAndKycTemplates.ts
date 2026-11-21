@@ -40,6 +40,53 @@ export function renderStaffInviteTemplate(name: string, link: string): RenderedE
   return { subject: `${title} — CTBX Payments`, html: layout(title, p, { label: 'Aceitar convite', url: link }), text: `${title}\n\n${p.join('\n\n')}\n\n${link}` };
 }
 
+// Recuperação de acesso da equipe (Fase 1 do painel). Nenhum destes e-mails
+// leva senha, código ou dado de cliente: só o link de uso único.
+export function renderStaffPasswordResetTemplate(name: string, link: string): RenderedEmail {
+  const title = 'Redefinir a senha do painel';
+  const p = [
+    `Olá, ${name}.`,
+    'Recebemos um pedido para redefinir a sua senha do painel administrativo da CTBX Payments.',
+    'Para concluir, você vai criar uma nova senha e confirmar com o código do seu aplicativo autenticador. Este link vale por 30 minutos e só pode ser usado uma vez.',
+    'Se você não pediu, ignore esta mensagem: a sua senha continua a mesma. Se receber pedidos que não fez, avise um administrador.',
+  ];
+  return { subject: `${title} — CTBX Payments`, html: layout(title, p, { label: 'Redefinir senha', url: link }), text: `${title}\n\n${p.join('\n\n')}\n\n${link}` };
+}
+
+export function renderStaffAccessResetTemplate(name: string, link: string): RenderedEmail {
+  const title = 'Seu acesso ao painel foi redefinido';
+  const p = [
+    `Olá, ${name}.`,
+    'Um administrador da CTBX Payments redefiniu o seu acesso ao painel. A senha e o aplicativo autenticador anteriores deixaram de funcionar e todas as sessões abertas foram encerradas.',
+    'Para voltar a entrar, crie uma nova senha e configure de novo a verificação em duas etapas. Este link vale por 24 horas e só pode ser usado uma vez.',
+    'Se você não pediu essa redefinição, avise um administrador imediatamente.',
+  ];
+  return { subject: `${title} — CTBX Payments`, html: layout(title, p, { label: 'Criar nova senha', url: link }), text: `${title}\n\n${p.join('\n\n')}\n\n${link}` };
+}
+
+export function renderStaffPasswordChangedTemplate(name: string): RenderedEmail {
+  const title = 'A senha do painel foi alterada';
+  const p = [
+    `Olá, ${name}.`,
+    'A sua senha do painel administrativo da CTBX Payments foi redefinida agora, e todas as sessões abertas foram encerradas.',
+    'Se não foi você, avise um administrador imediatamente para que ele bloqueie e redefina o seu acesso.',
+  ];
+  return { subject: `${title} — CTBX Payments`, html: layout(title, p), text: `${title}\n\n${p.join('\n\n')}` };
+}
+
+// Aviso aos administradores: toda redefinição feita por um administrador
+// chega a todos eles, para que ninguém redefina um acesso sem ser visto.
+export function renderStaffAccessResetNoticeTemplate(targetName: string, actorName: string, reason: string): RenderedEmail {
+  const title = 'Acesso de um membro da equipe redefinido';
+  const p = [
+    `${actorName} redefiniu o acesso de ${targetName} ao painel administrativo.`,
+    `Motivo informado: ${reason}`,
+    'A senha e o autenticador anteriores foram invalidados e as sessões foram encerradas. A pessoa recebeu um link para criar o acesso de novo.',
+    'Se você não reconhece esta ação, verifique a auditoria do painel imediatamente.',
+  ];
+  return { subject: `${title} — CTBX Payments`, html: layout(title, p), text: `${title}\n\n${p.join('\n\n')}` };
+}
+
 export type KycDecisionKind = 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
 
 export function renderKycDecisionTemplate(kind: KycDecisionKind, reason: string | null, appLink: string): RenderedEmail {

@@ -1,0 +1,60 @@
+# Monitoramento de disponibilidade da CTBX Payments (produção).
+# A cada 10 minutos confere o site, a Área do Cliente, o painel da equipe e
+# a API (incluindo o banco de dados). Se algo falhar 2 vezes seguidas na
+# mesma rodada, o job falha e o GitHub envia e-mail de "Run failed" para a
+# conta do repositório. Se os segredos ALERT_RESEND_API_KEY e ALERT_EMAILS
+# existirem, também envia um e-mail próprio pelo Resend para a equipe.
+# Não acessa nenhum dado de cliente: só abre páginas públicas e /health/deep.
+name: Monitoramento de disponibilidade
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: monitor-disponibilidade
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Conferir os quatro serviços
+        id: check
+        shell: bash
+        run: |
+          set -u
+          falhas=""
+          checar() { # nome url texto-esperado
+            for tentativa in 1 2; do
+              corpo=$(curl -sS -L --max-time 20 -w '\n%{http_code}' "$2" 2>/dev/null) || corpo=$'\n000'
+              status=$(printf '%s' "$corpo" | tail -n1)
+              if [ "$status" = "200" ] && printf '%s' "$corpo" | grep -q "$3"; then echo "OK   $1 ($status)"; return 0; fi
+              sleep 20
+            done
+            echo "FALHA $1 (status $status)"; falhas="$falhas $1"
+          }
+          checar "site"              "https://www.ctbxpayments.com/"             "CTBX"
+          checar "area-do-cliente"   "https://app.ctbxpayments.com/"             "<div id=\"root\""
+          checar "painel-da-equipe"  "https://admin.ctbxpayments.com/"           "<div id=\"root\""
+          checar "api-e-banco"       "https://api.ctbxpayments.com/health/deep"  "\"database\":\"UP\""
+          echo "falhas=${falhas# }" >> "$GITHUB_OUTPUT"
+          [ -z "$falhas" ]
+      - name: Avisar a equipe por e-mail (opcional)
+        if: failure()
+        shell: bash
+        env:
+          RESEND_KEY: ${{ secrets.ALERT_RESEND_API_KEY }}
+          DESTINOS: ${{ secrets.ALERT_EMAILS }}
+          FALHAS: ${{ steps.check.outputs.falhas }}
+        run: |
+          if [ -z "${RESEND_KEY:-}" ] || [ -z "${DESTINOS:-}" ]; then echo "Segredos de e-mail não configurados; o aviso fica só por conta do GitHub."; exit 0; fi
+          para=$(printf '%s' "$DESTINOS" | jq -R 'split(",") | map(gsub("^ +| +$";""))')
+          jq -n --argjson to "$para" --arg falhas "${FALHAS:-desconhecido}" --arg quando "$(date -u +%Y-%m-%dT%H:%MZ)" \
+            '{from:"CTBX Payments <no-reply@ctbxpayments.com>", to:$to, subject:("[CTBX · produção] Serviço fora do ar: " + $falhas), text:("Falha detectada em: " + $falhas + "\nQuando: " + $quando + "\nVerificação: monitoramento automático a cada 10 minutos.\nDetalhes: aba Actions do repositório no GitHub.")}' \
+            | curl -sS --max-time 20 -X POST https://api.resend.com/emails -H "Authorization: Bearer $RESEND_KEY" -H 'Content-Type: application/json' -d @- > /dev/null
