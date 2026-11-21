@@ -80,6 +80,8 @@ import { KycReviewService } from './services/kycReviewService.js';
 import { CompanyReviewService } from './services/companyReviewService.js';
 import { StaffCustomerService } from './services/staffCustomerService.js';
 import { healthRoutes } from './routes/health.js';
+import { cspReportRoutes } from './routes/cspReport.js';
+import { sql } from 'drizzle-orm';
 import { v1Routes } from './routes/v1.js';
 import { AdminAuthService } from './services/adminAuthService.js';
 import { CompanyService } from './services/companyService.js';
@@ -90,6 +92,7 @@ import { CustomerEmailVerificationService } from './services/customerEmailVerifi
 import { CustomerPasswordResetService } from './services/customerPasswordResetService.js';
 import { InMemoryEmailProvider } from './providers/InMemoryEmailProvider.js';
 import { createEmailProvider } from './providers/createEmailProvider.js';
+import { CriticalAlerter, parseAlertRecipients } from './observability/alerts.js';
 
 // cnpjLookup: só para testes (evita chamar a Receita de verdade).
 export interface BuildAppOptions { config?: AppConfig; providers?: ProviderRegistry; logger?: boolean; cnpjLookup?: (cnpj: string) => Promise<import('./services/cnpjLookup.js').CnpjLookupResult> }
@@ -194,9 +197,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   let staffRepository: StaffRepository = new InMemoryStaffRepository();
   // Registro de auditoria de segurança (Fase 2) — mesmo par real+fallback.
   let auditRepository: SecurityAuditRepository = new InMemorySecurityAuditRepository();
+  // Verificação de saúde com o banco (monitoramento externo). Sem banco
+  // configurado (testes/dev em memória), responde que não há banco.
+  let databasePing: (() => Promise<void>) | undefined;
   if (!options.providers && config.databaseUrl) {
     const { db, close } = createDbConnection(config.databaseUrl);
     app.addHook('onClose', async () => { await close(); });
+    databasePing = async () => { await db.execute(sql`select 1`); };
     virtualCards = new VirtualCardRepository(db);
     sessionRepository = new PostgresSandboxSessionRepository(db);
     accountRepository = new PostgresSandboxAccountRepository(db);
@@ -305,9 +312,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
   app.addHook('onRequest', async (request, reply) => { reply.header('x-request-id', request.id); });
-  registerErrorHandler(app, config.nodeEnv === 'production');
-  await app.register(healthRoutes);
-  await app.register(async (api) => v1Routes(api, providers), { prefix: `/${config.apiVersion}` });
+  // Alertas de erro crítico (sem dados pessoais) para a equipe técnica.
+  const alerter = new CriticalAlerter(emailProvider, parseAlertRecipients(config.alerts?.emails), config.alerts?.environmentName ?? config.nodeEnv);
+  if (alerter.enabled) app.decorate('criticalAlerter', alerter);
+  registerErrorHandler(app, config.nodeEnv === 'production', alerter.enabled ? (e) => alerter.notify(e) : undefined);
+  await app.register(async (api) => healthRoutes(api, { databasePing }));
+  await app.register(cspReportRoutes, { prefix: `/${config.apiVersion}` });
+  // Rotas da versão de demonstração (conta, Pix, cartões, CMS antigo): só
+  // fora da produção. Em produção não existem — nem respondem com erro.
+  const legacyRoutesEnabled = config.nodeEnv !== 'production';
+  if (legacyRoutesEnabled) await app.register(async (api) => v1Routes(api, providers), { prefix: `/${config.apiVersion}` });
   // Customer Identity — rota isolada, fora do ProviderRegistry sandbox
   // (não implementa nenhuma das interfaces de ports.ts). Etapa 1: só
   // cadastro PF, sem sessão/login próprios ainda.
@@ -328,7 +342,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, companyReview, staffCustomers, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
   }
 
-  await app.register(async (adminApi) => {
+  if (legacyRoutesEnabled) await app.register(async (adminApi) => {
     // Persistência real do CMS (Etapa 1 — fundação). Fail closed: sem
     // DATABASE_URL/ADMIN_SESSION_SECRET configurados, authService fica
     // undefined e tudo que depende dele (mídia + auth) responde

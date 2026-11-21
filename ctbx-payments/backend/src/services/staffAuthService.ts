@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import * as argon2 from 'argon2';
-import { renderStaffInviteTemplate } from '../emails/staffAndKycTemplates.js';
+import { renderStaffAccessResetNoticeTemplate, renderStaffAccessResetTemplate, renderStaffInviteTemplate, renderStaffPasswordChangedTemplate, renderStaffPasswordResetTemplate } from '../emails/staffAndKycTemplates.js';
 import { ApiError } from '../errors/ApiError.js';
 import type { EmailProvider } from '../providers/EmailProvider.js';
 import type { StaffRepository, StaffRole, StaffUserRecord } from '../repositories/StaffRepository.js';
@@ -19,6 +19,8 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const SESSION_IDLE_MS = 30 * 60 * 1000;
 const MAX_FAILURES = 5;
 const LOCK_MS = 15 * 60 * 1000;
+const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+const ACCESS_RESET_TTL_MS = 24 * 60 * 60 * 1000;
 const ISSUER = 'CTBX Payments (equipe)';
 // Hash de verdade (de uma senha aleatória) para gastar o mesmo tempo quando o
 // e-mail não existe: o tempo de resposta não revela quem é da equipe.
@@ -30,6 +32,7 @@ export interface StaffView extends AuthenticatedStaff { status: string; mfaEnabl
 const hashToken = (t: string) => createHash('sha256').update(t).digest('hex');
 const newToken = () => randomBytes(32).toString('hex');
 const invalidLogin = () => new ApiError('STAFF_LOGIN_INVALID', 'E-mail ou senha inválidos.', { statusCode: 401 });
+const resetInvalid = () => new ApiError('STAFF_RESET_INVALID', 'Link inválido, expirado ou já usado. Peça um novo em "Esqueci minha senha".', { statusCode: 400 });
 const lockedError = () => new ApiError('STAFF_LOCKED', 'Muitas tentativas erradas. Acesso bloqueado por 15 minutos.', { statusCode: 423 });
 
 export function staffPasswordProblem(password: string): string | null {
@@ -167,6 +170,94 @@ export class StaffAuthService {
   // ---- Gestão da equipe (só ADMIN) -------------------------------------
   async listUsers(): Promise<StaffView[]> {
     return (await this.repo.listUsers()).map(toView);
+  }
+
+  // ---- Recuperação de acesso -------------------------------------------
+  // Senha esquecida (o celular com o autenticador continua com a pessoa):
+  // link de uso único por e-mail (30 min) + código do autenticador para
+  // concluir. A resposta é sempre a mesma, exista ou não o e-mail.
+  async requestPasswordReset(email: string): Promise<{ staffId: string | null }> {
+    const now = this.now();
+    const user = await this.repo.findUserByEmail(email.trim().toLowerCase());
+    if (!user || user.status !== 'ACTIVE' || !user.totpEnabledAt || !this.email) return { staffId: user?.id ?? null };
+    await this.repo.invalidateTokens(user.id, now, 'PASSWORD_RESET');
+    const token = newToken();
+    await this.repo.createToken(user.id, 'PASSWORD_RESET', hashToken(token), new Date(now.getTime() + PASSWORD_RESET_TTL_MS));
+    const link = `${this.staffAppBaseUrl.replace(/\/$/, '')}/redefinir-senha?token=${token}`;
+    // Sem esperar o envio: o tempo de resposta não revela se o e-mail existe.
+    void this.email.send({ to: user.email, ...renderStaffPasswordResetTemplate(user.name, link) }).catch(() => undefined);
+    return { staffId: user.id };
+  }
+
+  async resetPassword(token: string, password: string, code: string): Promise<{ staffId: string }> {
+    const problem = staffPasswordProblem(password);
+    if (problem) throw new ApiError('STAFF_PASSWORD_WEAK', problem, { statusCode: 422 });
+    const now = this.now();
+    const hash = hashToken(token);
+    const staffId = await this.repo.peekToken(hash, 'PASSWORD_RESET', now);
+    const user = staffId ? await this.repo.findUserById(staffId) : undefined;
+    if (!user || user.status !== 'ACTIVE' || !user.totpSecretEnc) throw resetInvalid();
+    if (user.lockedUntil && user.lockedUntil > now) throw lockedError();
+    const step = verifyTotp(openTotpSecret(user.totpSecretEnc, this.totpKey), code, now, user.totpLastStep);
+    if (step === null) { await this.registerFailure(user, now); throw new ApiError('STAFF_MFA_INVALID', 'Código inválido.', { statusCode: 401 }); }
+    if (!(await this.repo.consumeToken(hash, 'PASSWORD_RESET', now))) throw resetInvalid();
+    await this.repo.updateUser(user.id, { passwordHash: await argon2.hash(password), totpLastStep: step, failedAttempts: 0, lockedUntil: null }, now);
+    await this.repo.revokeAllSessions(user.id, now);
+    await this.repo.invalidateTokens(user.id, now);
+    if (this.email) await this.email.send({ to: user.email, ...renderStaffPasswordChangedTemplate(user.name) }).catch(() => undefined);
+    return { staffId: user.id };
+  }
+
+  // Celular do autenticador perdido (ou senha e celular): só outro
+  // administrador redefine, confirmando com o PRÓPRIO código (verificação
+  // reforçada) e informando o motivo. A senha e o autenticador antigos
+  // deixam de valer, as sessões caem, a pessoa recebe um link para criar o
+  // acesso de novo e todos os administradores são avisados.
+  async resetAccess(actor: AuthenticatedStaff, staffId: string, reason: string, actorCode: string): Promise<{ notifiedAdmins: number }> {
+    if (actor.id === staffId) throw new ApiError('STAFF_SELF_RESET', 'Você não pode redefinir o seu próprio acesso. Peça a outro administrador.', { statusCode: 409 });
+    const why = reason.trim();
+    if (why.length < 10 || why.length > 500) throw new ApiError('STAFF_REASON_REQUIRED', 'Explique o motivo (de 10 a 500 caracteres).', { statusCode: 422 });
+    if (!this.email) throw new ApiError('EMAIL_NOT_CONFIGURED', 'O envio de e-mail não está configurado.', { statusCode: 503 });
+    const now = this.now();
+    const admin = await this.repo.findUserById(actor.id);
+    if (!admin || admin.status !== 'ACTIVE' || admin.role !== 'ADMIN' || !admin.totpSecretEnc) throw new ApiError('STAFF_FORBIDDEN', 'Apenas administradores podem fazer isto.', { statusCode: 403 });
+    if (admin.lockedUntil && admin.lockedUntil > now) throw lockedError();
+    const step = verifyTotp(openTotpSecret(admin.totpSecretEnc, this.totpKey), actorCode, now, admin.totpLastStep);
+    if (step === null) {
+      await this.registerFailure(admin, now);
+      throw new ApiError('STAFF_STEPUP_INVALID', 'O seu código de verificação está incorreto.', { statusCode: 422 });
+    }
+    await this.repo.updateUser(admin.id, { totpLastStep: step, failedAttempts: 0 }, now);
+    const target = await this.repo.findUserById(staffId);
+    if (!target) throw new ApiError('STAFF_NOT_FOUND', 'Usuário não encontrado.', { statusCode: 404 });
+    return this.applyAccessReset(target, admin.name, why, now);
+  }
+
+  // Emergência (nenhum administrador consegue entrar): só pelo comando no
+  // servidor (scripts/resetStaffAccess.ts), que também grava na auditoria.
+  async emergencyResetAccess(email: string, reason: string): Promise<{ staffId: string; notifiedAdmins: number }> {
+    const why = reason.trim();
+    if (why.length < 10 || why.length > 500) throw new ApiError('STAFF_REASON_REQUIRED', 'Explique o motivo (de 10 a 500 caracteres).', { statusCode: 422 });
+    if (!this.email) throw new ApiError('EMAIL_NOT_CONFIGURED', 'O envio de e-mail não está configurado.', { statusCode: 503 });
+    const target = await this.repo.findUserByEmail(email.trim().toLowerCase());
+    if (!target) throw new ApiError('STAFF_NOT_FOUND', 'Usuário não encontrado.', { statusCode: 404 });
+    const result = await this.applyAccessReset(target, 'O suporte técnico (comando de emergência no servidor)', why, this.now());
+    return { staffId: target.id, ...result };
+  }
+
+  private async applyAccessReset(target: StaffUserRecord, actorName: string, why: string, now: Date): Promise<{ notifiedAdmins: number }> {
+    if (target.status !== 'ACTIVE') throw new ApiError('STAFF_RESET_NOT_ALLOWED', target.status === 'INVITED' ? 'Este acesso ainda não foi ativado: use "Reenviar convite".' : 'Este acesso está desativado.', { statusCode: 409 });
+    await this.repo.updateUser(target.id, { status: 'INVITED', passwordHash: null, totpSecretEnc: null, totpEnabledAt: null, totpLastStep: null, failedAttempts: 0, lockedUntil: null }, now);
+    await this.repo.revokeAllSessions(target.id, now);
+    await this.repo.invalidateTokens(target.id, now);
+    const token = newToken();
+    await this.repo.createToken(target.id, 'INVITE', hashToken(token), new Date(now.getTime() + ACCESS_RESET_TTL_MS));
+    const link = `${this.staffAppBaseUrl.replace(/\/$/, '')}/convite?token=${token}`;
+    await this.email!.send({ to: target.email, ...renderStaffAccessResetTemplate(target.name, link) });
+    const admins = (await this.repo.listUsers()).filter((u) => u.role === 'ADMIN' && u.status === 'ACTIVE' && u.id !== target.id);
+    const notice = renderStaffAccessResetNoticeTemplate(target.name, actorName, why);
+    await Promise.all(admins.map((a) => this.email!.send({ to: a.email, ...notice }).catch(() => undefined)));
+    return { notifiedAdmins: admins.length };
   }
 
   async disableUser(actor: AuthenticatedStaff, staffId: string): Promise<void> {

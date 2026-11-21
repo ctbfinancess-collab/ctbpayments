@@ -23,6 +23,9 @@ export interface AppConfig {
   // Painel da equipe (análise de KYC). Em produção só liga com
   // STAFF_PANEL_ENABLED=true e a chave do autenticador configurada.
   staff?: { enabled: boolean; appBaseUrl: string | undefined; totpEncryptionKey: string | undefined };
+  // Alertas de erro crítico por e-mail (lista separada por vírgula) e o nome
+  // do ambiente que aparece no assunto.
+  alerts?: { emails: string | undefined; environmentName: string | undefined };
   kyc?: {
     uploadsEnabled: boolean;
     encryptionKey: string | undefined;
@@ -96,9 +99,12 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     totpEncryptionKey: source.STAFF_TOTP_ENCRYPTION_KEY?.trim() || undefined,
   };
 
+  const alerts = { emails: source.ALERT_EMAILS?.trim() || undefined, environmentName: source.ALERT_ENVIRONMENT_NAME?.trim() || source.RAILWAY_ENVIRONMENT_NAME?.trim() || undefined };
+
   return {
     kyc,
     staff,
+    alerts,
     nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins,
     adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl, trustProxy,
   };

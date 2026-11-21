@@ -1,0 +1,37 @@
+# Servidor estático do PAINEL DA EQUIPE (ctbx-admin). Igual ao da Área do
+# Cliente, mais a Política de Segurança de Conteúdo (CSP): o painel só
+# carrega scripts, imagens e fontes dele mesmo e só fala com a API.
+# CSP_HEADER controla o modo: "Content-Security-Policy-Report-Only" (padrão,
+# só avisa) ou "Content-Security-Policy" (bloqueia de verdade).
+# API_ORIGIN = endereço da API deste ambiente (ex.: https://api.ctbxpayments.com).
+{
+	admin off
+	auto_https off
+}
+
+:{$PORT:8080} {
+	root * /srv
+	encode zstd gzip
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		# O painel não usa câmera, microfone nem localização.
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		{$CSP_HEADER:Content-Security-Policy-Report-Only} "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' {$API_ORIGIN:https://api.ctbxpayments.com}; frame-src blob:; worker-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri {$API_ORIGIN:https://api.ctbxpayments.com}/v1/security/csp-report"
+		Strict-Transport-Security "max-age=31536000"
+		# Ambiente de testes não divulgado: fora dos buscadores.
+		X-Robots-Tag {$X_ROBOTS_TAG:noindex}
+		-Server
+	}
+	# Arquivos com versão no nome (o nome muda a cada publicação): cache longo.
+	@hashed path /_expo/static/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	# Todo o resto (inclusive /fila, /painel... que devolvem o index.html):
+	# sempre conferir a versão mais nova.
+	@notHashed not path /_expo/static/*
+	header @notHashed Cache-Control "no-cache"
+	# Rotas do app (ex.: /verify-email, /reset-password) caem no index.html.
+	try_files {path} /index.html
+	file_server
+}

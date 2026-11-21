@@ -22,5 +22,8 @@ ENV EXPO_PUBLIC_APP_MODE=$EXPO_PUBLIC_APP_MODE \
 RUN npx expo export --platform web --output-dir web-dist
 
 FROM caddy:2.10-alpine AS runtime
-COPY Caddyfile /etc/caddy/Caddyfile
+# O painel da equipe usa a mesma imagem, com a política de conteúdo (CSP).
+ARG EXPO_PUBLIC_APP_TARGET
+COPY Caddyfile Caddyfile.staff /etc/caddy/
+RUN if [ "$EXPO_PUBLIC_APP_TARGET" = "STAFF" ]; then cp /etc/caddy/Caddyfile.staff /etc/caddy/Caddyfile; fi && rm /etc/caddy/Caddyfile.staff
 COPY --from=build /app/web-dist /srv

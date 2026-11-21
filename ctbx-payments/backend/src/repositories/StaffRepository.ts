@@ -5,7 +5,7 @@ import { customerStatusChanges, kycReviews, staffSessions, staffTokens, staffUse
 
 export type StaffRole = 'ADMIN' | 'ANALYST';
 export type StaffStatus = 'INVITED' | 'ACTIVE' | 'DISABLED';
-export type StaffTokenPurpose = 'INVITE' | 'MFA_ENROLL' | 'MFA_LOGIN';
+export type StaffTokenPurpose = 'INVITE' | 'MFA_ENROLL' | 'MFA_LOGIN' | 'PASSWORD_RESET';
 export type KycDecision = 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
 
 export interface StaffUserRecord {
@@ -42,6 +42,8 @@ export interface StaffRepository {
   peekToken(tokenHash: string, purpose: StaffTokenPurpose, now: Date): Promise<string | null>;
   // Uso único atômico: devolve o staffId só para quem consumiu agora.
   consumeToken(tokenHash: string, purpose: StaffTokenPurpose, now: Date): Promise<string | null>;
+  // Invalida links pendentes do usuário (todos ou só de uma finalidade).
+  invalidateTokens(staffId: string, now: Date, purpose?: StaffTokenPurpose): Promise<void>;
   createSession(staffId: string, tokenHash: string, expiresAt: Date, now: Date): Promise<void>;
   findSession(tokenHash: string): Promise<StaffSessionRecord | undefined>;
   touchSession(tokenHash: string, now: Date): Promise<void>;
@@ -87,6 +89,11 @@ export class PostgresStaffRepository implements StaffRepository {
       .where(and(eq(staffTokens.tokenHash, tokenHash), eq(staffTokens.purpose, purpose), isNull(staffTokens.consumedAt), gt(staffTokens.expiresAt, now)))
       .returning({ staffId: staffTokens.staffId });
     return rows[0]?.staffId ?? null;
+  }
+  async invalidateTokens(staffId: string, now: Date, purpose?: StaffTokenPurpose) {
+    const conds = [eq(staffTokens.staffId, staffId), isNull(staffTokens.consumedAt)];
+    if (purpose) conds.push(eq(staffTokens.purpose, purpose));
+    await this.db.update(staffTokens).set({ consumedAt: now }).where(and(...conds));
   }
   async createSession(staffId: string, tokenHash: string, expiresAt: Date, now: Date) {
     await this.db.insert(staffSessions).values({ staffId, tokenHash, expiresAt, createdAt: now, lastSeenAt: now });
@@ -150,6 +157,9 @@ export class InMemoryStaffRepository implements StaffRepository {
     if (!t) return null;
     t.consumedAt = now;
     return t.staffId;
+  }
+  async invalidateTokens(staffId: string, now: Date, purpose?: StaffTokenPurpose) {
+    for (const t of this.tokens) if (t.staffId === staffId && !t.consumedAt && (!purpose || t.purpose === purpose)) t.consumedAt = now;
   }
   async createSession(staffId: string, tokenHash: string, expiresAt: Date, now: Date) {
     this.sessions.push({ id: randomUUID(), staffId, tokenHash, createdAt: now, lastSeenAt: now, expiresAt, revokedAt: null });

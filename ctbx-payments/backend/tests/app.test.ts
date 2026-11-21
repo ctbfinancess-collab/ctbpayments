@@ -242,9 +242,9 @@ test('statement rejects a mismatched device', async (t) => {
 
 test('production statement has no sandbox provider', async (t) => {
   const app = await buildApp({ config: { ...testConfig, nodeEnv: 'production' }, logger: false }); t.after(() => app.close());
+  // Fase 1 do painel: as rotas da demonstração nem existem em produção.
   const response = await app.inject({ method: 'GET', url: '/v1/accounts/current/statement', headers: { authorization: 'Bearer unavailable', 'x-device-id': 'unavailable' } });
-  assert.equal(response.statusCode, 503);
-  assert.equal(response.json().error.code, 'AUTH_PROVIDER_NOT_CONFIGURED');
+  assert.equal(response.statusCode, 404);
 });
 
 test('authenticated card reads expose masked fictitious data and integer minor units', async (t) => {
@@ -763,9 +763,9 @@ test('consigned SANDBOX exposes structural documents and creates idempotent unde
 
 test('production app does not initialize sandbox providers', async (t) => {
   const app = await buildApp({ config: { ...testConfig, nodeEnv: 'production' }, logger: false }); t.after(() => app.close());
+  // Fase 1 do painel: sem provedores E sem as rotas da demonstração.
   const response = await app.inject({ method: 'POST', url: '/v1/auth/login', payload: loginPayload });
-  assert.equal(response.statusCode, 503);
-  assert.equal(response.json().error.code, 'AUTH_PROVIDER_NOT_CONFIGURED');
+  assert.equal(response.statusCode, 404);
 });
 
 test('password and tokens are removed by structured redaction', () => {
