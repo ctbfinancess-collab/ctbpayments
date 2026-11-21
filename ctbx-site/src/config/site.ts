@@ -29,12 +29,12 @@ export const site = {
   // Privacidade, Termos e Cookies mostram o aviso "versão preliminar".
   // Só mude para false depois da revisão jurídica.
   legalDraft: false,
-  legalUpdatedAt: '2026-11-16',
+  legalUpdatedAt: '2026-11-21',
   // Encarregado de dados (DPO), exigido pela LGPD. NÃO INVENTAR.
   dpo: {
     // Encarregado de dados (LGPD): o presidente, informado pela empresa em 2026-11-19.
     name: 'Tarik Muhamad Ali' as string | null,
-    email: null as string | null,
+    email: 'compliance@ctbxpayments.com' as string | null,
   },
 
   // Crédito de desenvolvimento no rodapé. Com url null, o nome aparece sem link.

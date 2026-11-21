@@ -26,7 +26,7 @@ type Ctx = { company: string; cnpj: string; address: string; dpo: string; dpoEma
 const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 'terms' | 'cookies', LegalDoc> => ({
   privacy: {
     title: 'Política de Privacidade',
-    intro: `Esta política explica como a ${company}, inscrita no CNPJ ${cnpj}, com sede em ${address}, trata os dados pessoais de quem visita este site e de quem se cadastra no aplicativo CTBX Payments, de acordo com a Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 — LGPD).`,
+    intro: `Esta política explica como a ${company}, inscrita no CNPJ ${cnpj}, com sede em ${address}, trata os dados pessoais de quem visita este site e de quem se cadastra na Área do Cliente CTBX Payments (app.ctbxpayments.com), de acordo com a Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 — LGPD).`,
     sections: [
       {
         title: 'Quem é o controlador dos dados',
@@ -38,9 +38,9 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
           'Coletamos apenas os dados necessários para cada finalidade:',
           { list: [
             'Formulário de contato do site: nome, e-mail, telefone (opcional), assunto e o conteúdo da mensagem.',
-            'Cadastro no aplicativo: nome completo, CPF, e-mail, celular e senha. A senha é guardada apenas em forma de hash criptográfico; ninguém na CTBX Payments tem acesso à senha em texto aberto.',
-            'Verificação de identidade (KYC): data de nascimento, nome completo da mãe e nacionalidade. Novas etapas de verificação poderão solicitar outros dados, sempre informados no momento da coleta.',
-            'Dados técnicos de acesso: registros de acesso à aplicação (como data, hora e endereço IP), mantidos para segurança e cumprimento do Marco Civil da Internet (Lei nº 12.965/2014).',
+            'Cadastro na Área do Cliente: nome completo, CPF, e-mail, celular e senha. A senha é guardada apenas em forma de hash criptográfico; ninguém na CTBX Payments tem acesso à senha em texto aberto.',
+            'Verificação de identidade (KYC): data de nascimento, nome completo da mãe, nacionalidade, endereço residencial, declaração de pessoa politicamente exposta (PEP), profissão e faixa de renda mensal. Novas etapas de verificação poderão solicitar outros dados, sempre informados no momento da coleta.',
+            'Dados técnicos de acesso: registros de acesso à aplicação (como data, hora, endereço IP e tipo de navegador ou dispositivo), mantidos para segurança e cumprimento do Marco Civil da Internet (Lei nº 12.965/2014).',
           ] },
           'Não coletamos dados sensíveis (como origem racial, convicção religiosa ou dados de saúde) e não usamos dados biométricos.',
         ],
@@ -49,9 +49,9 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         title: 'Para que usamos os dados e com qual base legal',
         body: [{ list: [
           'Responder mensagens enviadas pelo formulário de contato — com base no seu consentimento, informado no próprio formulário.',
-          'Criar e manter sua conta, confirmar seu e-mail e permitir o acesso ao aplicativo — para a execução de contrato e de procedimentos preliminares a pedido do titular.',
-          'Verificar sua identidade e prevenir fraudes e lavagem de dinheiro — para cumprimento de obrigação legal e regulatória e para a proteção do crédito.',
-          'Proteger a segurança do site e do aplicativo e registrar acessos — com base em obrigação legal e no legítimo interesse da CTBX Payments.',
+          'Criar e manter sua conta, confirmar seu e-mail, permitir o acesso à Área do Cliente e avisar sobre o andamento do seu cadastro — para a execução de contrato e de procedimentos preliminares a pedido do titular.',
+          'Verificar sua identidade e prevenir fraudes e lavagem de dinheiro — para procedimentos preliminares relacionados ao contrato, a pedido do titular, e para o cumprimento de obrigação legal ou regulatória, quando aplicável.',
+          'Proteger a segurança do site e da Área do Cliente e registrar acessos — com base em obrigação legal e no legítimo interesse da CTBX Payments.',
         ] }],
       },
       {
@@ -59,8 +59,8 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         body: [
           'Não vendemos dados pessoais. Compartilhamos dados apenas com fornecedores que nos ajudam a operar o serviço, sob contrato e somente para essas finalidades:',
           { list: [
-            'Provedor de hospedagem e banco de dados, onde o site, o aplicativo e os dados de cadastro são armazenados.',
-            'Provedor de envio de e-mails transacionais, usado para enviar links de confirmação de e-mail e de redefinição de senha.',
+            'Provedor de hospedagem e banco de dados, onde o site, a Área do Cliente e os dados de cadastro são armazenados.',
+            'Provedor de envio de e-mails transacionais, usado para enviar links de confirmação de e-mail e de redefinição de senha e avisos sobre o andamento do cadastro.',
             'Autoridades públicas, quando houver obrigação legal ou ordem judicial.',
           ] },
           'Alguns desses fornecedores podem tratar dados fora do Brasil. Nesses casos, a transferência segue as hipóteses permitidas pela LGPD e as garantias contratuais adequadas.',
@@ -74,10 +74,10 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         title: 'Como protegemos seus dados',
         body: [{ list: [
           'Senhas guardadas somente como hash criptográfico.',
-          'Comunicação entre o aplicativo e os servidores por conexão criptografada.',
-          'Sessão de acesso guardada no armazenamento seguro do próprio celular.',
-          'Links de confirmação de e-mail com prazo de validade e uso único.',
-          'Acesso interno aos dados restrito às pessoas que precisam dele para trabalhar.',
+          'Comunicação entre a Área do Cliente e os servidores sempre por conexão criptografada (HTTPS).',
+          'Sessão de acesso com prazo de validade de até 24 horas, guardada no seu navegador e apagada ao sair da conta.',
+          'Links de confirmação de e-mail e de redefinição de senha com prazo de validade e uso único.',
+          'Acesso interno aos dados restrito às pessoas que precisam dele para trabalhar, com verificação em duas etapas e registro dos acessos.',
         ] }],
       },
       {
@@ -98,7 +98,7 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
       },
       {
         title: 'Crianças e adolescentes',
-        body: ['O site e o aplicativo não são destinados a menores de 18 anos, e não coletamos intencionalmente dados de crianças ou adolescentes.'],
+        body: ['O site e a Área do Cliente não são destinados a menores de 18 anos, e não coletamos intencionalmente dados de crianças ou adolescentes.'],
       },
       {
         title: 'Alterações desta política',
@@ -113,7 +113,7 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
     sections: [
       {
         title: 'Sobre o site',
-        body: ['Este site é institucional e informativo. Ele apresenta a CTBX Payments e os serviços que estão disponíveis ou em preparação. A abertura e o uso da conta digital acontecem pelo aplicativo CTBX Payments, que tem termos próprios, apresentados no momento do cadastro.'],
+        body: ['Este site é institucional e informativo. Ele apresenta a CTBX Payments e os serviços que estão disponíveis ou em preparação. A abertura e o uso da conta digital acontecem na Área do Cliente CTBX Payments (app.ctbxpayments.com), e o tratamento dos dados pessoais segue a Política de Privacidade.'],
       },
       {
         title: 'Serviços marcados como "Em breve"',
@@ -171,8 +171,8 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         body: ['Para exibir as fontes tipográficas, o site carrega arquivos do serviço Google Fonts. Ao fazer isso, o seu navegador se conecta aos servidores do Google, que recebem dados técnicos como o endereço IP. Esse tratamento segue a política de privacidade do Google.'],
       },
       {
-        title: 'Aplicativo CTBX Payments',
-        body: ['No aplicativo, o seu acesso fica guardado no armazenamento seguro do próprio celular, e não em cookies de rastreamento. Ele é usado apenas para manter você conectado com segurança.'],
+        title: 'Área do Cliente CTBX Payments',
+        body: ['Na Área do Cliente, o seu acesso fica guardado no armazenamento local do seu navegador, e não em cookies de rastreamento. Ele é usado apenas para manter você conectado com segurança, vale por até 24 horas e é apagado quando você sai da conta.'],
       },
       {
         title: 'Como controlar cookies',
@@ -189,7 +189,7 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
 const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 'terms' | 'cookies', LegalDoc> => ({
   privacy: {
     title: 'Privacy Policy',
-    intro: `This policy explains how ${company}, registered under CNPJ ${cnpj}, headquartered at ${address}, processes the personal data of visitors to this website and of people who sign up for the CTBX Payments app, in accordance with Brazil’s General Data Protection Law (Law No. 13,709/2018 — LGPD).`,
+    intro: `This policy explains how ${company}, registered under CNPJ ${cnpj}, headquartered at ${address}, processes the personal data of visitors to this website and of people who sign up for the CTBX Payments Customer Area (app.ctbxpayments.com), in accordance with Brazil’s General Data Protection Law (Law No. 13,709/2018 — LGPD).`,
     sections: [
       { title: 'Who is the data controller', body: [`The controller is ${company} (CNPJ ${cnpj}). The data protection officer (DPO) is ${dpo}, who can be reached at ${dpoEmail}.`] },
       {
@@ -198,9 +198,9 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
           'We only collect the data needed for each purpose:',
           { list: [
             'Website contact form: name, email, phone (optional), subject and message content.',
-            'App sign-up: full name, CPF (Brazilian taxpayer ID), email, mobile number and password. The password is stored only as a cryptographic hash; no one at CTBX Payments can see it in plain text.',
-            'Identity verification (KYC): date of birth, mother’s full name and nationality. Further verification steps may request other data, always disclosed at the time of collection.',
-            'Technical access data: application access logs (such as date, time and IP address), kept for security and to comply with Brazil’s Internet Civil Framework (Law No. 12,965/2014).',
+            'Customer Area sign-up: full name, CPF (Brazilian taxpayer ID), email, mobile number and password. The password is stored only as a cryptographic hash; no one at CTBX Payments can see it in plain text.',
+            'Identity verification (KYC): date of birth, mother’s full name, nationality, home address, politically exposed person (PEP) declaration, occupation and monthly income range. Further verification steps may request other data, always disclosed at the time of collection.',
+            'Technical access data: application access logs (such as date, time, IP address and browser or device type), kept for security and to comply with Brazil’s Internet Civil Framework (Law No. 12,965/2014).',
           ] },
           'We do not collect sensitive data (such as racial origin, religious beliefs or health data) and we do not use biometric data.',
         ],
@@ -209,9 +209,9 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         title: 'How we use data and on what legal basis',
         body: [{ list: [
           'Replying to messages sent through the contact form — based on your consent, given in the form itself.',
-          'Creating and maintaining your account, confirming your email and allowing access to the app — to perform a contract and pre-contractual steps at your request.',
-          'Verifying your identity and preventing fraud and money laundering — to comply with legal and regulatory obligations and for credit protection.',
-          'Protecting the security of the website and the app and logging access — based on legal obligation and CTBX Payments’ legitimate interest.',
+          'Creating and maintaining your account, confirming your email, allowing access to the Customer Area and notifying you about the status of your sign-up — to perform a contract and pre-contractual steps at your request.',
+          'Verifying your identity and preventing fraud and money laundering — for pre-contractual steps at your request and to comply with legal or regulatory obligations, where applicable.',
+          'Protecting the security of the website and the Customer Area and logging access — based on legal obligation and CTBX Payments’ legitimate interest.',
         ] }],
       },
       {
@@ -219,8 +219,8 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         body: [
           'We do not sell personal data. We only share data with providers that help us operate the service, under contract and only for these purposes:',
           { list: [
-            'Hosting and database provider, where the website, the app and sign-up data are stored.',
-            'Transactional email provider, used to send email confirmation and password reset links.',
+            'Hosting and database provider, where the website, the Customer Area and sign-up data are stored.',
+            'Transactional email provider, used to send email confirmation and password reset links and updates on the status of your sign-up.',
             'Public authorities, when required by law or court order.',
           ] },
           'Some of these providers may process data outside Brazil. In such cases, the transfer follows the cases permitted by the LGPD and appropriate contractual safeguards.',
@@ -231,10 +231,10 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         title: 'How we protect your data',
         body: [{ list: [
           'Passwords stored only as cryptographic hashes.',
-          'Encrypted connections between the app and our servers.',
-          'Login session kept in the phone’s secure storage.',
-          'Email confirmation links that expire and can only be used once.',
-          'Internal access to data restricted to people who need it for their work.',
+          'Connections between the Customer Area and our servers are always encrypted (HTTPS).',
+          'Login session valid for up to 24 hours, kept in your browser and deleted when you sign out.',
+          'Email confirmation and password reset links that expire and can only be used once.',
+          'Internal access to data restricted to people who need it for their work, with two-step verification and access logging.',
         ] }],
       },
       {
@@ -253,7 +253,7 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
           `To exercise these rights, write to ${dpoEmail}. Some data may need to be kept even after your request when required by law. You may also file a complaint with Brazil’s National Data Protection Authority (ANPD).`,
         ],
       },
-      { title: 'Children and teenagers', body: ['The website and the app are not intended for people under 18, and we do not knowingly collect data from children or teenagers.'] },
+      { title: 'Children and teenagers', body: ['The website and the Customer Area are not intended for people under 18, and we do not knowingly collect data from children or teenagers.'] },
       { title: 'Changes to this policy', body: ['We may update this policy to reflect changes in the service or in the law. The date of the latest update is shown at the top of the page. Significant changes will be announced through CTBX Payments’ channels.'] },
     ],
   },
@@ -262,7 +262,7 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
     title: 'Terms of Use',
     intro: `These terms govern the use of the CTBX Payments corporate website, operated by ${company} (CNPJ ${cnpj}). By browsing the website, you agree to these terms.`,
     sections: [
-      { title: 'About the website', body: ['This is an informational corporate website. It presents CTBX Payments and the services that are available or in preparation. Opening and using the digital account takes place in the CTBX Payments app, which has its own terms, presented at sign-up.'] },
+      { title: 'About the website', body: ['This is an informational corporate website. It presents CTBX Payments and the services that are available or in preparation. Opening and using the digital account takes place in the CTBX Payments Customer Area (app.ctbxpayments.com), and personal data is handled under the Privacy Policy.'] },
       { title: 'Services marked "Coming soon"', body: ['Services labeled "Coming soon" are not yet available. Their descriptions are not an offer, a commercial proposal or a promise of launch on any specific date, and their features may change before they become available.'] },
       { title: 'No financial advice', body: ['The content of this website is not investment advice or financial, legal or tax advice. Seek appropriate guidance before making financial decisions.'] },
       {
@@ -291,7 +291,7 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
     sections: [
       { title: 'The website does not use tracking cookies', body: ['Today, this website does not set advertising, tracking or audience analytics cookies. We do not use tools that follow your browsing on other websites.'] },
       { title: 'Third-party services loaded by the website', body: ['To display its typefaces, the website loads files from the Google Fonts service. When this happens, your browser connects to Google’s servers, which receive technical data such as your IP address. This processing follows Google’s privacy policy.'] },
-      { title: 'CTBX Payments app', body: ['In the app, your login is kept in your phone’s secure storage, not in tracking cookies. It is used only to keep you securely signed in.'] },
+      { title: 'CTBX Payments Customer Area', body: ['In the Customer Area, your login is kept in your browser’s local storage, not in tracking cookies. It is used only to keep you securely signed in, lasts up to 24 hours and is deleted when you sign out.'] },
       { title: 'How to control cookies', body: ['You can delete or block cookies in your browser settings at any time. Since the website does not rely on its own cookies, it keeps working normally.'] },
       { title: 'Changes to this policy', body: ['If we start using analytics or other cookies in the future, this policy will be updated beforehand, and we will ask for your consent where the law requires it.'] },
     ],
