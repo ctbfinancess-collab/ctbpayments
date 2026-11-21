@@ -23,7 +23,7 @@ import { customers } from './customers.js';
 export const customerKyc = pgTable('customer_kyc', {
   id: uuid('id').primaryKey().defaultRandom(),
   customerId: uuid('customer_id').notNull().unique().references(() => customers.id, { onDelete: 'cascade' }),
-  status: text('status').notNull().default('NOT_STARTED'), // NOT_STARTED | IN_PROGRESS | SUBMITTED | APPROVED | REJECTED
+  status: text('status').notNull().default('NOT_STARTED'), // NOT_STARTED | IN_PROGRESS | SUBMITTED | CHANGES_REQUESTED | APPROVED | REJECTED
   birthDate: date('birth_date', { mode: 'string' }),
   motherName: text('mother_name'),
   nationality: text('nationality'),
@@ -48,6 +48,9 @@ export const customerKyc = pgTable('customer_kyc', {
   // Fase 4 — tipo do documento com foto (RG | CNH | RNE) e envio para análise.
   idDocumentType: text('id_document_type'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
+  // Última decisão da análise (o histórico completo fica em kyc_reviews).
+  reviewReason: text('review_reason'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

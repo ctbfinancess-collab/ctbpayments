@@ -1,17 +1,20 @@
 import React from 'react';
 import ConfigErrorScreen from './src/screens/ConfigErrorScreen';
-import CustomerAreaApp from './src/customer-area/CustomerAreaApp';
 import { configError } from './src/config';
 
-// Área do Cliente (Fase 3): no modo PRODUCTION o app inteiro é a Área do
-// Cliente nova (visual do site, layout web, um endereço por página).
-// O app antigo de demonstração (src/LegacyApp.js) só é incluído em builds
-// DEMO/SANDBOX: a comparação abaixo usa a variável gravada no build, então
-// o pacote de produção nem contém aquele código nem seus dados fictícios.
-const LegacyApp = process.env.EXPO_PUBLIC_APP_MODE === 'PRODUCTION' ? null : require('./src/LegacyApp').default;
+// Três apps no mesmo projeto, escolhidos NA HORA DO BUILD (variáveis
+// gravadas no pacote, então cada pacote só contém o próprio código):
+//  - EXPO_PUBLIC_APP_TARGET=STAFF → painel da equipe (análise de KYC);
+//  - EXPO_PUBLIC_APP_MODE=PRODUCTION → Área do Cliente (Fase 3);
+//  - DEMO/SANDBOX → app antigo de demonstração (src/LegacyApp.js).
+const IS_STAFF = process.env.EXPO_PUBLIC_APP_TARGET === 'STAFF';
+const StaffApp = IS_STAFF ? require('./src/staff-area/StaffApp').default : null;
+const CustomerAreaApp = !IS_STAFF && process.env.EXPO_PUBLIC_APP_MODE === 'PRODUCTION' ? require('./src/customer-area/CustomerAreaApp').default : null;
+const LegacyApp = !IS_STAFF && process.env.EXPO_PUBLIC_APP_MODE !== 'PRODUCTION' ? require('./src/LegacyApp').default : null;
 
 export default function App() {
   if (configError) return <ConfigErrorScreen />;
-  if (!LegacyApp) return <CustomerAreaApp />;
+  if (StaffApp) return <StaffApp />;
+  if (CustomerAreaApp) return <CustomerAreaApp />;
   return <LegacyApp />;
 }

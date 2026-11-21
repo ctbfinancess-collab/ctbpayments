@@ -141,6 +141,20 @@
       "when": 1795222929564,
       "tag": "0019_kyc_phase4",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795224337585,
+      "tag": "0020_staff_kyc_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795224338329,
+      "tag": "0021_audit_append_only",
+      "breakpoints": true
     }
   ]
 }

@@ -20,7 +20,7 @@ const STEPS = [
   { key: 'address', label: 'Endereço', done: (k) => k.address.complete },
   { key: 'declarations', label: 'Declarações', done: (k) => k.declarations.complete },
   { key: 'documents', label: 'Documentos', done: (k) => !k.missing.some((m) => ['ID_DOCUMENT_TYPE', 'ID_FRONT', 'ID_BACK', 'SELFIE', 'PROOF_OF_ADDRESS'].includes(m)) },
-  { key: 'review', label: 'Revisão e envio', done: (k) => k.status === 'SUBMITTED' || k.status === 'APPROVED' },
+  { key: 'review', label: 'Revisão e envio', done: (k) => ['SUBMITTED', 'APPROVED', 'REJECTED'].includes(k.status) },
 ];
 
 const firstOpenStep = (k) => (STEPS.find((s) => !s.done(k)) || STEPS[STEPS.length - 1]).key;
@@ -284,12 +284,15 @@ function SubmittedView({ kyc }) {
   return (
     <Card style={{ borderColor: 'rgba(197, 164, 108, 0.35)' }}>
       <View style={{ alignItems: 'center', flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
-        <Heading level={2}>{kyc.status === 'APPROVED' ? 'Identidade verificada' : 'Recebemos seus dados'}</Heading>
+        <Heading level={2}>{kyc.status === 'APPROVED' ? 'Identidade verificada' : kyc.status === 'REJECTED' ? 'Verificação não aprovada' : 'Recebemos seus dados'}</Heading>
         <StatusPill label={info.label} tone={info.tone} />
       </View>
       <Body style={{ marginTop: 12 }}>{info.hint}</Body>
       {kyc.submittedAt ? <Body muted style={{ marginTop: 8 }}>Enviado em {formatDate(kyc.submittedAt)}.</Body> : null}
-      <Notice kind="info" style={{ marginTop: 18 }}>Durante a análise, seus dados ficam bloqueados para alteração. Se precisarmos de algum ajuste, a situação muda aqui e você poderá corrigir.</Notice>
+      {kyc.status === 'REJECTED' && kyc.review?.reason ? <Notice kind="error" style={{ marginTop: 18 }} title="Motivo">{kyc.review.reason}</Notice> : null}
+      {kyc.status === 'REJECTED' ? <Body muted style={{ marginTop: 12 }}>Se tiver dúvidas, fale com nosso atendimento: contato@ctbxpayments.com.</Body> : null}
+      {kyc.status === 'SUBMITTED' ? <Notice kind="info" style={{ marginTop: 18 }}>Durante a análise, seus dados ficam bloqueados para alteração. Se precisarmos de algum ajuste, você recebe um e-mail e poderá corrigir por aqui.</Notice> : null}
+      {kyc.status === 'APPROVED' ? <Notice kind="success" style={{ marginTop: 18 }}>Os serviços financeiros serão liberados assim que estiverem disponíveis. Avisaremos você por e-mail.</Notice> : null}
     </Card>
   );
 }
@@ -319,7 +322,7 @@ export function KycPage() {
     const props = { kyc, onSaved, goTo: setStep };
     body = (
       <>
-        {kyc.status === 'REJECTED' ? <Notice kind="error" title="Sua verificação precisa de ajustes">Revise os dados e os documentos e envie novamente.</Notice> : null}
+        {kyc.status === 'CHANGES_REQUESTED' ? <Notice kind="warning" title="Nossa equipe pediu um ajuste">{kyc.review?.reason || 'Revise os dados e os documentos e envie novamente.'}</Notice> : null}
         <Stepper current={step} kyc={kyc} onSelect={setStep} />
         {step === 'personal' ? <PersonalStep {...props} /> : null}
         {step === 'address' ? <AddressStep {...props} /> : null}

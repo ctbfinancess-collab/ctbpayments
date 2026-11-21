@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import type { CustomerKycRecord, CustomerKycRepository, KycDocumentRecord, KycDocumentRepository, KycSectionPatch, NewKycDocument, PersonalInfoPatch } from './CustomerKycRepository.js';
+import type { CustomerKycRecord, CustomerKycRepository, KycStatus, KycDocumentRecord, KycDocumentRepository, KycSectionPatch, NewKycDocument, PersonalInfoPatch } from './CustomerKycRepository.js';
 
 const EMPTY = {
   status: 'NOT_STARTED' as const, birthDate: null, motherName: null, nationality: null, personalInfoCompletedAt: null,
   addressCep: null, addressStreet: null, addressNumber: null, addressComplement: null, addressDistrict: null, addressCity: null, addressState: null, addressCompletedAt: null,
-  isPep: null, occupation: null, incomeRange: null, declarationsCompletedAt: null, idDocumentType: null, submittedAt: null,
+  isPep: null, occupation: null, incomeRange: null, declarationsCompletedAt: null, idDocumentType: null, submittedAt: null, reviewReason: null, reviewedAt: null,
 };
 
 export class InMemoryCustomerKycRepository implements CustomerKycRepository {
@@ -24,6 +24,17 @@ export class InMemoryCustomerKycRepository implements CustomerKycRepository {
     this.byCustomerId.set(customerId, record);
     return record;
   }
+
+  async transitionStatus(customerId: string, from: KycStatus, patch: KycSectionPatch, now: Date): Promise<boolean> {
+    const existing = this.byCustomerId.get(customerId);
+    if (!existing || existing.status !== from) return false;
+    this.byCustomerId.set(customerId, { ...existing, ...patch, updatedAt: now });
+    return true;
+  }
+
+  async listByStatus(status: KycStatus): Promise<CustomerKycRecord[]> {
+    return [...this.byCustomerId.values()].filter((k) => k.status === status).sort((a, b) => (a.submittedAt?.getTime() ?? 0) - (b.submittedAt?.getTime() ?? 0));
+  }
 }
 
 export class InMemoryKycDocumentRepository implements KycDocumentRepository {
@@ -40,5 +51,9 @@ export class InMemoryKycDocumentRepository implements KycDocumentRepository {
 
   async listActive(customerId: string): Promise<KycDocumentRecord[]> {
     return this.documents.filter((d) => d.customerId === customerId && d.status === 'ACTIVE');
+  }
+
+  async findActiveById(customerId: string, documentId: string): Promise<KycDocumentRecord | undefined> {
+    return this.documents.find((d) => d.id === documentId && d.customerId === customerId && d.status === 'ACTIVE');
   }
 }

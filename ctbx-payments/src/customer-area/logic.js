@@ -71,7 +71,8 @@ export const KYC_STATUS = {
   IN_PROGRESS: { label: 'Em preenchimento', tone: 'warning', hint: 'Sua verificação está em andamento. Complete as etapas que faltam e envie para análise.' },
   SUBMITTED: { label: 'Em análise', tone: 'neutral', hint: 'Recebemos seus dados e documentos. Nossa equipe está analisando; acompanhe a situação por aqui.' },
   APPROVED: { label: 'Aprovada', tone: 'success', hint: 'Sua identidade foi verificada.' },
-  REJECTED: { label: 'Precisa de ajustes', tone: 'danger', hint: 'Revise seus dados. Nossa equipe pode entrar em contato.' },
+  CHANGES_REQUESTED: { label: 'Ajustes solicitados', tone: 'warning', hint: 'Nossa equipe pediu um ajuste. Veja o que corrigir e envie novamente.' },
+  REJECTED: { label: 'Não aprovada', tone: 'danger', hint: 'Não foi possível aprovar a sua verificação. Veja o motivo abaixo.' },
 };
 export const kycStatusInfo = (status) => KYC_STATUS[status] || KYC_STATUS.NOT_STARTED;
 

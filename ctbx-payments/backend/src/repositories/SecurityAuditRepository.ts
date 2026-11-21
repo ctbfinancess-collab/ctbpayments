@@ -7,6 +7,7 @@ export interface SecurityAuditEvent {
   event: string;
   outcome: SecurityAuditOutcome;
   customerId?: string | null;
+  staffId?: string | null;
   ip?: string | null;
   userAgent?: string | null;
   requestId?: string | null;
@@ -27,6 +28,7 @@ export class PostgresSecurityAuditRepository implements SecurityAuditRepository 
       event: event.event,
       outcome: event.outcome,
       customerId: event.customerId ?? null,
+      staffId: event.staffId ?? null,
       ip: event.ip ?? null,
       userAgent: event.userAgent ?? null,
       requestId: event.requestId ?? null,

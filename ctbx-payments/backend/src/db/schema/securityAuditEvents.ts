@@ -12,6 +12,8 @@ export const securityAuditEvents = pgTable('security_audit_events', {
   event: text('event').notNull(),
   outcome: text('outcome').notNull(),
   customerId: uuid('customer_id'),
+  // Quem da equipe agiu (painel administrativo). Nulo para ações do cliente.
+  staffId: uuid('staff_id'),
   ip: text('ip'),
   userAgent: text('user_agent'),
   requestId: text('request_id'),

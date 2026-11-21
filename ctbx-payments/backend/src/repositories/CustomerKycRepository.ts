@@ -1,11 +1,11 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { customerKyc, customerKycDocuments } from '../db/schema/index.js';
 
 // Ver comentário completo em db/schema/customerKyc.ts — status cobre o
 // ciclo de vida inteiro do KYC, mas esta etapa só produz NOT_STARTED/
 // IN_PROGRESS.
-export type KycStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
+export type KycStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'SUBMITTED' | 'CHANGES_REQUESTED' | 'APPROVED' | 'REJECTED';
 
 export interface CustomerKycRecord {
   id: string;
@@ -29,6 +29,8 @@ export interface CustomerKycRecord {
   declarationsCompletedAt: Date | null;
   idDocumentType: string | null;
   submittedAt: Date | null;
+  reviewReason: string | null;
+  reviewedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -61,6 +63,7 @@ export interface KycDocumentRepository {
   // Grava o novo arquivo e marca o anterior do mesmo tipo como REPLACED.
   addReplacing(doc: NewKycDocument, now: Date): Promise<KycDocumentRecord>;
   listActive(customerId: string): Promise<KycDocumentRecord[]>;
+  findActiveById(customerId: string, documentId: string): Promise<KycDocumentRecord | undefined>;
 }
 
 // O service (CustomerKycService) já resolve o merge entre o que existia
@@ -81,6 +84,10 @@ export interface CustomerKycRepository {
   findByCustomerId(customerId: string): Promise<CustomerKycRecord | undefined>;
   upsertPersonalInfo(customerId: string, patch: PersonalInfoPatch, now: Date): Promise<CustomerKycRecord>;
   saveSection(customerId: string, patch: KycSectionPatch, now: Date): Promise<CustomerKycRecord>;
+  // Fila da análise (painel da equipe): mais antigos primeiro.
+  listByStatus(status: KycStatus): Promise<CustomerKycRecord[]>;
+  // Muda a situação só se ainda estiver em `from` (atômico). true = mudou.
+  transitionStatus(customerId: string, from: KycStatus, patch: KycSectionPatch, now: Date): Promise<boolean>;
 }
 
 export class PostgresCustomerKycRepository implements CustomerKycRepository {
@@ -113,6 +120,16 @@ export class PostgresCustomerKycRepository implements CustomerKycRepository {
     if (!row) throw new Error('Failed to save customer KYC section');
     return row as CustomerKycRecord;
   }
+
+  async transitionStatus(customerId: string, from: KycStatus, patch: KycSectionPatch, now: Date): Promise<boolean> {
+    const rows = await this.db.update(customerKyc).set({ ...patch, updatedAt: now })
+      .where(and(eq(customerKyc.customerId, customerId), eq(customerKyc.status, from))).returning({ id: customerKyc.id });
+    return rows.length > 0;
+  }
+
+  async listByStatus(status: KycStatus): Promise<CustomerKycRecord[]> {
+    return (await this.db.select().from(customerKyc).where(eq(customerKyc.status, status)).orderBy(asc(customerKyc.submittedAt))) as CustomerKycRecord[];
+  }
 }
 
 export class PostgresKycDocumentRepository implements KycDocumentRepository {
@@ -132,5 +149,11 @@ export class PostgresKycDocumentRepository implements KycDocumentRepository {
     const rows = await this.db.select().from(customerKycDocuments)
       .where(and(eq(customerKycDocuments.customerId, customerId), eq(customerKycDocuments.status, 'ACTIVE')));
     return rows as KycDocumentRecord[];
+  }
+
+  async findActiveById(customerId: string, documentId: string): Promise<KycDocumentRecord | undefined> {
+    const [row] = await this.db.select().from(customerKycDocuments)
+      .where(and(eq(customerKycDocuments.id, documentId), eq(customerKycDocuments.customerId, customerId), eq(customerKycDocuments.status, 'ACTIVE'))).limit(1);
+    return row as KycDocumentRecord | undefined;
   }
 }

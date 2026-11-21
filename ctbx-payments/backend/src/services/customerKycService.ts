@@ -48,18 +48,21 @@ export interface KycOverview {
   missing: string[];
   canSubmit: boolean;
   editable: boolean;
+  // Última decisão da análise (motivo visível ao cliente).
+  review: { reason: string | null; reviewedAt: string | null };
 }
 
-// Depois de enviado para análise (ou aprovado), nada pode ser alterado
-// pelo cliente. Se a análise pedir ajustes (REJECTED), volta a ser editável.
+// Depois de enviado para análise (ou aprovado, ou recusado), nada pode ser
+// alterado pelo cliente. Se a análise pedir ajustes (CHANGES_REQUESTED),
+// volta a ser editável e o cliente reenvia.
 function assertEditable(kyc: CustomerKycRecord | undefined): void {
-  if (kyc && (kyc.status === 'SUBMITTED' || kyc.status === 'APPROVED')) {
+  if (kyc && (kyc.status === 'SUBMITTED' || kyc.status === 'APPROVED' || kyc.status === 'REJECTED')) {
     throw new ApiError('KYC_LOCKED', 'Seus dados já foram enviados para análise e não podem ser alterados agora.', { statusCode: 409 });
   }
 }
 
 function nextStatus(kyc: CustomerKycRecord | undefined): KycStatus {
-  return kyc?.status === 'REJECTED' ? 'REJECTED' : 'IN_PROGRESS';
+  return kyc?.status === 'CHANGES_REQUESTED' ? 'CHANGES_REQUESTED' : 'IN_PROGRESS';
 }
 
 // KYC — Etapa 1 (dados pessoais complementares do titular PF). Identidade
@@ -105,7 +108,7 @@ export class CustomerKycService {
     // Uma vez além de IN_PROGRESS (SUBMITTED/APPROVED/REJECTED — ainda
     // inalcançável nesta etapa, mas já protegido pra quando existir),
     // salvar dados pessoais não rebaixa o status geral do KYC.
-    const status: KycStatus = existing && existing.status !== 'NOT_STARTED' && existing.status !== 'IN_PROGRESS' ? existing.status : 'IN_PROGRESS';
+    const status: KycStatus = existing?.status === 'CHANGES_REQUESTED' ? 'CHANGES_REQUESTED' : 'IN_PROGRESS';
     const complete = Boolean(birthDate && motherName && nationality);
     const personalInfoCompletedAt = complete ? (existing?.personalInfoCompletedAt ?? now) : null;
 
@@ -191,7 +194,7 @@ export class CustomerKycService {
     if (!byKind.has('SELFIE')) missing.push('SELFIE');
     if (!byKind.has('PROOF_OF_ADDRESS')) missing.push('PROOF_OF_ADDRESS');
     const status = kyc?.status ?? 'NOT_STARTED';
-    const editable = status !== 'SUBMITTED' && status !== 'APPROVED';
+    const editable = status !== 'SUBMITTED' && status !== 'APPROVED' && status !== 'REJECTED';
     return {
       status,
       submittedAt: kyc?.submittedAt ? kyc.submittedAt.toISOString() : null,
@@ -202,6 +205,7 @@ export class CustomerKycService {
       missing,
       canSubmit: editable && missing.length === 0,
       editable,
+      review: { reason: kyc?.reviewReason ?? null, reviewedAt: kyc?.reviewedAt ? kyc.reviewedAt.toISOString() : null },
     };
   }
 

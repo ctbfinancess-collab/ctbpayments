@@ -20,6 +20,9 @@ export interface AppConfig {
   trustProxy?: boolean | number;
   // Fase 4 — documentos do KYC. O envio só liga com
   // KYC_DOCUMENT_UPLOADS_ENABLED=true E com bucket + chave configurados.
+  // Painel da equipe (análise de KYC). Em produção só liga com
+  // STAFF_PANEL_ENABLED=true e a chave do autenticador configurada.
+  staff?: { enabled: boolean; appBaseUrl: string | undefined; totpEncryptionKey: string | undefined };
   kyc?: {
     uploadsEnabled: boolean;
     encryptionKey: string | undefined;
@@ -87,8 +90,15 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
       : undefined,
   };
 
+  const staff = {
+    enabled: source.STAFF_PANEL_ENABLED?.trim().toLowerCase() === 'true',
+    appBaseUrl: source.STAFF_APP_BASE_URL?.trim() || undefined,
+    totpEncryptionKey: source.STAFF_TOTP_ENCRYPTION_KEY?.trim() || undefined,
+  };
+
   return {
     kyc,
+    staff,
     nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins,
     adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl, trustProxy,
   };

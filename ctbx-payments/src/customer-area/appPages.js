@@ -70,8 +70,10 @@ export function DashboardPage({ navigation }) {
                 <StatusPill label={kyc.label} tone={kyc.tone} />
               </View>
               <Body style={{ marginTop: 12 }}>{kyc.hint}</Body>
-              {data.kyc.status !== 'APPROVED' && data.kyc.status !== 'SUBMITTED' ? (
-                <Button onPress={() => navigation.navigate('Kyc')} style={styles.cardButton} title={data.kyc.status === 'NOT_STARTED' ? 'Iniciar verificação' : 'Continuar verificação'} />
+              {['NOT_STARTED', 'IN_PROGRESS', 'CHANGES_REQUESTED'].includes(data.kyc.status) ? (
+                <Button onPress={() => navigation.navigate('Kyc')} style={styles.cardButton} title={data.kyc.status === 'NOT_STARTED' ? 'Iniciar verificação' : data.kyc.status === 'CHANGES_REQUESTED' ? 'Fazer os ajustes' : 'Continuar verificação'} />
+              ) : data.kyc.status === 'REJECTED' ? (
+                <Button onPress={() => navigation.navigate('Kyc')} style={styles.cardButton} title="Ver o motivo" variant="ghost" />
               ) : null}
             </Card>
           </GridItem>

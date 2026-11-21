@@ -73,6 +73,10 @@ import { InMemorySandboxValidationRepository } from './providers/sandbox/InMemor
 import { InMemoryTransportCardRepository } from './providers/sandbox/InMemoryTransportCardRepository.js';
 import { VirtualCardRepository } from './repositories/VirtualCardRepository.js';
 import { customerRoutes } from './routes/customers.js';
+import { staffRoutes } from './routes/staff.js';
+import { InMemoryStaffRepository, PostgresStaffRepository, type StaffRepository } from './repositories/StaffRepository.js';
+import { StaffAuthService } from './services/staffAuthService.js';
+import { KycReviewService } from './services/kycReviewService.js';
 import { healthRoutes } from './routes/health.js';
 import { v1Routes } from './routes/v1.js';
 import { AdminAuthService } from './services/adminAuthService.js';
@@ -184,6 +188,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // fallback dos demais domínios de Customer Identity.
   let customerKycRepository: CustomerKycRepository = new InMemoryCustomerKycRepository();
   let kycDocumentRepository: KycDocumentRepository = new InMemoryKycDocumentRepository();
+  let staffRepository: StaffRepository = new InMemoryStaffRepository();
   // Registro de auditoria de segurança (Fase 2) — mesmo par real+fallback.
   let auditRepository: SecurityAuditRepository = new InMemorySecurityAuditRepository();
   if (!options.providers && config.databaseUrl) {
@@ -209,6 +214,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     companyRepresentativeRepository = new PostgresCompanyRepresentativeRepository(db);
     customerKycRepository = new PostgresCustomerKycRepository(db);
     kycDocumentRepository = new PostgresKycDocumentRepository(db);
+    staffRepository = new PostgresStaffRepository(db);
     auditRepository = new PostgresSecurityAuditRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
@@ -301,6 +307,19 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // (não implementa nenhuma das interfaces de ports.ts). Etapa 1: só
   // cadastro PF, sem sessão/login próprios ainda.
   await app.register(async (api) => customerRoutes(api, { customerAuthService, emailVerificationService, passwordResetService, emailChangeService, companyService, kycService, audit: auditRepository }), { prefix: `/${config.apiVersion}/customers` });
+
+  // Painel da equipe (análise de KYC). Produção: só com
+  // STAFF_PANEL_ENABLED=true, a chave do autenticador e o endereço do painel.
+  // Fora de produção: chave temporária (testes).
+  const staffCfg = config.staff;
+  const staffKey = parseEncryptionKey(staffCfg?.totpEncryptionKey) ?? (isProduction ? undefined : randomBytes(32));
+  const staffEnabled = isProduction ? Boolean(staffCfg?.enabled && staffKey && staffCfg?.appBaseUrl) : staffCfg?.enabled !== false;
+  if (staffEnabled && staffKey) {
+    const staffAuth = new StaffAuthService(staffRepository, staffKey, emailProvider, staffCfg?.appBaseUrl ?? 'http://localhost:8082');
+    const review = new KycReviewService(customerRepository, customerKycRepository, kycDocumentRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081');
+    if (config.nodeEnv === 'test' && staffRepository instanceof InMemoryStaffRepository) app.decorate('testStaffRepo', staffRepository);
+    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
+  }
 
   await app.register(async (adminApi) => {
     // Persistência real do CMS (Etapa 1 — fundação). Fail closed: sem

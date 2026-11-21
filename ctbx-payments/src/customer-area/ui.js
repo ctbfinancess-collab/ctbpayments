@@ -73,7 +73,7 @@ export function LinkText({ children, onPress, style }) {
   );
 }
 
-export function Field({ label, value, onChangeText, error, hint, secure, autoComplete, keyboardType, placeholder, autoCapitalize = 'none', maxLength, onSubmitEditing, inputMode, testID }) {
+export function Field({ label, value, onChangeText, error, hint, secure, autoComplete, keyboardType, placeholder, autoCapitalize = 'none', maxLength, onSubmitEditing, inputMode, testID, multiline, numberOfLines }) {
   const [focused, setFocused] = useState(false);
   const [visible, setVisible] = useState(false);
   return (
@@ -88,6 +88,8 @@ export function Field({ label, value, onChangeText, error, hint, secure, autoCom
           inputMode={inputMode}
           keyboardType={keyboardType}
           maxLength={maxLength}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
           onBlur={() => setFocused(false)}
           onChangeText={onChangeText}
           onFocus={() => setFocused(true)}
@@ -95,7 +97,7 @@ export function Field({ label, value, onChangeText, error, hint, secure, autoCom
           placeholder={placeholder}
           placeholderTextColor={ca.textMuted}
           secureTextEntry={secure && !visible}
-          style={styles.input}
+          style={[styles.input, multiline && { minHeight: 110, textAlignVertical: 'top' }]}
           testID={testID}
           value={value}
         />

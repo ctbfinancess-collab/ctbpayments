@@ -1,0 +1,52 @@
+import type { RenderedEmail } from './resetPasswordTemplate.js';
+
+// E-mails do painel da equipe e das decisões de KYC. Mesmo visual dos
+// demais (grafite, dourado). Nenhum dado sensível do cliente (CPF,
+// documentos) vai no e-mail.
+const esc = (s: string) => s.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
+
+function layout(title: string, paragraphs: string[], button?: { label: string; url: string }): string {
+  const body = paragraphs.map((p) => `<p style="margin:0 0 14px; font-size:15px; line-height:1.6; color:#BFC2C7;">${esc(p).replace(/\n/g, '<br />')}</p>`).join('');
+  const cta = button
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 6px;"><tr><td style="border-radius:999px; background:#C5A46C;"><a href="${esc(button.url)}" style="display:inline-block; padding:13px 26px; font-size:14px; font-weight:600; color:#1C1D20; text-decoration:none;">${esc(button.label)}</a></td></tr></table>`
+    : '';
+  return `<!doctype html>
+<html lang="pt-BR">
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>${esc(title)}</title></head>
+  <body style="margin:0; padding:0; background-color:#1C1E21; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#1C1E21; padding:32px 16px;">
+      <tr><td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#26282C; border:1px solid #3A3D42; border-radius:16px;">
+          <tr><td style="padding:32px;">
+            <div style="width:48px; height:2px; background:#C5A46C; margin:0 0 20px;"></div>
+            <h1 style="margin:0 0 16px; font-size:21px; line-height:1.3; color:#F4F4F2;">${esc(title)}</h1>
+            ${body}${cta}
+            <p style="margin:18px 0 0; font-size:12px; color:#8E9298;">Mensagem automática da CTBX Payments.</p>
+          </td></tr>
+        </table>
+      </td></tr>
+    </table>
+  </body>
+</html>`;
+}
+
+export function renderStaffInviteTemplate(name: string, link: string): RenderedEmail {
+  const title = 'Convite para o painel da equipe';
+  const p = [
+    `Olá, ${name}.`,
+    'Você foi convidado(a) para o painel administrativo da CTBX Payments. No primeiro acesso você vai criar sua senha e configurar a verificação em duas etapas com um aplicativo autenticador (Google Authenticator, Microsoft Authenticator ou similar).',
+    'Este link vale por 48 horas e só pode ser usado uma vez. Se você não esperava este convite, ignore esta mensagem.',
+  ];
+  return { subject: `${title} — CTBX Payments`, html: layout(title, p, { label: 'Aceitar convite', url: link }), text: `${title}\n\n${p.join('\n\n')}\n\n${link}` };
+}
+
+export type KycDecisionKind = 'APPROVED' | 'CHANGES_REQUESTED' | 'REJECTED';
+
+export function renderKycDecisionTemplate(kind: KycDecisionKind, reason: string | null, appLink: string): RenderedEmail {
+  const copy = {
+    APPROVED: { title: 'Sua identidade foi verificada', p: ['Boa notícia: concluímos a análise e sua identidade foi verificada.', 'Os serviços financeiros serão liberados assim que estiverem disponíveis; avisaremos você.'] },
+    CHANGES_REQUESTED: { title: 'Precisamos de um ajuste na sua verificação', p: ['Analisamos seus dados e precisamos que você corrija ou reenvie algumas informações.', `O que ajustar: ${reason ?? ''}`, 'Entre na Área do Cliente, faça o ajuste e envie novamente.'] },
+    REJECTED: { title: 'Não foi possível verificar sua identidade', p: ['Concluímos a análise e, desta vez, não foi possível aprovar a sua verificação.', `Motivo: ${reason ?? ''}`, 'Se tiver dúvidas, responda a este e-mail ou fale com nosso atendimento: contato@ctbxpayments.com.'] },
+  }[kind];
+  return { subject: `${copy.title} — CTBX Payments`, html: layout(copy.title, copy.p, { label: 'Abrir a Área do Cliente', url: appLink }), text: `${copy.title}\n\n${copy.p.join('\n\n')}\n\n${appLink}` };
+}
