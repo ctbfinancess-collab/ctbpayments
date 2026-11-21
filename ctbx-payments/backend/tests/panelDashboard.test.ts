@@ -81,7 +81,7 @@ test('Dashboard: números reais, 12 meses, pendências mais antigas primeiro, at
   assert.doesNotMatch(JSON.stringify(d), /"ip"|127\.0\.0\.1/);
 
   const b = await app.inject({ method: 'GET', url: '/v1/staff/badges', headers: h });
-  assert.deepEqual(b.json().data.badges, { kyc: 1, companies: 0 });
+  assert.deepEqual(b.json().data.badges, { kyc: 1, companies: 0, lgpd: { open: 0, overdue: 0 } });
   await app.close();
 });
 

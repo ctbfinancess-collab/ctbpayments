@@ -9,8 +9,10 @@ import type { StaffAuthService } from '../services/staffAuthService.js';
 import { safeError } from '../observability/logger.js';
 import { envelope } from '../utils/envelope.js';
 import { emptyObjectSchema, idSchema, objectSchema } from '../validation/schemas.js';
+import type { LgpdService } from '../services/lgpdService.js';
+import type { PanelReportsService } from '../services/panelReportsService.js';
 
-export interface StaffRoutesOptions { auth: StaffAuthService; review: KycReviewService; companyReview: CompanyReviewService; staffCustomers: StaffCustomerService; audit: SecurityAuditRepository }
+export interface StaffRoutesOptions { auth: StaffAuthService; review: KycReviewService; companyReview: CompanyReviewService; staffCustomers: StaffCustomerService; audit: SecurityAuditRepository; lgpd: LgpdService; reports: PanelReportsService }
 
 // Toda ação do painel é auditada (inclusive LEITURAS de fichas e documentos),
 // com quem fez, sobre qual cliente, IP e resultado. Nunca o conteúdo.
@@ -43,6 +45,12 @@ const AUDITED: Record<string, string> = {
   'POST /customers/:customerId/unblock': 'STAFF_CUSTOMER_UNBLOCK',
   'POST /customers/:customerId/revoke-sessions': 'STAFF_CUSTOMER_SESSIONS_REVOKE',
   'GET /audit': 'STAFF_AUDIT_VIEW',
+  'GET /lgpd/requests': 'STAFF_LGPD_LIST',
+  'POST /lgpd/requests': 'STAFF_LGPD_CREATE',
+  'GET /lgpd/requests/:requestId': 'STAFF_LGPD_VIEW',
+  'POST /lgpd/requests/:requestId/update': 'STAFF_LGPD_UPDATE',
+  'POST /lgpd/requests/:requestId/close': 'STAFF_LGPD_CLOSE',
+  'GET /reports/monthly': 'STAFF_REPORTS_VIEW',
 };
 
 function outcome(status: number): SecurityAuditOutcome {
@@ -56,7 +64,7 @@ const tokenOf = (request: FastifyRequest) => {
 };
 
 export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOptions): Promise<void> {
-  const { auth, review, companyReview, staffCustomers, audit } = options;
+  const { auth, review, companyReview, staffCustomers, audit, lgpd, reports } = options;
   const prefix = app.prefix;
 
   app.addHook('onResponse', async (request, reply) => {
@@ -70,7 +78,7 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
       await audit.record({
         event, outcome: outcome(reply.statusCode),
         staffId: request.staffAuth?.id ?? request.auditStaffId ?? null,
-        customerId: params.customerId && /^[0-9a-f-]{36}$/i.test(params.customerId) ? params.customerId : null,
+        customerId: params.customerId && /^[0-9a-f-]{36}$/i.test(params.customerId) ? params.customerId : (request.auditCustomerId ?? null),
         ip: request.ip, userAgent: typeof ua === 'string' ? ua.slice(0, 200) : null, requestId: request.id,
         details: { statusCode: reply.statusCode, ...(params.companyId ? { companyId: params.companyId } : {}), ...(request.auditDetails ?? {}) },
       });
@@ -262,7 +270,57 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
   app.get('/overview', { preValidation: requireStaff }, async (request) => envelope(request, { overview: await staffCustomers.overview() }));
   app.get('/dashboard', { preValidation: requireStaff }, async (request) => envelope(request, { dashboard: await staffCustomers.dashboard() }));
   // Contadores do menu: só números, consultados a cada página; sem auditoria.
-  app.get('/badges', { preValidation: requireStaff }, async (request) => envelope(request, { badges: await staffCustomers.badges() }));
+  app.get('/badges', { preValidation: requireStaff }, async (request) => {
+    const base = await staffCustomers.badges();
+    return envelope(request, { badges: request.staffAuth?.role === 'ADMIN' ? { ...base, lgpd: await lgpd.counts() } : base });
+  });
+
+  // Etapa D — solicitações de titulares (LGPD) e relatório mensal. Só
+  // administradores. A auditoria registra o protocolo, nunca o conteúdo.
+  const lgpdParams = { type: 'object', additionalProperties: false, required: ['requestId'], properties: { requestId: idSchema } } as const;
+  const lstr = (max: number) => ({ type: 'string', maxLength: max }) as const;
+  app.get('/lgpd/requests', { preValidation: requireAdmin, config: limit(60), schema: { querystring: { type: 'object', additionalProperties: false, properties: { filter: { type: 'string', enum: ['open', 'closed', 'all'] } } } } }, async (request) => {
+    const filter = ((request.query as { filter?: 'open' | 'closed' | 'all' }).filter) ?? 'open';
+    request.auditDetails = { filter };
+    return envelope(request, { requests: await lgpd.list(filter) });
+  });
+  app.post('/lgpd/requests', {
+    preValidation: requireAdmin, config: limit(20),
+    schema: { body: { type: 'object', additionalProperties: false, required: ['right', 'channel', 'requesterName', 'requesterContact', 'description', 'receivedAt'], properties: { right: lstr(40), channel: lstr(10), requesterName: lstr(200), requesterContact: lstr(240), description: lstr(2200), receivedAt: lstr(40), customerLookup: lstr(200) } } },
+  }, async (request, reply) => {
+    const created = await lgpd.create(request.staffAuth!, request.body as Parameters<LgpdService['create']>[1]);
+    request.auditDetails = { protocol: created.protocol, right: created.right, linkedCustomer: created.linkedCustomer };
+    const full = await lgpd.detail(created.id);
+    if (full.customer) request.auditCustomerId = full.customer.id;
+    reply.code(201);
+    return envelope(request, { request: full });
+  });
+  app.get('/lgpd/requests/:requestId', { preValidation: requireAdmin, config: limit(60), schema: { params: lgpdParams } }, async (request) => {
+    const r = await lgpd.detail((request.params as { requestId: string }).requestId);
+    request.auditDetails = { protocol: r.protocol };
+    if (r.customer) request.auditCustomerId = r.customer.id;
+    return envelope(request, { request: r });
+  });
+  app.post('/lgpd/requests/:requestId/update', {
+    preValidation: requireAdmin, config: limit(30),
+    schema: { params: lgpdParams, body: { type: 'object', additionalProperties: false, properties: { note: lstr(2200), inProgress: { type: 'boolean' }, identityVerified: { type: 'boolean' } } } },
+  }, async (request) => {
+    const body = request.body as { note?: string; inProgress?: boolean; identityVerified?: boolean };
+    const r = await lgpd.update(request.staffAuth!, (request.params as { requestId: string }).requestId, body);
+    request.auditDetails = { protocol: r.protocol, note: Boolean(body.note?.trim()), inProgress: body.inProgress === true, identityVerified: body.identityVerified === true };
+    if (r.customer) request.auditCustomerId = r.customer.id;
+    return envelope(request, { request: r });
+  });
+  app.post('/lgpd/requests/:requestId/close', {
+    preValidation: requireAdmin, config: limit(10),
+    schema: { params: lgpdParams, body: { type: 'object', additionalProperties: false, required: ['outcome', 'response'], properties: { outcome: lstr(20), response: lstr(4200) } } },
+  }, async (request) => {
+    const r = await lgpd.close(request.staffAuth!, (request.params as { requestId: string }).requestId, request.body as { outcome: string; response: string });
+    request.auditDetails = { protocol: r.protocol, outcome: r.status, onTime: !r.overdue };
+    if (r.customer) request.auditCustomerId = r.customer.id;
+    return envelope(request, { request: r });
+  });
+  app.get('/reports/monthly', { preValidation: requireAdmin, config: limit(30) }, async (request) => envelope(request, { report: await reports.monthly(12) }));
 
   // Busca: o termo pesquisado (nome, e-mail ou CPF) NUNCA vai para a
   // auditoria — só o tipo de busca e quantos resultados vieram.

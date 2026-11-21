@@ -79,6 +79,9 @@ import { StaffAuthService } from './services/staffAuthService.js';
 import { KycReviewService } from './services/kycReviewService.js';
 import { CompanyReviewService } from './services/companyReviewService.js';
 import { StaffCustomerService } from './services/staffCustomerService.js';
+import { LgpdService } from './services/lgpdService.js';
+import { PanelReportsService } from './services/panelReportsService.js';
+import { InMemoryLgpdRequestRepository, PostgresLgpdRequestRepository, type LgpdRequestRepository } from './repositories/LgpdRequestRepository.js';
 import { healthRoutes } from './routes/health.js';
 import { cspReportRoutes } from './routes/cspReport.js';
 import { sql } from 'drizzle-orm';
@@ -197,6 +200,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   let staffRepository: StaffRepository = new InMemoryStaffRepository();
   // Registro de auditoria de segurança (Fase 2) — mesmo par real+fallback.
   let auditRepository: SecurityAuditRepository = new InMemorySecurityAuditRepository();
+  let lgpdRepository: LgpdRequestRepository = new InMemoryLgpdRequestRepository();
   // Verificação de saúde com o banco (monitoramento externo). Sem banco
   // configurado (testes/dev em memória), responde que não há banco.
   let databasePing: (() => Promise<void>) | undefined;
@@ -226,6 +230,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     kycDocumentRepository = new PostgresKycDocumentRepository(db);
     staffRepository = new PostgresStaffRepository(db);
     auditRepository = new PostgresSecurityAuditRepository(db);
+    lgpdRepository = new PostgresLgpdRequestRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
   // E-mail (Resend real em produção, memória em dev/test). Em produção só
@@ -339,7 +344,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     if (config.nodeEnv === 'test' && staffRepository instanceof InMemoryStaffRepository) app.decorate('testStaffRepo', staffRepository);
     const companyReview = new CompanyReviewService(companyRepository, companyRepresentativeRepository, customerRepository, customerKycRepository, staffRepository, kycVault, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081', options.cnpjLookup);
     const staffCustomers = new StaffCustomerService(customerRepository, customerSessionRepository, customerKycRepository, companyRepository, companyRepresentativeRepository, staffRepository, auditRepository, emailProvider, config.customerAppBaseUrl ?? 'http://localhost:8081');
-    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, companyReview, staffCustomers, audit: auditRepository }), { prefix: `/${config.apiVersion}/staff` });
+    const lgpd = new LgpdService(lgpdRepository, customerRepository, staffRepository);
+    const reports = new PanelReportsService(customerRepository, companyRepository, customerKycRepository, staffRepository, lgpdRepository);
+    await app.register(async (api) => staffRoutes(api, { auth: staffAuth, review, companyReview, staffCustomers, audit: auditRepository, lgpd, reports }), { prefix: `/${config.apiVersion}/staff` });
   }
 
   if (legacyRoutesEnabled) await app.register(async (adminApi) => {
