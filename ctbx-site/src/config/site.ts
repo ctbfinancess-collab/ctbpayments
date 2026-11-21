@@ -32,9 +32,9 @@ export const site = {
   legalUpdatedAt: '2026-11-21',
   // Encarregado de dados (DPO), exigido pela LGPD. NÃO INVENTAR.
   dpo: {
-    // Encarregado de dados (LGPD): Caio Batista, informado pela empresa em 2026-11-21 (antes: o presidente). Contato: e-mail de compliance.
+    // Encarregado de dados (LGPD): Caio Batista, informado pela empresa em 2026-11-21 (antes: o presidente). Contato: e-mail do jurídico (juridico@), definido em 2026-11-21.
     name: 'Caio Batista' as string | null,
-    email: 'compliance@ctbxpayments.com' as string | null,
+    email: 'juridico@ctbxpayments.com' as string | null,
   },
 
   // Crédito de desenvolvimento no rodapé. Com url null, o nome aparece sem link.
