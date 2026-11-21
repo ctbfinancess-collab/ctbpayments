@@ -206,7 +206,7 @@ export const DOCUMENT_TYPE_OPTIONS = [
 export const DOCUMENT_KINDS = [
   { kind: 'ID_FRONT', label: 'Documento: frente', hint: 'Foto nítida da frente do documento. Um PDF com frente e verso também vale.' },
   { kind: 'ID_BACK', label: 'Documento: verso', hint: 'Foto nítida do verso. Dispensado se a frente for um PDF com os dois lados.' },
-  { kind: 'SELFIE', label: 'Selfie', hint: 'Foto do seu rosto, de frente, sem óculos escuros ou boné (JPG ou PNG).' },
+  { kind: 'SELFIE', label: 'Selfie', hint: 'Tirada agora pela câmera: rosto de frente, bem iluminado, sem óculos escuros ou boné.' },
   { kind: 'PROOF_OF_ADDRESS', label: 'Comprovante de residência', hint: 'Conta de consumo ou extrato emitido nos últimos 90 dias.' },
 ];
 export const MISSING_LABELS = {

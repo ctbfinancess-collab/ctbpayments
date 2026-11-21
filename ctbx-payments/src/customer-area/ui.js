@@ -257,3 +257,68 @@ const choiceStyles = StyleSheet.create({
   selected: { backgroundColor: 'rgba(197, 164, 108, 0.1)', borderColor: ca.goldLight },
   text: { color: ca.textSoft, fontFamily: fonts.medium, fontSize: 14 },
 });
+
+// Selfie tirada NA HORA pela câmera (Fase 4, ajuste): não abre seletor de
+// arquivos. Usa getUserMedia (câmera frontal no celular, webcam no
+// computador), mostra a prévia e entrega a foto em JPEG. Observação: isto
+// impede escolher uma imagem salva pela tela, mas não é "prova de vida"
+// (que exige um serviço especializado).
+export function CameraCapture({ onPhoto, disabled, label = 'Abrir câmera' }) {
+  const videoRef = React.useRef(null);
+  const streamRef = React.useRef(null);
+  const [state, setState] = useState('idle'); // idle | live | preview
+  const [photo, setPhoto] = useState(null);
+  const [error, setError] = useState('');
+  const stop = () => { streamRef.current?.getTracks().forEach((t) => t.stop()); streamRef.current = null; };
+  React.useEffect(() => () => { stop(); if (photo?.url) URL.revokeObjectURL(photo.url); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (Platform.OS !== 'web') return <Text style={styles.hint}>Tire a selfie pelo site da Área do Cliente.</Text>;
+  const open = async () => {
+    setError('');
+    if (!navigator.mediaDevices?.getUserMedia) { setError('Este navegador não permite usar a câmera. Use o celular ou outro navegador.'); return; }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 960 } }, audio: false });
+      streamRef.current = stream;
+      setState('live');
+    } catch {
+      setError('Não foi possível abrir a câmera. Permita o acesso à câmera no navegador e tente de novo.');
+    }
+  };
+  const take = () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth; canvas.height = v.videoHeight;
+    canvas.getContext('2d').drawImage(v, 0, 0);
+    canvas.toBlob((blob) => { if (!blob) return; stop(); setPhoto({ blob, url: URL.createObjectURL(blob) }); setState('preview'); }, 'image/jpeg', 0.92);
+  };
+  const retake = () => { if (photo?.url) URL.revokeObjectURL(photo.url); setPhoto(null); open(); };
+  const use = () => { const p = photo; setState('idle'); setPhoto(null); onPhoto(p.blob); setTimeout(() => URL.revokeObjectURL(p.url), 0); };
+  const frame = { width: '100%', maxWidth: 360, borderRadius: 12, background: '#0e0f11', display: 'block', marginBottom: 12 };
+  return (
+    <View style={{ width: '100%', maxWidth: 360 }}>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+      {state === 'live' ? (
+        <>
+          {React.createElement('video', {
+            // Liga a câmera ao elemento assim que ele aparece na tela.
+            ref: (el) => { videoRef.current = el; if (el && streamRef.current && el.srcObject !== streamRef.current) { el.srcObject = streamRef.current; el.play().catch(() => {}); } },
+            playsInline: true, muted: true, autoPlay: true, style: { ...frame, transform: 'scaleX(-1)' } })}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Button onPress={take} style={{ minWidth: 160 }} title="Tirar foto" />
+            <Button onPress={() => { stop(); setState('idle'); }} style={{ minWidth: 120 }} title="Cancelar" variant="ghost" />
+          </View>
+        </>
+      ) : state === 'preview' && photo ? (
+        <>
+          {React.createElement('img', { src: photo.url, alt: 'Prévia da selfie', style: frame })}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+            <Button onPress={use} style={{ minWidth: 160 }} title="Usar esta foto" />
+            <Button onPress={retake} style={{ minWidth: 140 }} title="Tirar outra" variant="ghost" />
+          </View>
+        </>
+      ) : (
+        <Button disabled={disabled} onPress={open} style={{ alignSelf: 'flex-start', minWidth: 200 }} title={label} variant="outline" />
+      )}
+    </View>
+  );
+}

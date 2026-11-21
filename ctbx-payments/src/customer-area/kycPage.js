@@ -10,7 +10,7 @@ import {
   saveKycDocumentType, submitKyc, uploadKycDocument, validateKyc, withdrawKyc,
 } from './logic';
 import { ca, fonts } from './theme';
-import { Body, Button, Card, ChoiceGroup, DataRow, Field, FilePicker, Heading, LinkText, LoadingBlock, Notice, StatusPill, useLayout } from './ui';
+import { Body, Button, Card, CameraCapture, ChoiceGroup, DataRow, Field, FilePicker, Heading, LinkText, LoadingBlock, Notice, StatusPill, useLayout } from './ui';
 
 // Verificação de identidade completa (Fase 4): 5 etapas, cada uma salva
 // sozinha ("pode sair e continuar depois"). Depois de enviada para análise,
@@ -182,7 +182,9 @@ function DocumentRow({ item, doc, waived, uploading, onFile, disabled }) {
         </View>
         <Body muted style={{ fontSize: 13, lineHeight: 20, marginTop: 6 }}>{doc ? `${doc.contentType === 'application/pdf' ? 'PDF' : 'Imagem'} · ${formatBytes(doc.sizeBytes)} · enviado em ${formatDate(doc.uploadedAt)}` : item.hint}</Body>
       </View>
-      <FilePicker accept={item.kind === 'SELFIE' ? 'image/jpeg,image/png' : 'image/jpeg,image/png,application/pdf'} disabled={disabled || uploading} label={uploading ? 'Enviando…' : doc ? 'Trocar arquivo' : 'Enviar arquivo'} onFile={onFile} />
+      {item.kind === 'SELFIE'
+        ? <CameraCapture disabled={disabled || uploading} label={uploading ? 'Enviando…' : doc ? 'Tirar outra selfie' : 'Abrir câmera'} onPhoto={onFile} />
+        : <FilePicker accept="image/jpeg,image/png,application/pdf" disabled={disabled || uploading} label={uploading ? 'Enviando…' : doc ? 'Trocar arquivo' : 'Enviar arquivo'} onFile={onFile} />}
     </View>
   );
 }
