@@ -19,11 +19,12 @@ export const OUTCOME_LABELS = { SUCCESS: ['Sucesso', 'success'], FAILURE: ['Falh
 export const eventLabel = (code) => EVENT_LABELS[code] || code;
 
 // Detalhes técnicos da auditoria em português.
-const DETAIL_LABELS = { kind: 'tipo', results: 'resultados', notified: 'e-mail enviado', decision: 'decisão', documentId: 'documento', companyId: 'empresa', role: 'perfil', fields: 'campos', filters: 'filtros', contentType: 'formato', sizeBytes: 'tamanho', documentType: 'documento', accountCreated: 'conta criada', targetStaffId: 'pessoa da equipe' };
+const DETAIL_LABELS = { filter: 'filtro', byCustomer: 'de um cliente específico', kind: 'tipo', results: 'resultados', notified: 'e-mail enviado', decision: 'decisão', documentId: 'documento', companyId: 'empresa', role: 'perfil', fields: 'campos', filters: 'filtros', contentType: 'formato', sizeBytes: 'tamanho', documentType: 'documento', accountCreated: 'conta criada', targetStaffId: 'pessoa da equipe' };
 const VALUE_LABELS = { true: 'sim', false: 'não', cpf: 'CPF', email: 'e-mail', name: 'nome', APPROVED: 'aprovado', CHANGES_REQUESTED: 'ajustes', REJECTED: 'recusado', ADMIN: 'administrador', ANALYST: 'analista', nenhum: 'nenhum' };
 const HIDE = new Set(['statusCode', 'companyId', 'documentId', 'targetStaffId']);
 export function describeDetails(details) {
   if (!details) return '';
   return Object.entries(details).filter(([k]) => !HIDE.has(k))
-    .map(([k, v]) => `${DETAIL_LABELS[k] || k}: ${k === 'sizeBytes' ? `${Math.max(1, Math.round(Number(v) / 1024))} KB` : VALUE_LABELS[String(v)] || v}`).join(' · ');
+    .filter(([k, v]) => !(k === 'byCustomer' && v === false))
+    .map(([k, v]) => `${DETAIL_LABELS[k] || k}: ${k === 'sizeBytes' ? `${Math.max(1, Math.round(Number(v) / 1024))} KB` : k === 'filter' ? (v === 'todos' ? 'todos' : eventLabel(String(v))) : VALUE_LABELS[String(v)] || v}`).join(' · ');
 }

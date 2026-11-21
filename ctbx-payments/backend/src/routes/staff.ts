@@ -273,7 +273,9 @@ export async function staffRoutes(app: FastifyInstance, options: StaffRoutesOpti
     schema: { querystring: { type: 'object', additionalProperties: false, properties: { event: { type: 'string', maxLength: 80 }, customerId: idSchema, staffId: idSchema, from: { type: 'string', maxLength: 40 }, to: { type: 'string', maxLength: 40 }, before: { type: 'string', maxLength: 40 } } } },
   }, async (request) => {
     const filters = request.query as Record<string, string>;
-    request.auditDetails = { filters: Object.keys(filters).sort().join(',') || 'nenhum' };
+    // Registra QUAL filtro foi usado (o tipo de evento não é dado pessoal) e se
+    // a consulta foi sobre um cliente específico — nunca quem.
+    request.auditDetails = { filter: filters.event || 'todos', byCustomer: Boolean(filters.customerId) };
     return envelope(request, { events: await staffCustomers.auditLog(filters) });
   });
 }

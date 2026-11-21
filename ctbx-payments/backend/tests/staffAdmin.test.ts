@@ -137,7 +137,7 @@ test('audit trail: admin can filter it, the consultation itself is audited, and 
   const logins = (await app.inject({ method: 'GET', url: `/v1/staff/audit?event=CUSTOMER_LOGIN&customerId=${ana.id}`, headers: admin })).json().data.events;
   assert.ok(logins.length >= 1);
   assert.ok(logins.every((e: { event: string; customerId: string }) => e.event === 'CUSTOMER_LOGIN' && e.customerId === ana.id));
-  assert.ok(audit.events.some((e) => e.event === 'STAFF_AUDIT_VIEW' && e.outcome === 'SUCCESS'));
+  assert.ok(audit.events.some((e) => e.event === 'STAFF_AUDIT_VIEW' && e.outcome === 'SUCCESS' && e.details!.filter === 'CUSTOMER_LOGIN' && e.details!.byCustomer === true));
   const searches = audit.events.filter((e) => e.event === 'STAFF_CUSTOMER_SEARCH');
   assert.deepEqual(searches.map((e) => e.details!.kind), ['name', 'cpf']);
   const dump = JSON.stringify(audit.events);

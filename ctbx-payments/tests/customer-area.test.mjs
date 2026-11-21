@@ -142,5 +142,6 @@ test('staff audit details are shown in Portuguese and never expose internal ids'
   assert.equal(describeDetails({ statusCode: 200, decision: 'APPROVED', notified: true }), 'decisão: aprovado · e-mail enviado: sim');
   assert.equal(describeDetails({ companyId: 'x', documentId: 'y', kind: 'SELFIE', sizeBytes: 2048 }), 'tipo: SELFIE · tamanho: 2 KB');
   assert.equal(eventLabel('STAFF_CUSTOMER_BLOCK'), 'Conta de cliente suspensa');
+  assert.equal(describeDetails({ statusCode: 200, filter: 'CUSTOMER_LOGIN', byCustomer: false }), 'filtro: Login do cliente');
   assert.equal(eventLabel('ALGO_NOVO'), 'ALGO_NOVO');
 });
