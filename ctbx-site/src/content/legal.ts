@@ -1,8 +1,8 @@
 // Textos das políticas legais (Privacidade, Termos de Uso, Cookies).
 //
-// IMPORTANTE: versão preliminar redigida a partir do que o site e o app
-// fazem hoje (dados realmente coletados, fornecedores realmente usados).
-// Deve ser revisada por assessoria jurídica antes da publicação.
+// Política de Privacidade aprovada pelo jurídico em 2026-11-21 (minuta
+// revisada). Descreve só o que o sistema faz de fato; qualquer mudança no
+// que é coletado ou em fornecedores exige atualizar este texto.
 // Dados da empresa vêm de src/config/site.ts — nada é inventado aqui.
 import { site } from '../config/site';
 import type { Lang } from '../i18n/ui';
@@ -37,47 +37,68 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         body: [
           'Coletamos apenas os dados necessários para cada finalidade:',
           { list: [
-            'Formulário de contato do site: nome, e-mail, telefone (opcional), assunto e o conteúdo da mensagem.',
-            'Cadastro na Área do Cliente: nome completo, CPF, e-mail, celular e senha. A senha é guardada apenas em forma de hash criptográfico; ninguém na CTBX Payments tem acesso à senha em texto aberto.',
-            'Verificação de identidade (KYC): data de nascimento, nome completo da mãe, nacionalidade, endereço residencial, declaração de pessoa politicamente exposta (PEP), profissão e faixa de renda mensal. Novas etapas de verificação poderão solicitar outros dados, sempre informados no momento da coleta.',
-            'Dados técnicos de acesso: registros de acesso à aplicação (como data, hora, endereço IP e tipo de navegador ou dispositivo), mantidos para segurança e cumprimento do Marco Civil da Internet (Lei nº 12.965/2014).',
+            'Formulário de contato do site: nome, e-mail, telefone (opcional), assunto e mensagem.',
+            'Cadastro na Área do Cliente: nome completo, CPF, e-mail, celular e senha. A senha é guardada apenas como hash criptográfico; ninguém na CTBX Payments tem acesso a ela.',
+            'Verificação de identidade (KYC) — dados pessoais: data de nascimento, nome completo da mãe e nacionalidade.',
+            'Verificação de identidade (KYC) — endereço residencial e declarações: se você é pessoa politicamente exposta (PEP), profissão e faixa de renda mensal.',
+            'Verificação de identidade (KYC) — documentos: fotos do documento de identidade (RG, CNH ou RNE/CRNM, frente e verso) e do comprovante de endereço, e uma selfie tirada pela câmera no momento do cadastro, usada para conferir que a pessoa é a titular do documento.',
+            'Cadastro de empresa (pessoa jurídica): CNPJ, razão social, nome fantasia, data de abertura, natureza jurídica, atividade principal, e-mail e telefone da empresa, faixa de faturamento anual, endereço, o cargo de quem solicita e documentos da empresa (cartão CNPJ, contrato social ou estatuto, comprovante de endereço e, se for o caso, procuração).',
+            'Dados técnicos e de segurança: registros de acesso (data, hora, endereço IP e tipo de navegador ou dispositivo) e registros de eventos de segurança, como entradas na conta, trocas de senha e decisões da análise cadastral.',
           ] },
-          'Não coletamos dados sensíveis (como origem racial, convicção religiosa ou dados de saúde) e não usamos dados biométricos.',
+          'A selfie é um dado biométrico e, por isso, um dado pessoal sensível pela LGPD. Ela é usada apenas para identificação e prevenção à fraude no cadastro, e é conferida por uma pessoa da nossa equipe, sem reconhecimento facial automático. Não coletamos outros dados sensíveis, como origem racial, convicção religiosa ou dados de saúde.',
         ],
       },
       {
         title: 'Para que usamos os dados e com qual base legal',
-        body: [{ list: [
-          'Responder mensagens enviadas pelo formulário de contato — com base no seu consentimento, informado no próprio formulário.',
-          'Criar e manter sua conta, confirmar seu e-mail, permitir o acesso à Área do Cliente e avisar sobre o andamento do seu cadastro — para a execução de contrato e de procedimentos preliminares a pedido do titular.',
-          'Verificar sua identidade e prevenir fraudes e lavagem de dinheiro — para procedimentos preliminares relacionados ao contrato, a pedido do titular, e para o cumprimento de obrigação legal ou regulatória, quando aplicável.',
-          'Proteger a segurança do site e da Área do Cliente e registrar acessos — com base em obrigação legal e no legítimo interesse da CTBX Payments.',
-        ] }],
+        body: [
+          { list: [
+            'Responder mensagens do formulário de contato — consentimento (art. 7º, I).',
+            'Criar e manter sua conta, confirmar seu e-mail, dar acesso à Área do Cliente e avisar sobre o andamento do seu cadastro — execução de contrato e procedimentos preliminares a pedido do titular (art. 7º, V).',
+            'Verificar a sua identidade e a da empresa e prevenir fraudes e lavagem de dinheiro — cumprimento de obrigação legal ou regulatória (art. 7º, II) e procedimentos preliminares relacionados ao contrato (art. 7º, V).',
+            'Conferir que a pessoa da selfie é a titular do documento — prevenção à fraude e segurança do titular em processos de identificação e autenticação de cadastro (art. 11, II, g).',
+            'Proteger a segurança da conta e manter registros de acesso — obrigação legal (Marco Civil da Internet, art. 15) e legítimo interesse (art. 7º, IX).',
+          ] },
+          'Não usamos seus dados para publicidade e não tomamos decisões exclusivamente automatizadas sobre o seu cadastro: toda aprovação, recusa ou pedido de ajuste é feito por uma pessoa da equipe, e a recusa é sempre fundamentada.',
+        ],
       },
       {
         title: 'Com quem compartilhamos',
         body: [
-          'Não vendemos dados pessoais. Compartilhamos dados apenas com fornecedores que nos ajudam a operar o serviço, sob contrato e somente para essas finalidades:',
+          'Não vendemos dados pessoais. Compartilhamos dados apenas com fornecedores que nos ajudam a operar o serviço, sob contrato e somente para estas finalidades:',
           { list: [
-            'Provedor de hospedagem e banco de dados, onde o site, a Área do Cliente e os dados de cadastro são armazenados.',
-            'Provedor de envio de e-mails transacionais, usado para enviar links de confirmação de e-mail e de redefinição de senha e avisos sobre o andamento do cadastro.',
-            'Autoridades públicas, quando houver obrigação legal ou ordem judicial.',
+            'Railway: hospedagem do site e da Área do Cliente, banco de dados e armazenamento dos documentos, em servidores nos Estados Unidos.',
+            'Resend: envio de e-mails de confirmação, de redefinição de senha e de andamento do cadastro, a partir de servidores no Brasil (São Paulo); a empresa fica nos Estados Unidos.',
+            'Hostinger: e-mail corporativo, onde chegam as mensagens do formulário de contato.',
+            'Google Fonts: exibição das fontes do site; recebe dados técnicos como o endereço IP.',
           ] },
-          'Alguns desses fornecedores podem tratar dados fora do Brasil. Nesses casos, a transferência segue as hipóteses permitidas pela LGPD e as garantias contratuais adequadas.',
+          'Na análise de empresas, enviamos apenas o número do CNPJ a um serviço que consulta a base pública da Receita Federal (BrasilAPI); nenhum dado pessoal do solicitante é enviado.',
+          'Também compartilhamos dados com autoridades públicas quando houver obrigação legal ou ordem judicial.',
         ],
       },
       {
+        title: 'Transferência internacional de dados',
+        body: ['Parte dos dados, inclusive as fotos de documentos e a selfie, é armazenada em servidores nos Estados Unidos. Essas transferências seguem o art. 33 da LGPD, com cláusulas-padrão contratuais aprovadas pela Autoridade Nacional de Proteção de Dados (Resolução CD/ANPD nº 19/2024). Os documentos e a selfie são guardados criptografados (AES-256), e a chave de criptografia fica separada dos arquivos.'],
+      },
+      {
         title: 'Por quanto tempo guardamos',
-        body: ['Guardamos os dados pelo tempo necessário para cada finalidade. Mensagens do formulário de contato são mantidas enquanto forem necessárias para o atendimento. Dados de cadastro e de verificação de identidade são mantidos enquanto a conta estiver ativa e, depois do encerramento, pelo prazo exigido pela legislação aplicável, inclusive as normas de prevenção à lavagem de dinheiro. Registros de acesso são mantidos pelo prazo do Marco Civil da Internet.'],
+        body: [{ list: [
+          'Mensagens do formulário de contato: enquanto forem necessárias para o atendimento.',
+          'Dados de cadastro, verificação de identidade e documentos, inclusive versões substituídas durante o cadastro: enquanto a conta estiver ativa e por 5 anos depois do encerramento, conforme a legislação de prevenção à lavagem de dinheiro (Lei nº 9.613/1998).',
+          'Registros de acesso: pelo menos 6 meses, conforme o Marco Civil da Internet (Lei nº 12.965/2014, art. 15).',
+          'Registros de segurança e de decisões da análise cadastral: pelo mesmo prazo dos dados de cadastro, pois comprovam como cada decisão foi tomada.',
+        ] }],
       },
       {
         title: 'Como protegemos seus dados',
         body: [{ list: [
-          'Senhas guardadas somente como hash criptográfico.',
-          'Comunicação entre a Área do Cliente e os servidores sempre por conexão criptografada (HTTPS).',
+          'Senhas guardadas apenas como hash criptográfico.',
+          'Comunicação sempre por conexão criptografada (HTTPS).',
+          'Fotos de documentos e selfie guardadas criptografadas, fora do banco de dados, com a chave separada.',
+          'Banco de dados sem acesso público pela internet, com cópias de segurança diárias e semanais.',
           'Sessão de acesso com prazo de validade de até 24 horas, guardada no seu navegador e apagada ao sair da conta.',
+          'Acesso da equipe por painel exclusivo, com verificação em duas etapas obrigatória e permissões por função.',
+          'Todo acesso da equipe a documentos e toda decisão da análise são registrados numa trilha de auditoria protegida contra alteração e exclusão.',
           'Links de confirmação de e-mail e de redefinição de senha com prazo de validade e uso único.',
-          'Acesso interno aos dados restrito às pessoas que precisam dele para trabalhar, com verificação em duas etapas e registro dos acessos.',
         ] }],
       },
       {
@@ -89,9 +110,10 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
             'corrigir dados incompletos, inexatos ou desatualizados;',
             'pedir anonimização, bloqueio ou eliminação de dados desnecessários ou tratados em desconformidade com a lei;',
             'pedir a portabilidade dos dados a outro fornecedor;',
-            'pedir a eliminação dos dados tratados com base no consentimento, e revogar esse consentimento;',
+            'pedir a eliminação dos dados tratados com base no consentimento e revogar esse consentimento;',
             'saber com quem compartilhamos seus dados;',
-            'ser informado sobre a possibilidade de não fornecer consentimento e suas consequências.',
+            'ser informado sobre a possibilidade de não dar consentimento e suas consequências;',
+            'pedir a revisão de decisões tomadas sobre o seu cadastro.',
           ] },
           `Para exercer esses direitos, escreva para ${dpoEmail}. Alguns dados podem precisar ser mantidos mesmo após o pedido, quando a lei exigir. Você também pode apresentar reclamação à Autoridade Nacional de Proteção de Dados (ANPD).`,
         ],
@@ -102,11 +124,10 @@ const pt = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
       },
       {
         title: 'Alterações desta política',
-        body: ['Podemos atualizar esta política para refletir mudanças no serviço ou na legislação. A data da última atualização aparece no topo da página. Mudanças relevantes serão comunicadas pelos canais da CTBX Payments.'],
+        body: ['Podemos atualizar esta política para refletir mudanças no serviço ou na legislação. A data da última atualização aparece no topo da página. Mudanças relevantes serão comunicadas por e-mail aos clientes cadastrados e pelos canais da CTBX Payments.'],
       },
     ],
   },
-
   terms: {
     title: 'Termos de Uso',
     intro: `Estes termos regulam o uso do site institucional da CTBX Payments, mantido pela ${company} (CNPJ ${cnpj}). Ao navegar pelo site, você concorda com estes termos.`,
@@ -197,44 +218,65 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
         body: [
           'We only collect the data needed for each purpose:',
           { list: [
-            'Website contact form: name, email, phone (optional), subject and message content.',
-            'Customer Area sign-up: full name, CPF (Brazilian taxpayer ID), email, mobile number and password. The password is stored only as a cryptographic hash; no one at CTBX Payments can see it in plain text.',
-            'Identity verification (KYC): date of birth, mother’s full name, nationality, home address, politically exposed person (PEP) declaration, occupation and monthly income range. Further verification steps may request other data, always disclosed at the time of collection.',
-            'Technical access data: application access logs (such as date, time, IP address and browser or device type), kept for security and to comply with Brazil’s Internet Civil Framework (Law No. 12,965/2014).',
+            'Website contact form: name, email, phone (optional), subject and message.',
+            'Customer Area sign-up: full name, CPF (Brazilian taxpayer ID), email, mobile number and password. The password is stored only as a cryptographic hash; no one at CTBX Payments can see it.',
+            'Identity verification (KYC) — personal data: date of birth, mother’s full name and nationality.',
+            'Identity verification (KYC) — home address and declarations: whether you are a politically exposed person (PEP), occupation and monthly income range.',
+            'Identity verification (KYC) — documents: photos of your ID (RG, CNH or RNE/CRNM, front and back) and proof of address, and a selfie taken with the camera during sign-up, used to confirm that the person is the document holder.',
+            'Company sign-up: CNPJ, legal name, trade name, opening date, legal nature, main activity, company email and phone, annual revenue range, address, the applicant’s position and company documents (CNPJ card, articles of association or bylaws, proof of address and, where applicable, power of attorney).',
+            'Technical and security data: access logs (date, time, IP address and browser or device type) and security event logs, such as sign-ins, password changes and sign-up review decisions.',
           ] },
-          'We do not collect sensitive data (such as racial origin, religious beliefs or health data) and we do not use biometric data.',
+          'The selfie is biometric data and therefore sensitive personal data under the LGPD. It is used only for identification and fraud prevention at sign-up, and it is checked by a person on our team, without automated facial recognition. We do not collect other sensitive data, such as racial origin, religious beliefs or health data.',
         ],
       },
       {
         title: 'How we use data and on what legal basis',
-        body: [{ list: [
-          'Replying to messages sent through the contact form — based on your consent, given in the form itself.',
-          'Creating and maintaining your account, confirming your email, allowing access to the Customer Area and notifying you about the status of your sign-up — to perform a contract and pre-contractual steps at your request.',
-          'Verifying your identity and preventing fraud and money laundering — for pre-contractual steps at your request and to comply with legal or regulatory obligations, where applicable.',
-          'Protecting the security of the website and the Customer Area and logging access — based on legal obligation and CTBX Payments’ legitimate interest.',
-        ] }],
+        body: [
+          { list: [
+            'Replying to contact form messages — consent (art. 7, I).',
+            'Creating and maintaining your account, confirming your email, giving access to the Customer Area and notifying you about your sign-up status — performance of a contract and pre-contractual steps at your request (art. 7, V).',
+            'Verifying your identity and your company’s, and preventing fraud and money laundering — compliance with legal or regulatory obligations (art. 7, II) and pre-contractual steps (art. 7, V).',
+            'Confirming that the person in the selfie is the document holder — fraud prevention and the data subject’s security in identification and authentication processes (art. 11, II, g).',
+            'Protecting account security and keeping access logs — legal obligation (Internet Civil Framework, art. 15) and legitimate interest (art. 7, IX).',
+          ] },
+          'We do not use your data for advertising, and we do not make decisions about your sign-up based solely on automated processing: every approval, rejection or request for changes is made by a person on our team, and rejections are always justified.',
+        ],
       },
       {
         title: 'Who we share data with',
         body: [
           'We do not sell personal data. We only share data with providers that help us operate the service, under contract and only for these purposes:',
           { list: [
-            'Hosting and database provider, where the website, the Customer Area and sign-up data are stored.',
-            'Transactional email provider, used to send email confirmation and password reset links and updates on the status of your sign-up.',
-            'Public authorities, when required by law or court order.',
+            'Railway: hosting of the website and the Customer Area, database and document storage, on servers in the United States.',
+            'Resend: sending sign-up confirmation, password reset and sign-up status emails, from servers in Brazil (São Paulo); the company is based in the United States.',
+            'Hostinger: corporate email, where contact form messages are received.',
+            'Google Fonts: displaying the website’s typefaces; receives technical data such as the IP address.',
           ] },
-          'Some of these providers may process data outside Brazil. In such cases, the transfer follows the cases permitted by the LGPD and appropriate contractual safeguards.',
+          'When reviewing companies, we only send the CNPJ number to a service that queries the Brazilian Federal Revenue’s public database (BrasilAPI); no personal data about the applicant is sent.',
+          'We also share data with public authorities when required by law or court order.',
         ],
       },
-      { title: 'How long we keep data', body: ['We keep data for as long as each purpose requires. Contact form messages are kept while needed to handle your request. Sign-up and identity verification data are kept while the account is active and, after it is closed, for the period required by applicable law, including anti-money-laundering rules. Access logs are kept for the period set by the Internet Civil Framework.'] },
+      { title: 'International data transfers', body: ['Part of the data, including ID photos and the selfie, is stored on servers in the United States. These transfers follow art. 33 of the LGPD, using standard contractual clauses approved by Brazil’s National Data Protection Authority (ANPD Resolution CD/ANPD No. 19/2024). Documents and selfies are stored encrypted (AES-256), and the encryption key is kept separately from the files.'] },
+      {
+        title: 'How long we keep data',
+        body: [{ list: [
+          'Contact form messages: while needed to handle your request.',
+          'Sign-up, identity verification data and documents, including versions replaced during sign-up: while the account is active and for 5 years after it is closed, under anti-money-laundering law (Law No. 9,613/1998).',
+          'Access logs: at least 6 months, under the Internet Civil Framework (Law No. 12,965/2014, art. 15).',
+          'Security logs and sign-up review decisions: for the same period as sign-up data, as they show how each decision was made.',
+        ] }],
+      },
       {
         title: 'How we protect your data',
         body: [{ list: [
           'Passwords stored only as cryptographic hashes.',
-          'Connections between the Customer Area and our servers are always encrypted (HTTPS).',
+          'Connections always encrypted (HTTPS).',
+          'ID photos and selfies stored encrypted, outside the database, with the key kept separately.',
+          'Database with no public internet access, with daily and weekly backups.',
           'Login session valid for up to 24 hours, kept in your browser and deleted when you sign out.',
+          'Team access through a dedicated panel, with mandatory two-step verification and role-based permissions.',
+          'Every team access to documents and every review decision is recorded in an audit trail protected against changes and deletion.',
           'Email confirmation and password reset links that expire and can only be used once.',
-          'Internal access to data restricted to people who need it for their work, with two-step verification and access logging.',
         ] }],
       },
       {
@@ -244,20 +286,20 @@ const en = ({ company, cnpj, address, dpo, dpoEmail }: Ctx): Record<'privacy' | 
           { list: [
             'confirm whether we process your data and access it;',
             'correct incomplete, inaccurate or outdated data;',
-            'request anonymization, blocking or deletion of unnecessary data or data processed unlawfully;',
-            'request portability of your data to another provider;',
+            'request anonymization, blocking or deletion of unnecessary data or data processed in breach of the law;',
+            'request data portability to another provider;',
             'request deletion of data processed based on consent, and withdraw that consent;',
-            'know who we share your data with;',
-            'be informed about the possibility of not giving consent and its consequences.',
+            'find out who we share your data with;',
+            'be informed about the possibility of not giving consent and its consequences;',
+            'request a review of decisions made about your sign-up.',
           ] },
-          `To exercise these rights, write to ${dpoEmail}. Some data may need to be kept even after your request when required by law. You may also file a complaint with Brazil’s National Data Protection Authority (ANPD).`,
+          `To exercise these rights, write to ${dpoEmail}. Some data may need to be kept even after your request, when required by law. You may also file a complaint with Brazil’s National Data Protection Authority (ANPD).`,
         ],
       },
       { title: 'Children and teenagers', body: ['The website and the Customer Area are not intended for people under 18, and we do not knowingly collect data from children or teenagers.'] },
-      { title: 'Changes to this policy', body: ['We may update this policy to reflect changes in the service or in the law. The date of the latest update is shown at the top of the page. Significant changes will be announced through CTBX Payments’ channels.'] },
+      { title: 'Changes to this policy', body: ['We may update this policy to reflect changes in the service or in the law. The date of the latest update is shown at the top of the page. Significant changes will be announced by email to registered customers and through CTBX Payments’ channels.'] },
     ],
   },
-
   terms: {
     title: 'Terms of Use',
     intro: `These terms govern the use of the CTBX Payments corporate website, operated by ${company} (CNPJ ${cnpj}). By browsing the website, you agree to these terms.`,
