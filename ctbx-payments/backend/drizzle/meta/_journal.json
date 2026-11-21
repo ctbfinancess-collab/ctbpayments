@@ -134,6 +134,13 @@
       "when": 1795218605396,
       "tag": "0018_security_audit_events",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795222929564,
+      "tag": "0019_kyc_phase4",
+      "breakpoints": true
     }
   ]
 }

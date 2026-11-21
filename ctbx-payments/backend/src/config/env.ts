@@ -18,6 +18,13 @@ export interface AppConfig {
   // Sem isso, atrás de um proxy todo cliente parece ter o mesmo IP e o
   // limite de tentativas por IP vira um bloqueio coletivo.
   trustProxy?: boolean | number;
+  // Fase 4 — documentos do KYC. O envio só liga com
+  // KYC_DOCUMENT_UPLOADS_ENABLED=true E com bucket + chave configurados.
+  kyc?: {
+    uploadsEnabled: boolean;
+    encryptionKey: string | undefined;
+    bucket: { endpoint: string; region: string; name: string; accessKeyId: string; secretAccessKey: string; forcePathStyle: boolean } | undefined;
+  };
 }
 
 const environments = new Set<Environment>(['development', 'test', 'staging', 'production']);
@@ -71,7 +78,17 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     : rawTrustProxy === 'true' ? true : Number(rawTrustProxy);
   if (typeof trustProxy === 'number' && (!Number.isInteger(trustProxy) || trustProxy < 1)) throw new Error('TRUST_PROXY must be true, false or a positive integer');
 
+  const bucketVars = [source.KYC_BUCKET_ENDPOINT, source.KYC_BUCKET_NAME, source.KYC_BUCKET_ACCESS_KEY_ID, source.KYC_BUCKET_SECRET_ACCESS_KEY].map((v) => v?.trim() || undefined);
+  const kyc = {
+    uploadsEnabled: source.KYC_DOCUMENT_UPLOADS_ENABLED?.trim().toLowerCase() === 'true',
+    encryptionKey: source.KYC_DOCUMENT_ENCRYPTION_KEY?.trim() || undefined,
+    bucket: bucketVars.every(Boolean)
+      ? { endpoint: bucketVars[0]!, name: bucketVars[1]!, accessKeyId: bucketVars[2]!, secretAccessKey: bucketVars[3]!, region: source.KYC_BUCKET_REGION?.trim() || 'auto', forcePathStyle: source.KYC_BUCKET_URL_STYLE?.trim().toLowerCase() === 'path' }
+      : undefined,
+  };
+
   return {
+    kyc,
     nodeEnv: rawEnvironment as Environment, host, port, apiVersion, logLevel: source.LOG_LEVEL ?? 'info', corsOrigins,
     adminApiToken, databaseUrl, adminSessionSecret, sandboxCardEncryptionKey, resendApiKey, emailFrom, customerAppBaseUrl, trustProxy,
   };

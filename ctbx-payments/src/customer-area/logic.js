@@ -34,6 +34,25 @@ const MESSAGES = {
   KYC_BIRTH_DATE_INVALID: 'Data de nascimento inválida.',
   KYC_MOTHER_NAME_INVALID: 'Informe o nome completo da mãe.',
   KYC_NATIONALITY_INVALID: 'Informe a nacionalidade.',
+  KYC_LOCKED: 'Seus dados já foram enviados para análise e não podem ser alterados agora.',
+  KYC_INCOMPLETE: 'Complete todas as etapas antes de enviar para análise.',
+  KYC_CEP_INVALID: 'CEP inválido.',
+  KYC_STATE_INVALID: 'Estado (UF) inválido.',
+  KYC_STREET_INVALID: 'Informe a rua.',
+  KYC_NUMBER_INVALID: 'Informe o número (ou "S/N").',
+  KYC_DISTRICT_INVALID: 'Informe o bairro.',
+  KYC_CITY_INVALID: 'Informe a cidade.',
+  KYC_OCCUPATION_INVALID: 'Informe sua profissão.',
+  KYC_INCOME_INVALID: 'Escolha a faixa de renda.',
+  KYC_PEP_INVALID: 'Responda se você é pessoa politicamente exposta.',
+  KYC_DOCUMENT_TYPE_INVALID: 'Escolha o tipo de documento.',
+  KYC_DOCUMENT_EMPTY: 'Selecione um arquivo.',
+  KYC_DOCUMENT_TOO_LARGE: 'O arquivo passa de 10 MB. Envie uma foto menor.',
+  REQUEST_TOO_LARGE: 'O arquivo passa de 10 MB. Envie uma foto menor.',
+  KYC_DOCUMENT_FORMAT_INVALID: 'Envie um arquivo JPG, PNG ou PDF.',
+  KYC_SELFIE_PDF: 'A selfie precisa ser uma foto (JPG ou PNG).',
+  KYC_UPLOADS_DISABLED: 'O envio de documentos ainda não está disponível.',
+  CUSTOMER_KYC_RATE_LIMITED: 'Muitas tentativas seguidas. Aguarde um minuto e tente novamente.',
   NETWORK_ERROR: 'Sem conexão com o servidor. Verifique sua internet e tente novamente.',
   TIMEOUT: 'O servidor demorou para responder. Tente novamente.',
 };
@@ -48,9 +67,9 @@ export function messageFor(error, fallback = 'Não foi possível concluir. Tente
 export const isSessionError = (error) => error?.status === 401 && /SESSION_INVALID|AUTH_REQUIRED/.test(error.code || '');
 
 export const KYC_STATUS = {
-  NOT_STARTED: { label: 'Não iniciada', tone: 'warning', hint: 'Complete seus dados pessoais para iniciar a verificação.' },
-  IN_PROGRESS: { label: 'Em preenchimento', tone: 'warning', hint: 'Seus dados pessoais foram salvos. As próximas etapas (endereço e documentos) serão liberadas em breve.' },
-  SUBMITTED: { label: 'Em análise', tone: 'neutral', hint: 'Recebemos seus dados e nossa equipe está analisando.' },
+  NOT_STARTED: { label: 'Não iniciada', tone: 'warning', hint: 'Informe seus dados, endereço e documentos para verificar sua identidade.' },
+  IN_PROGRESS: { label: 'Em preenchimento', tone: 'warning', hint: 'Sua verificação está em andamento. Complete as etapas que faltam e envie para análise.' },
+  SUBMITTED: { label: 'Em análise', tone: 'neutral', hint: 'Recebemos seus dados e documentos. Nossa equipe está analisando; acompanhe a situação por aqui.' },
   APPROVED: { label: 'Aprovada', tone: 'success', hint: 'Sua identidade foi verificada.' },
   REJECTED: { label: 'Precisa de ajustes', tone: 'danger', hint: 'Revise seus dados. Nossa equipe pode entrar em contato.' },
 };
@@ -122,3 +141,75 @@ export function tokenFromUrl() {
   if (typeof window === 'undefined' || !window.location) return '';
   try { return new URL(window.location.href).searchParams.get('token') || ''; } catch { return ''; }
 }
+
+// ---- Fase 4: KYC completo ----------------------------------------------
+export const getKyc = (client = apiClient) => client('/v1/customers/kyc', { method: 'GET' });
+export const saveKycAddress = (address, client = apiClient) => client('/v1/customers/kyc/address', { method: 'PUT', body: JSON.stringify(address) });
+export const saveKycDeclarations = (input, client = apiClient) => client('/v1/customers/kyc/declarations', { method: 'PUT', body: JSON.stringify(input) });
+export const saveKycDocumentType = (documentType, client = apiClient) => client('/v1/customers/kyc/document-type', { method: 'PUT', body: JSON.stringify({ documentType }) });
+export const submitKyc = (client = apiClient) => client('/v1/customers/kyc/submit', { method: 'POST', body: JSON.stringify({}) });
+
+export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
+
+// Envia o arquivo como bytes puros (sem multipart). Usa fetch direto porque
+// o apiClient sempre manda JSON. O tipo REAL é conferido pela API.
+export async function uploadKycDocument({ kind, file, token, baseUrl, fetchImpl = fetch }) {
+  if (!file) throw Object.assign(new Error('Selecione um arquivo.'), { code: 'KYC_DOCUMENT_EMPTY' });
+  if (file.size > MAX_UPLOAD_BYTES) throw Object.assign(new Error('Arquivo grande demais.'), { code: 'KYC_DOCUMENT_TOO_LARGE' });
+  if (file.type && !UPLOAD_TYPES.includes(file.type)) throw Object.assign(new Error('Formato inválido.'), { code: 'KYC_DOCUMENT_FORMAT_INVALID' });
+  if (kind === 'SELFIE' && file.type === 'application/pdf') throw Object.assign(new Error('Selfie em PDF.'), { code: 'KYC_SELFIE_PDF' });
+  const res = await fetchImpl(`${String(baseUrl).replace(/\/$/, '')}/v1/customers/kyc/documents/${kind}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+    body: file,
+  });
+  let json = null;
+  try { json = await res.json(); } catch { /* corpo vazio */ }
+  if (!res.ok) throw Object.assign(new Error(json?.error?.message || 'Falha no envio.'), { code: json?.error?.code || 'UPLOAD_FAILED', status: res.status });
+  return json?.data?.document;
+}
+
+// CEP → endereço (ViaCEP, serviço público). Só o CEP sai do navegador.
+export async function lookupCep(cep, fetchImpl = fetch) {
+  const digits = onlyDigits(cep);
+  if (digits.length !== 8) return null;
+  try {
+    const res = await fetchImpl(`https://viacep.com.br/ws/${digits}/json/`);
+    if (!res.ok) return null;
+    const j = await res.json();
+    if (j.erro) return null;
+    return { street: j.logradouro || '', district: j.bairro || '', city: j.localidade || '', state: j.uf || '' };
+  } catch { return null; }
+}
+
+export function maskCepInput(value = '') {
+  const d = onlyDigits(value).slice(0, 8);
+  return d.length <= 5 ? d : `${d.slice(0, 5)}-${d.slice(5)}`;
+}
+
+export const INCOME_OPTIONS = [
+  { value: 'ATE_2K', label: 'Até R$ 2.000' },
+  { value: 'DE_2K_A_5K', label: 'De R$ 2.000 a R$ 5.000' },
+  { value: 'DE_5K_A_10K', label: 'De R$ 5.000 a R$ 10.000' },
+  { value: 'DE_10K_A_20K', label: 'De R$ 10.000 a R$ 20.000' },
+  { value: 'ACIMA_20K', label: 'Acima de R$ 20.000' },
+];
+export const DOCUMENT_TYPE_OPTIONS = [
+  { value: 'RG', label: 'RG (identidade)' },
+  { value: 'CNH', label: 'CNH (carteira de motorista)' },
+  { value: 'RNE', label: 'RNE / CRNM (estrangeiro)' },
+];
+export const DOCUMENT_KINDS = [
+  { kind: 'ID_FRONT', label: 'Documento: frente', hint: 'Foto nítida da frente do documento. Um PDF com frente e verso também vale.' },
+  { kind: 'ID_BACK', label: 'Documento: verso', hint: 'Foto nítida do verso. Dispensado se a frente for um PDF com os dois lados.' },
+  { kind: 'SELFIE', label: 'Selfie', hint: 'Foto do seu rosto, de frente, sem óculos escuros ou boné (JPG ou PNG).' },
+  { kind: 'PROOF_OF_ADDRESS', label: 'Comprovante de residência', hint: 'Conta de consumo ou extrato emitido nos últimos 90 dias.' },
+];
+export const MISSING_LABELS = {
+  PERSONAL_INFO: 'Dados pessoais', ADDRESS: 'Endereço', DECLARATIONS: 'Declarações', ID_DOCUMENT_TYPE: 'Tipo de documento',
+  ID_FRONT: 'Documento: frente', ID_BACK: 'Documento: verso', SELFIE: 'Selfie', PROOF_OF_ADDRESS: 'Comprovante de residência',
+};
+export const incomeLabel = (v) => INCOME_OPTIONS.find((o) => o.value === v)?.label || '—';
+export const documentTypeLabel = (v) => DOCUMENT_TYPE_OPTIONS.find((o) => o.value === v)?.label || '—';
+export const formatBytes = (n) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);

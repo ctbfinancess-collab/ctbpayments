@@ -202,3 +202,56 @@ const styles = StyleSheet.create({
   pageContent: { flexGrow: 1 },
   loading: { alignItems: 'center', backgroundColor: ca.bg, flex: 1, justifyContent: 'center', padding: 40 },
 });
+
+// Escolha entre opções (substitui um <select>): botões em forma de pílula.
+export function ChoiceGroup({ label, options, value, onChange, error }) {
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Text style={styles.label}>{label}</Text>
+      <View accessibilityRole="radiogroup" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {options.map((o) => {
+          const selected = o.value === value;
+          return (
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ checked: selected }}
+              key={String(o.value)}
+              onPress={() => onChange(o.value)}
+              style={({ hovered }) => [choiceStyles.choice, selected && choiceStyles.selected, hovered && !selected && { borderColor: ca.textMuted }]}
+            >
+              <Text style={[choiceStyles.text, selected && { color: ca.goldLight }]}>{o.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+    </View>
+  );
+}
+
+// Seletor de arquivo. No navegador usa o <input type="file"> nativo (abre a
+// câmera no celular). Fora do navegador, orienta a usar o site.
+export function FilePicker({ accept, onFile, disabled, label = 'Escolher arquivo' }) {
+  const inputRef = React.useRef(null);
+  if (Platform.OS !== 'web') return <Text style={styles.hint}>Envie este arquivo pelo site da Área do Cliente.</Text>;
+  return (
+    <View>
+      {React.createElement('input', {
+        ref: inputRef,
+        type: 'file',
+        accept,
+        style: { display: 'none' },
+        onChange: (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) onFile(f); },
+        'aria-hidden': true,
+        tabIndex: -1,
+      })}
+      <Button disabled={disabled} onPress={() => inputRef.current && inputRef.current.click()} style={{ alignSelf: 'flex-start', minWidth: 200 }} title={label} variant="outline" />
+    </View>
+  );
+}
+
+const choiceStyles = StyleSheet.create({
+  choice: { borderColor: ca.borderStrong, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 10, ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}) },
+  selected: { backgroundColor: 'rgba(197, 164, 108, 0.1)', borderColor: ca.goldLight },
+  text: { color: ca.textSoft, fontFamily: fonts.medium, fontSize: 14 },
+});

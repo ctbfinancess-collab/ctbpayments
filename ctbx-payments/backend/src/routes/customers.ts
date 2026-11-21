@@ -6,7 +6,7 @@ import type { CompanyService } from '../services/companyService.js';
 import type { CustomerAuthService } from '../services/customerAuthService.js';
 import type { CustomerEmailChangeService } from '../services/customerEmailChangeService.js';
 import type { CustomerEmailVerificationService } from '../services/customerEmailVerificationService.js';
-import type { CustomerKycService } from '../services/customerKycService.js';
+import { DOCUMENT_KINDS, ID_DOCUMENT_TYPES, INCOME_RANGES, MAX_DOCUMENT_BYTES, type CustomerKycService } from '../services/customerKycService.js';
 import type { CustomerPasswordResetService } from '../services/customerPasswordResetService.js';
 import type { SecurityAuditOutcome, SecurityAuditRepository } from '../repositories/SecurityAuditRepository.js';
 import { envelope } from '../utils/envelope.js';
@@ -48,6 +48,11 @@ const AUDITED_ROUTES: Record<string, string> = {
   'POST /email/change': 'CUSTOMER_EMAIL_CHANGE_REQUEST',
   'POST /email/change/confirm': 'CUSTOMER_EMAIL_CHANGE',
   'PUT /kyc/personal-info': 'CUSTOMER_KYC_PERSONAL_INFO_UPDATE',
+  'PUT /kyc/address': 'CUSTOMER_KYC_ADDRESS_UPDATE',
+  'PUT /kyc/declarations': 'CUSTOMER_KYC_DECLARATIONS_UPDATE',
+  'PUT /kyc/document-type': 'CUSTOMER_KYC_DOCUMENT_TYPE_UPDATE',
+  'POST /kyc/documents/:kind': 'CUSTOMER_KYC_DOCUMENT_UPLOAD',
+  'POST /kyc/submit': 'CUSTOMER_KYC_SUBMIT',
   'POST /companies': 'COMPANY_REGISTER',
   'POST /companies/:companyId/representatives': 'COMPANY_REPRESENTATIVE_ADD',
 };
@@ -104,7 +109,9 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   await app.register(rateLimit, {
     global: false,
     errorResponseBuilder: (request, context) => {
-      const code = request.url.includes('/register')
+      const code = request.url.includes('/kyc')
+        ? 'CUSTOMER_KYC_RATE_LIMITED'
+        : request.url.includes('/register')
         ? 'CUSTOMER_REGISTER_RATE_LIMITED'
         : request.url.includes('/verify-email')
         ? 'CUSTOMER_VERIFY_EMAIL_RATE_LIMITED'
@@ -308,6 +315,72 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
     request.auditDetails = { fields: Object.keys(input).sort().join(',') };
     const personalInfo = await kycService.savePersonalInfo(request.customerAuth!.id, input);
     return envelope(request, { personalInfo });
+  });
+
+  // ---- KYC completo (Fase 4) ------------------------------------------
+  // Resumo do andamento (o que falta, documentos enviados, se pode enviar).
+  app.get('/kyc', { preHandler: sessionGuard }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    return envelope(request, { kyc: await kycService.getOverview(request.customerAuth!.id) });
+  });
+
+  const shortText = (max: number) => ({ type: 'string', minLength: 1, maxLength: max }) as const;
+  app.put('/kyc/address', {
+    preHandler: sessionGuard,
+    schema: { body: objectSchema(['cep', 'street', 'number', 'district', 'city', 'state'], { cep: { type: 'string', minLength: 8, maxLength: 9 }, street: shortText(160), number: shortText(20), complement: { type: 'string', maxLength: 80 }, district: shortText(80), city: shortText(80), state: { type: 'string', minLength: 2, maxLength: 2 } }) },
+  }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    const input = request.body as { cep: string; street: string; number: string; complement?: string; district: string; city: string; state: string };
+    request.auditDetails = { fields: Object.keys(input).sort().join(',') };
+    return envelope(request, { kyc: await kycService.saveAddress(request.customerAuth!.id, input) });
+  });
+
+  app.put('/kyc/declarations', {
+    preHandler: sessionGuard,
+    schema: { body: objectSchema(['isPep', 'occupation', 'incomeRange'], { isPep: { type: 'boolean' }, occupation: shortText(80), incomeRange: { type: 'string', enum: [...INCOME_RANGES] } }) },
+  }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    const input = request.body as { isPep: boolean; occupation: string; incomeRange: string };
+    request.auditDetails = { fields: 'incomeRange,isPep,occupation' };
+    return envelope(request, { kyc: await kycService.saveDeclarations(request.customerAuth!.id, input) });
+  });
+
+  app.put('/kyc/document-type', {
+    preHandler: sessionGuard,
+    schema: { body: objectSchema(['documentType'], { documentType: { type: 'string', enum: [...ID_DOCUMENT_TYPES] } }) },
+  }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    const { documentType } = request.body as { documentType: string };
+    request.auditDetails = { documentType };
+    return envelope(request, { kyc: await kycService.saveIdDocumentType(request.customerAuth!.id, documentType) });
+  });
+
+  // Arquivo enviado como bytes puros (sem multipart). O tipo REAL é
+  // conferido pelos primeiros bytes no service; o Content-Type do
+  // navegador só serve para o servidor aceitar o corpo.
+  app.addContentTypeParser(['image/jpeg', 'image/png', 'application/pdf', 'application/octet-stream'], { parseAs: 'buffer', bodyLimit: MAX_DOCUMENT_BYTES }, (_request, body, done) => done(null, body));
+  app.post('/kyc/documents/:kind', {
+    preHandler: sessionGuard,
+    bodyLimit: MAX_DOCUMENT_BYTES,
+    config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    schema: { params: { type: 'object', additionalProperties: false, required: ['kind'], properties: { kind: { type: 'string', enum: [...DOCUMENT_KINDS] } } } },
+  }, async (request, reply) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    const { kind } = request.params as { kind: string };
+    const body = Buffer.isBuffer(request.body) ? request.body : Buffer.alloc(0);
+    const document = await kycService.uploadDocument(request.customerAuth!.id, kind, body);
+    // Auditoria: tipo, formato e tamanho — nunca o conteúdo.
+    request.auditDetails = { kind, contentType: document.contentType, sizeBytes: document.sizeBytes };
+    return reply.status(201).send(envelope(request, { document }));
+  });
+
+  app.post('/kyc/submit', {
+    preHandler: sessionGuard,
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    schema: { body: emptyObjectSchema },
+  }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    return envelope(request, { kyc: await kycService.submit(request.customerAuth!.id) });
   });
 
   // Estrutura PJ — todas as rotas abaixo exigem sessão real (sessionGuard);

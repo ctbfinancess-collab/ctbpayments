@@ -7,7 +7,8 @@ import { CormorantGaramond_500Medium, CormorantGaramond_600SemiBold } from '@exp
 import { env } from '../config';
 import { SessionProvider, useSession } from '../session';
 import { ConfirmEmailChangePage, ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage } from './authPages';
-import { CustomerDataProvider, DashboardPage, KycPage, ProfilePage, SecurityPage } from './appPages';
+import { CustomerDataProvider, DashboardPage, ProfilePage, SecurityPage } from './appPages';
+import { KycPage } from './kycPage';
 import { linking, TITLES } from './routes';
 import { ca } from './theme';
 import { LoadingBlock } from './ui';

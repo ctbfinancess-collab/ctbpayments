@@ -34,7 +34,7 @@ import { CmsItemsRepository } from './repositories/CmsItemsRepository.js';
 import { CmsSectionsRepository } from './repositories/CmsSectionsRepository.js';
 import { PostgresCompanyRepository, type CompanyRepository } from './repositories/CompanyRepository.js';
 import { PostgresCompanyRepresentativeRepository, type CompanyRepresentativeRepository } from './repositories/CompanyRepresentativeRepository.js';
-import { PostgresCustomerKycRepository, type CustomerKycRepository } from './repositories/CustomerKycRepository.js';
+import { PostgresCustomerKycRepository, PostgresKycDocumentRepository, type CustomerKycRepository, type KycDocumentRepository } from './repositories/CustomerKycRepository.js';
 import { PostgresCustomerEmailChangeRepository, type CustomerEmailChangeRepository } from './repositories/CustomerEmailChangeRepository.js';
 import { PostgresCustomerEmailVerificationRepository, type CustomerEmailVerificationRepository } from './repositories/CustomerEmailVerificationRepository.js';
 import { PostgresCustomerPasswordResetRepository, type CustomerPasswordResetRepository } from './repositories/CustomerPasswordResetRepository.js';
@@ -42,7 +42,10 @@ import { PostgresCustomerRepository, type CustomerRepository } from './repositor
 import { PostgresCustomerSessionRepository, type CustomerSessionRepository } from './repositories/CustomerSessionRepository.js';
 import { InMemoryCompanyRepository } from './repositories/InMemoryCompanyRepository.js';
 import { InMemoryCompanyRepresentativeRepository } from './repositories/InMemoryCompanyRepresentativeRepository.js';
-import { InMemoryCustomerKycRepository } from './repositories/InMemoryCustomerKycRepository.js';
+import { InMemoryCustomerKycRepository, InMemoryKycDocumentRepository } from './repositories/InMemoryCustomerKycRepository.js';
+import { randomBytes } from 'node:crypto';
+import { InMemoryDocumentStorage, S3DocumentStorage, type DocumentStorage } from './storage/DocumentStorage.js';
+import { EncryptedDocumentVault, parseEncryptionKey } from './storage/EncryptedDocumentVault.js';
 import { InMemoryCustomerEmailChangeRepository } from './repositories/InMemoryCustomerEmailChangeRepository.js';
 import { InMemoryCustomerEmailVerificationRepository } from './repositories/InMemoryCustomerEmailVerificationRepository.js';
 import { InMemoryCustomerPasswordResetRepository } from './repositories/InMemoryCustomerPasswordResetRepository.js';
@@ -180,6 +183,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // KYC (Etapa 1 — dados pessoais complementares) — mesmo par real+
   // fallback dos demais domínios de Customer Identity.
   let customerKycRepository: CustomerKycRepository = new InMemoryCustomerKycRepository();
+  let kycDocumentRepository: KycDocumentRepository = new InMemoryKycDocumentRepository();
   // Registro de auditoria de segurança (Fase 2) — mesmo par real+fallback.
   let auditRepository: SecurityAuditRepository = new InMemorySecurityAuditRepository();
   if (!options.providers && config.databaseUrl) {
@@ -204,6 +208,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
     companyRepository = new PostgresCompanyRepository(db);
     companyRepresentativeRepository = new PostgresCompanyRepresentativeRepository(db);
     customerKycRepository = new PostgresCustomerKycRepository(db);
+    kycDocumentRepository = new PostgresKycDocumentRepository(db);
     auditRepository = new PostgresSecurityAuditRepository(db);
   }
   const providers: ProviderRegistry = options.providers ?? sandboxProviders(config, sessionRepository, accountRepository, ledgerRepository, pixKeyRepository, physicalCardRepository, transportCardRepository, investmentSimulationRepository, consignedRepository, billingRepository, validationRepository, virtualCards);
@@ -227,7 +232,21 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   // KYC — nunca fail-closed sem DATABASE_URL, mesmo par real+fallback de
   // tudo em Customer Identity (ver comentário acima em
   // customerKycRepository).
-  const kycService = new CustomerKycService(customerRepository, customerKycRepository);
+  // Documentos do KYC (Fase 4). Produção: só com
+  // KYC_DOCUMENT_UPLOADS_ENABLED=true + bucket privado + chave de
+  // criptografia; faltando qualquer um, o envio responde "indisponível".
+  // Fora de produção: bucket em memória e chave temporária (testes).
+  const isProduction = config.nodeEnv === 'production';
+  const kycCfg = config.kyc;
+  let kycVault: EncryptedDocumentVault | undefined;
+  const kycKey = parseEncryptionKey(kycCfg?.encryptionKey) ?? (isProduction ? undefined : randomBytes(32));
+  const kycStorage: DocumentStorage | undefined = kycCfg?.bucket
+    ? new S3DocumentStorage({ endpoint: kycCfg.bucket.endpoint, region: kycCfg.bucket.region, bucket: kycCfg.bucket.name, accessKeyId: kycCfg.bucket.accessKeyId, secretAccessKey: kycCfg.bucket.secretAccessKey, forcePathStyle: kycCfg.bucket.forcePathStyle })
+    : (isProduction ? undefined : new InMemoryDocumentStorage());
+  if (kycKey && kycStorage) kycVault = new EncryptedDocumentVault(kycStorage, kycKey);
+  const kycUploadsEnabled = isProduction ? Boolean(kycCfg?.uploadsEnabled && kycVault) : kycCfg?.uploadsEnabled !== false;
+  if (config.nodeEnv === 'test' && kycStorage instanceof InMemoryDocumentStorage) app.decorate('testKycStorage', kycStorage);
+  const kycService = new CustomerKycService(customerRepository, customerKycRepository, undefined, kycDocumentRepository, kycVault, kycUploadsEnabled);
   // Etapa 3 — mesmo EmailProvider criado na Etapa 1 (createEmailProvider):
   // Resend real em produção, InMemory em dev/test por padrão. Nenhuma
   // segunda integração com o Resend é feita em lugar nenhum.

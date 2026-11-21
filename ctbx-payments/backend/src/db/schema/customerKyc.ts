@@ -1,4 +1,4 @@
-import { date, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, date, index, integer, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { customers } from './customers.js';
 
 // KYC do cliente PF — Etapa 1 (dados pessoais complementares). Tabela
@@ -31,6 +31,45 @@ export const customerKyc = pgTable('customer_kyc', {
   // progresso que as próximas etapas (endereço, documentos...) vão
   // reaproveitar, cada uma com seu próprio *_completed_at.
   personalInfoCompletedAt: timestamp('personal_info_completed_at', { withTimezone: true }),
+  // Fase 4 — endereço residencial.
+  addressCep: text('address_cep'),
+  addressStreet: text('address_street'),
+  addressNumber: text('address_number'),
+  addressComplement: text('address_complement'),
+  addressDistrict: text('address_district'),
+  addressCity: text('address_city'),
+  addressState: text('address_state'),
+  addressCompletedAt: timestamp('address_completed_at', { withTimezone: true }),
+  // Fase 4 — declarações (prevenção à lavagem de dinheiro).
+  isPep: boolean('is_pep'),
+  occupation: text('occupation'),
+  incomeRange: text('income_range'),
+  declarationsCompletedAt: timestamp('declarations_completed_at', { withTimezone: true }),
+  // Fase 4 — tipo do documento com foto (RG | CNH | RNE) e envio para análise.
+  idDocumentType: text('id_document_type'),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Fase 4 — documentos do KYC. O ARQUIVO fica criptografado no bucket
+// privado; aqui ficam só os metadados e os dados para descriptografar
+// (IV/etiqueta; a chave fica nas variáveis do servidor). Um arquivo novo do
+// mesmo tipo substitui o anterior (status REPLACED), sem apagar o histórico.
+// Sem ON DELETE CASCADE: documentos de KYC precisam ser guardados pelo
+// prazo legal mesmo que algo aconteça com o cadastro.
+export const customerKycDocuments = pgTable('customer_kyc_documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  customerId: uuid('customer_id').notNull().references(() => customers.id),
+  kind: text('kind').notNull(), // ID_FRONT | ID_BACK | SELFIE | PROOF_OF_ADDRESS
+  status: text('status').notNull().default('ACTIVE'), // ACTIVE | REPLACED
+  contentType: text('content_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  sha256: text('sha256').notNull(),
+  storageKey: text('storage_key').notNull().unique(),
+  keyId: text('key_id').notNull(),
+  iv: text('iv').notNull(),
+  authTag: text('auth_tag').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  replacedAt: timestamp('replaced_at', { withTimezone: true }),
+}, (t) => [index('customer_kyc_documents_customer_idx').on(t.customerId, t.kind, t.status)]);

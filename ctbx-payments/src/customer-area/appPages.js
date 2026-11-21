@@ -2,9 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { StyleSheet, Text, View } from 'react-native';
 import { useSession } from '../session';
 import { sessionFromCustomerAuth } from '../services/authService';
-import { getKycPersonalInfo, saveKycPersonalInfo } from '../services/customerKycClient';
 import { AppLayout } from './layouts';
-import { brazilianToIso, changePassword, formatDate, getMe, isoToBrazilian, isSessionError, kycStatusInfo, maskDateInput, messageFor, passwordProblem, requestEmailChange, validateKyc } from './logic';
+import { changePassword, formatDate, getMe, isSessionError, kycStatusInfo, messageFor, passwordProblem, requestEmailChange } from './logic';
 import { ca, fonts } from './theme';
 import { Body, Button, Card, DataRow, Eyebrow, Field, Heading, LoadingBlock, Notice, StatusPill, useLayout } from './ui';
 
@@ -28,9 +27,9 @@ export function CustomerDataProvider({ children }) {
   return <CustomerDataContext.Provider value={{ data, error, reload, handleError }}>{children}</CustomerDataContext.Provider>;
 }
 
-const useCustomerData = () => useContext(CustomerDataContext);
+export const useCustomerData = () => useContext(CustomerDataContext);
 
-function Shell({ active, title, subtitle, children }) {
+export function Shell({ active, title, subtitle, children }) {
   const { logout, user } = useSession();
   const { data, error, reload } = useCustomerData();
   const name = data?.profile?.name || user?.name || '';
@@ -130,82 +129,6 @@ export function ProfilePage() {
   );
 }
 
-const STEPS = [
-  { key: 'personal', label: 'Dados pessoais' },
-  { key: 'address', label: 'Endereço' },
-  { key: 'documents', label: 'Documentos' },
-  { key: 'review', label: 'Análise' },
-];
-
-function Steps() {
-  const { isTablet } = useLayout();
-  return (
-    <View style={[styles.steps, !isTablet && { flexDirection: 'column' }]}>
-      {STEPS.map((s, i) => (
-        <View key={s.key} style={[styles.step, i === 0 && styles.stepActive]}>
-          <Text style={[styles.stepNumber, i === 0 && { color: ca.onGold, backgroundColor: ca.gold }]}>{i + 1}</Text>
-          <View>
-            <Text style={[styles.stepLabel, i === 0 && { color: ca.text }]}>{s.label}</Text>
-            <Text style={styles.stepState}>{i === 0 ? 'Etapa atual' : 'Em breve'}</Text>
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-export function KycPage() {
-  const { data, reload, handleError } = useCustomerData();
-  const [form, setForm] = useState(null);
-  const [loadError, setLoadError] = useState('');
-  const [errors, setErrors] = useState({});
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
-  useEffect(() => {
-    getKycPersonalInfo()
-      .then((res) => { const i = res.data.personalInfo; setForm({ birthDate: isoToBrazilian(i.birthDate), motherName: i.motherName || '', nationality: i.nationality || '' }); })
-      .catch(async (e) => { if (!(await handleError(e))) setLoadError(messageFor(e, 'Não foi possível carregar seus dados.')); });
-  }, [handleError]);
-  const set = (key, mask) => (value) => setForm((f) => ({ ...f, [key]: mask ? mask(value) : value }));
-  const save = async () => {
-    const found = validateKyc(form);
-    setErrors(found); setResult(null);
-    if (Object.keys(found).length) return;
-    const patch = {};
-    if (form.birthDate) patch.birthDate = brazilianToIso(form.birthDate);
-    if (form.motherName.trim()) patch.motherName = form.motherName.trim();
-    if (form.nationality.trim()) patch.nationality = form.nationality.trim();
-    if (!Object.keys(patch).length) return setResult({ kind: 'error', text: 'Preencha ao menos um campo para salvar.' });
-    setBusy(true);
-    try { await saveKycPersonalInfo(patch); await reload(); setResult({ kind: 'success', text: 'Dados salvos. Você pode sair e continuar depois: nada se perde.' }); }
-    catch (e) { if (!(await handleError(e))) setResult({ kind: 'error', text: messageFor(e, 'Não foi possível salvar seus dados.') }); }
-    finally { setBusy(false); }
-  };
-  const status = kycStatusInfo(data?.kyc?.status);
-  return (
-    <Shell active="Kyc" subtitle="Exigida por lei para instituições de pagamento. Seus dados ficam protegidos." title="Verificação de identidade">
-      <View style={styles.statusLine}><Body muted>Situação:</Body><StatusPill label={status.label} tone={status.tone} /></View>
-      <Steps />
-      <Card>
-        <Heading level={2} style={{ marginBottom: 6 }}>Dados pessoais</Heading>
-        <Body muted style={{ marginBottom: 22 }}>Nome, CPF, e-mail e celular já vieram do seu cadastro. Complete os dados abaixo.</Body>
-        {loadError ? <Notice kind="error">{loadError}</Notice> : null}
-        {!form && !loadError ? <LoadingBlock /> : null}
-        {form ? (
-          <View style={{ maxWidth: 560 }}>
-            {result ? <Notice kind={result.kind}>{result.text}</Notice> : null}
-            <Field error={errors.birthDate} inputMode="numeric" keyboardType="number-pad" label="Data de nascimento" maxLength={10} onChangeText={set('birthDate', maskDateInput)} placeholder="DD/MM/AAAA" value={form.birthDate} />
-            <Field autoCapitalize="words" error={errors.motherName} label="Nome completo da mãe" onChangeText={set('motherName')} value={form.motherName} />
-            <Field autoCapitalize="words" error={errors.nationality} label="Nacionalidade" onChangeText={set('nationality')} placeholder="Ex.: Brasileira" value={form.nationality} />
-            <Button loading={busy} onPress={save} style={{ alignSelf: 'flex-start', minWidth: 220 }} title="Salvar dados" />
-          </View>
-        ) : null}
-      </Card>
-      <Notice kind="info" style={{ marginTop: 20 }} title="Próximas etapas">Endereço e envio de documentos serão liberados em breve. Ainda não pedimos nenhum documento.</Notice>
-    </Shell>
-  );
-}
-
 function ChangePasswordCard() {
   const { adoptSession } = useSession();
   const { handleError } = useCustomerData();
@@ -292,11 +215,4 @@ const styles = StyleSheet.create({
   cardHeader: { alignItems: 'flex-start', flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' },
   cardButton: { alignSelf: 'flex-start', marginTop: 20, minWidth: 220 },
   soon: { backgroundColor: ca.bg, borderStyle: 'dashed' },
-  statusLine: { alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 18 },
-  steps: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  step: { alignItems: 'center', backgroundColor: ca.bgRaised, borderColor: ca.border, borderRadius: 12, borderWidth: 1, flex: 1, flexDirection: 'row', gap: 12, padding: 14 },
-  stepActive: { borderColor: 'rgba(197, 164, 108, 0.45)' },
-  stepNumber: { backgroundColor: ca.surfaceHigh, borderRadius: 999, color: ca.textSoft, fontFamily: fonts.semibold, fontSize: 13, height: 28, lineHeight: 28, textAlign: 'center', width: 28 },
-  stepLabel: { color: ca.textSoft, fontFamily: fonts.semibold, fontSize: 14 },
-  stepState: { color: ca.textMuted, fontFamily: fonts.regular, fontSize: 12, marginTop: 2 },
 });
