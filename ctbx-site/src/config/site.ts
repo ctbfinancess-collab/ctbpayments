@@ -32,8 +32,8 @@ export const site = {
   legalUpdatedAt: '2026-11-21',
   // Encarregado de dados (DPO), exigido pela LGPD. NÃO INVENTAR.
   dpo: {
-    // Encarregado de dados (LGPD): o presidente, informado pela empresa em 2026-11-19.
-    name: 'Tarik Muhamad Ali' as string | null,
+    // Encarregado de dados (LGPD): Caio Batista, informado pela empresa em 2026-11-21 (antes: o presidente). Contato: e-mail de compliance.
+    name: 'Caio Batista' as string | null,
     email: 'compliance@ctbxpayments.com' as string | null,
   },
 
