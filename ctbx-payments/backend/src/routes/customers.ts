@@ -53,6 +53,7 @@ const AUDITED_ROUTES: Record<string, string> = {
   'PUT /kyc/document-type': 'CUSTOMER_KYC_DOCUMENT_TYPE_UPDATE',
   'POST /kyc/documents/:kind': 'CUSTOMER_KYC_DOCUMENT_UPLOAD',
   'POST /kyc/submit': 'CUSTOMER_KYC_SUBMIT',
+  'POST /kyc/withdraw': 'CUSTOMER_KYC_WITHDRAW',
   'POST /companies': 'COMPANY_REGISTER',
   'POST /companies/:companyId/representatives': 'COMPANY_REPRESENTATIVE_ADD',
 };
@@ -381,6 +382,15 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
   }, async (request) => {
     if (!kycService) throw providerNotConfigured('de KYC');
     return envelope(request, { kyc: await kycService.submit(request.customerAuth!.id) });
+  });
+
+  app.post('/kyc/withdraw', {
+    preHandler: sessionGuard,
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+    schema: { body: emptyObjectSchema },
+  }, async (request) => {
+    if (!kycService) throw providerNotConfigured('de KYC');
+    return envelope(request, { kyc: await kycService.withdraw(request.customerAuth!.id) });
   });
 
   // Estrutura PJ — todas as rotas abaixo exigem sessão real (sessionGuard);

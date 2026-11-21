@@ -7,10 +7,10 @@ import { Shell, useCustomerData } from './appPages';
 import {
   brazilianToIso, DOCUMENT_KINDS, DOCUMENT_TYPE_OPTIONS, documentTypeLabel, formatBytes, formatDate, getKyc, INCOME_OPTIONS, incomeLabel,
   isoToBrazilian, kycStatusInfo, lookupCep, maskCepInput, maskDateInput, messageFor, MISSING_LABELS, saveKycAddress, saveKycDeclarations,
-  saveKycDocumentType, submitKyc, uploadKycDocument, validateKyc,
+  saveKycDocumentType, submitKyc, uploadKycDocument, validateKyc, withdrawKyc,
 } from './logic';
 import { ca, fonts } from './theme';
-import { Body, Button, Card, ChoiceGroup, DataRow, Field, FilePicker, Heading, LoadingBlock, Notice, StatusPill, useLayout } from './ui';
+import { Body, Button, Card, ChoiceGroup, DataRow, Field, FilePicker, Heading, LinkText, LoadingBlock, Notice, StatusPill, useLayout } from './ui';
 
 // Verificação de identidade completa (Fase 4): 5 etapas, cada uma salva
 // sozinha ("pode sair e continuar depois"). Depois de enviada para análise,
@@ -96,7 +96,7 @@ function PersonalStep({ kyc, onSaved }) {
     }, 'Dados pessoais salvos.');
   };
   return (
-    <StepCard subtitle="Nome, CPF, e-mail e celular já vieram do seu cadastro." title="Dados pessoais">
+    <StepCard saved={kyc.personalInfo.complete} subtitle="Nome, CPF, e-mail e celular já vieram do seu cadastro." title="Dados pessoais">
       {result ? <Notice kind={result.kind}>{result.text}</Notice> : null}
       <Field error={errors.birthDate} inputMode="numeric" keyboardType="number-pad" label="Data de nascimento" maxLength={10} onChangeText={set('birthDate', maskDateInput)} placeholder="DD/MM/AAAA" value={form.birthDate} />
       <Field autoCapitalize="words" error={errors.motherName} label="Nome completo da mãe" onChangeText={set('motherName')} value={form.motherName} />
@@ -106,7 +106,7 @@ function PersonalStep({ kyc, onSaved }) {
   );
 }
 
-function AddressStep({ kyc, onSaved }) {
+function AddressStep({ kyc, onSaved, goTo }) {
   const a = kyc.address;
   const [form, setForm] = useState({ cep: maskCepInput(a.cep || ''), street: a.street || '', number: a.number || '', complement: a.complement || '', district: a.district || '', city: a.city || '', state: a.state || '' });
   const [lookup, setLookup] = useState('');
@@ -132,7 +132,7 @@ function AddressStep({ kyc, onSaved }) {
   const small = isTablet ? styles.colSmall : null;
   const wide = isTablet ? styles.colWide : null;
   return (
-    <StepCard subtitle="Endereço onde você mora hoje. Ele precisa bater com o comprovante de residência." title="Endereço">
+    <StepCard onBack={() => goTo(prevStep('address'))} saved={kyc.address.complete} subtitle="Endereço onde você mora hoje. Ele precisa bater com o comprovante de residência." title="Endereço">
       {result ? <Notice kind={result.kind}>{result.text}</Notice> : null}
       <View style={row}>
         <View style={small}><Field hint={lookup || 'O endereço é preenchido a partir do CEP.'} inputMode="numeric" keyboardType="number-pad" label="CEP" maxLength={9} onChangeText={onCep} placeholder="00000-000" value={form.cep} /></View>
@@ -152,7 +152,7 @@ function AddressStep({ kyc, onSaved }) {
   );
 }
 
-function DeclarationsStep({ kyc, onSaved }) {
+function DeclarationsStep({ kyc, onSaved, goTo }) {
   const d = kyc.declarations;
   const [form, setForm] = useState({ isPep: d.isPep, occupation: d.occupation || '', incomeRange: d.incomeRange || null });
   const { busy, result, setResult, run } = useSaver(onSaved);
@@ -161,7 +161,7 @@ function DeclarationsStep({ kyc, onSaved }) {
     run(async () => (await saveKycDeclarations({ isPep: form.isPep, occupation: form.occupation.trim(), incomeRange: form.incomeRange })).data.kyc, 'Declarações salvas.');
   };
   return (
-    <StepCard subtitle="Exigidas pelas regras de prevenção à lavagem de dinheiro." title="Declarações">
+    <StepCard onBack={() => goTo(prevStep('declarations'))} saved={kyc.declarations.complete} subtitle="Exigidas pelas regras de prevenção à lavagem de dinheiro." title="Declarações">
       {result ? <Notice kind={result.kind}>{result.text}</Notice> : null}
       <ChoiceGroup label="Você é pessoa politicamente exposta (PEP)?" onChange={(v) => setForm((f) => ({ ...f, isPep: v }))} options={[{ value: false, label: 'Não' }, { value: true, label: 'Sim' }]} value={form.isPep} />
       <Body muted style={{ fontSize: 13, lineHeight: 20, marginBottom: 18, marginTop: -8 }}>PEP é quem exerce ou exerceu, nos últimos 5 anos, cargo público relevante (como mandato eletivo, cargo de ministro ou de alto escalão), além de seus familiares e pessoas próximas.</Body>
@@ -187,7 +187,7 @@ function DocumentRow({ item, doc, waived, uploading, onFile, disabled }) {
   );
 }
 
-function DocumentsStep({ kyc, onSaved }) {
+function DocumentsStep({ kyc, onSaved, goTo }) {
   const { accessToken } = useSession();
   const { handleError } = useCustomerData();
   const [uploading, setUploading] = useState(null);
@@ -209,7 +209,7 @@ function DocumentsStep({ kyc, onSaved }) {
     finally { setUploading(null); }
   };
   return (
-    <StepCard subtitle="Seus arquivos são criptografados antes de serem guardados e só a equipe de análise tem acesso." title="Documentos">
+    <StepCard onBack={() => goTo(prevStep('documents'))} subtitle="Seus arquivos são criptografados antes de serem guardados e só a equipe de análise tem acesso. Errou um arquivo? Use “Trocar arquivo”." title="Documentos">
       {!kyc.documents.uploadsEnabled ? <Notice kind="warning" title="Envio de documentos indisponível">O envio de arquivos ainda não foi liberado. Você pode completar as outras etapas e voltar depois.</Notice> : null}
       {result ? <Notice kind={result.kind}>{result.text}</Notice> : null}
       <ChoiceGroup label="Qual documento com foto você vai enviar?" onChange={chooseType} options={DOCUMENT_TYPE_OPTIONS} value={kyc.documents.idDocumentType} />
@@ -226,6 +226,7 @@ function DocumentsStep({ kyc, onSaved }) {
         />
       ))}
       {!kyc.documents.idDocumentType ? <Body muted style={{ fontSize: 13, marginTop: 10 }}>Escolha o tipo de documento para liberar o envio da frente e do verso.</Body> : null}
+      <Button onPress={() => goTo('review')} style={[styles.saveButton, { marginTop: 18 }]} title="Continuar para a revisão" />
     </StepCard>
   );
 }
@@ -239,22 +240,22 @@ function ReviewStep({ kyc, onSaved, goTo }) {
     run(async () => (await submitKyc()).data.kyc, 'Enviado para análise.');
   };
   return (
-    <StepCard subtitle="Confira tudo antes de enviar. Depois do envio, os dados não podem ser alterados durante a análise." title="Revisão e envio">
+    <StepCard onBack={() => goTo(prevStep('review'))} subtitle="Confira tudo antes de enviar. Algo errado? Clique em “Editar” no bloco correspondente." title="Revisão e envio">
       {result ? <Notice kind={result.kind}>{result.text}</Notice> : null}
       {kyc.missing.length ? (
         <Notice kind="warning" title="Falta completar">{kyc.missing.map((m) => MISSING_LABELS[m] || m).join(' · ')}</Notice>
       ) : null}
-      <Text style={styles.reviewTitle}>Dados pessoais</Text>
+      <View style={styles.reviewHead}><Text style={styles.reviewTitle}>Dados pessoais</Text><LinkText onPress={() => goTo('personal')}>Editar</LinkText></View>
       <DataRow label="Data de nascimento" value={p.birthDate ? isoToBrazilian(p.birthDate) : '—'} />
       <DataRow label="Nome da mãe" value={p.motherName || '—'} />
       <DataRow last label="Nacionalidade" value={p.nationality || '—'} />
-      <Text style={styles.reviewTitle}>Endereço</Text>
+      <View style={styles.reviewHead}><Text style={styles.reviewTitle}>Endereço</Text><LinkText onPress={() => goTo('address')}>Editar</LinkText></View>
       <DataRow last label="Endereço" value={a.complete ? `${a.street}, ${a.number}${a.complement ? ` (${a.complement})` : ''} · ${a.district} · ${a.city}/${a.state} · CEP ${maskCepInput(a.cep)}` : '—'} />
-      <Text style={styles.reviewTitle}>Declarações</Text>
+      <View style={styles.reviewHead}><Text style={styles.reviewTitle}>Declarações</Text><LinkText onPress={() => goTo('declarations')}>Editar</LinkText></View>
       <DataRow label="Pessoa politicamente exposta" value={d.isPep === null ? '—' : d.isPep ? 'Sim' : 'Não'} />
       <DataRow label="Profissão" value={d.occupation || '—'} />
       <DataRow last label="Renda mensal" value={incomeLabel(d.incomeRange)} />
-      <Text style={styles.reviewTitle}>Documentos</Text>
+      <View style={styles.reviewHead}><Text style={styles.reviewTitle}>Documentos</Text><LinkText onPress={() => goTo('documents')}>Editar</LinkText></View>
       <DataRow label="Tipo de documento" value={documentTypeLabel(kyc.documents.idDocumentType)} />
       <DataRow last label="Arquivos enviados" value={`${kyc.documents.items.length}`} />
       <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agreed }} onPress={() => setAgreed((v) => !v)} style={styles.agree}>
@@ -269,17 +270,50 @@ function ReviewStep({ kyc, onSaved, goTo }) {
   );
 }
 
-function StepCard({ title, subtitle, children }) {
+function StepCard({ title, subtitle, children, saved, onBack }) {
   return (
     <Card>
       <Heading level={2} style={{ marginBottom: 6 }}>{title}</Heading>
-      {subtitle ? <Body muted style={{ marginBottom: 22 }}>{subtitle}</Body> : null}
+      {subtitle ? <Body muted style={{ marginBottom: saved ? 10 : 22 }}>{subtitle}</Body> : null}
+      {saved ? <Text style={styles.saved}>✓ Etapa salva. Você pode alterar quando quiser antes de enviar para análise.</Text> : null}
       <View style={{ maxWidth: 640 }}>{children}</View>
+      {onBack ? <View style={{ marginTop: 14 }}><Button onPress={onBack} style={{ alignSelf: 'flex-start', minWidth: 160 }} title="← Voltar" variant="ghost" /></View> : null}
     </Card>
   );
 }
 
-function SubmittedView({ kyc }) {
+const prevStep = (key) => { const i = STEPS.findIndex((s) => s.key === key); return i > 0 ? STEPS[i - 1].key : null; };
+
+function WithdrawBox({ onWithdrawn }) {
+  const { handleError } = useCustomerData();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const go = async () => {
+    setBusy(true); setError('');
+    try { onWithdrawn((await withdrawKyc()).data.kyc); }
+    catch (e) { if (!(await handleError(e))) setError(messageFor(e)); }
+    finally { setBusy(false); }
+  };
+  return (
+    <View style={{ marginTop: 18 }}>
+      {error ? <Notice kind="error">{error}</Notice> : null}
+      {confirming ? (
+        <>
+          <Notice kind="warning" title="Retirar o envio da análise?">Seus dados voltam a ficar editáveis. Depois de corrigir, você precisa enviar de novo para análise, e o pedido volta para o fim da fila.</Notice>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <Button loading={busy} onPress={go} style={{ minWidth: 240 }} title="Retirar e corrigir" />
+            <Button onPress={() => setConfirming(false)} style={{ minWidth: 160 }} title="Cancelar" variant="ghost" />
+          </View>
+        </>
+      ) : (
+        <Button onPress={() => setConfirming(true)} style={{ alignSelf: 'flex-start', minWidth: 220 }} title="Corrigir algum dado" variant="ghost" />
+      )}
+    </View>
+  );
+}
+
+function SubmittedView({ kyc, onWithdrawn }) {
   const info = kycStatusInfo(kyc.status);
   return (
     <Card style={{ borderColor: 'rgba(197, 164, 108, 0.35)' }}>
@@ -291,7 +325,8 @@ function SubmittedView({ kyc }) {
       {kyc.submittedAt ? <Body muted style={{ marginTop: 8 }}>Enviado em {formatDate(kyc.submittedAt)}.</Body> : null}
       {kyc.status === 'REJECTED' && kyc.review?.reason ? <Notice kind="error" style={{ marginTop: 18 }} title="Motivo">{kyc.review.reason}</Notice> : null}
       {kyc.status === 'REJECTED' ? <Body muted style={{ marginTop: 12 }}>Se tiver dúvidas, fale com nosso atendimento: contato@ctbxpayments.com.</Body> : null}
-      {kyc.status === 'SUBMITTED' ? <Notice kind="info" style={{ marginTop: 18 }}>Durante a análise, seus dados ficam bloqueados para alteração. Se precisarmos de algum ajuste, você recebe um e-mail e poderá corrigir por aqui.</Notice> : null}
+      {kyc.status === 'SUBMITTED' ? <Notice kind="info" style={{ marginTop: 18 }}>Durante a análise, seus dados ficam bloqueados. Percebeu um erro? Enquanto nossa equipe não concluir a análise, você pode retirar o envio, corrigir e enviar de novo.</Notice> : null}
+      {kyc.status === 'SUBMITTED' ? <WithdrawBox onWithdrawn={onWithdrawn} /> : null}
       {kyc.status === 'APPROVED' ? <Notice kind="success" style={{ marginTop: 18 }}>Os serviços financeiros serão liberados assim que estiverem disponíveis. Avisaremos você por e-mail.</Notice> : null}
     </Card>
   );
@@ -317,7 +352,7 @@ export function KycPage() {
   let body;
   if (loadError) body = <Notice kind="error">{loadError}</Notice>;
   else if (!kyc) body = <LoadingBlock />;
-  else if (!kyc.editable) body = <SubmittedView kyc={kyc} />;
+  else if (!kyc.editable) body = <SubmittedView kyc={kyc} onWithdrawn={(next) => { setKyc(next); reload(); setStep('review'); }} />;
   else {
     const props = { kyc, onSaved, goTo: setStep };
     body = (
@@ -361,7 +396,9 @@ const styles = StyleSheet.create({
   colWide: { flex: 1 },
   docRow: { alignItems: 'center', borderTopColor: ca.border, borderTopWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between', paddingVertical: 18 },
   docTitle: { color: ca.text, fontFamily: fonts.semibold, fontSize: 15 },
-  reviewTitle: { color: ca.goldLight, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 1.4, marginTop: 18, textTransform: 'uppercase' },
+  reviewTitle: { color: ca.goldLight, fontFamily: fonts.semibold, fontSize: 12, letterSpacing: 1.4, textTransform: 'uppercase' },
+  reviewHead: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 18 },
+  saved: { color: ca.success, fontFamily: fonts.medium, fontSize: 13, marginBottom: 18 },
   agree: { alignItems: 'flex-start', flexDirection: 'row', gap: 12, marginBottom: 20, marginTop: 22 },
   checkbox: { alignItems: 'center', borderColor: ca.borderStrong, borderRadius: 6, borderWidth: 1, height: 22, justifyContent: 'center', width: 22 },
   checkboxOn: { backgroundColor: ca.gold, borderColor: ca.gold },

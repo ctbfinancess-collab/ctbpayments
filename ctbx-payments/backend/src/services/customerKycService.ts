@@ -220,6 +220,15 @@ export class CustomerKycService {
     return this.getOverview(customerId);
   }
 
+  // O cliente retira o envio da análise para corrigir algo — só enquanto
+  // ninguém da equipe decidiu (troca atômica SUBMITTED → IN_PROGRESS).
+  async withdraw(customerId: string): Promise<KycOverview> {
+    const now = this.now();
+    const ok = await this.kyc.transitionStatus(customerId, 'SUBMITTED', { status: 'IN_PROGRESS', submittedAt: null }, now);
+    if (!ok) throw new ApiError('KYC_NOT_WITHDRAWABLE', 'Este envio não está mais em análise e não pode ser retirado.', { statusCode: 409 });
+    return this.getOverview(customerId);
+  }
+
   private async requireEditable(customerId: string): Promise<CustomerKycRecord | undefined> {
     const customer = await this.customers.findById(customerId);
     if (!customer) throw new ApiError('CUSTOMER_NOT_FOUND', 'Cliente não encontrado.', { statusCode: 404 });

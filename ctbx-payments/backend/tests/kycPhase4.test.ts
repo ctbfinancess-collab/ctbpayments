@@ -191,3 +191,19 @@ test('in production, document uploads stay OFF unless explicitly enabled AND con
   await assert.rejects(service.uploadDocument(customer.id, 'ID_FRONT', JPEG), (e: unknown) => (e as { code?: string }).code === 'KYC_UPLOADS_DISABLED');
   assert.equal((await service.getOverview(customer.id)).documents.uploadsEnabled, false);
 });
+
+test('the customer can withdraw a submission to fix something — only while nobody has decided yet', async (t) => {
+  const { app, login, as, audit } = await setup();
+  t.after(() => app.close());
+  const c = as(await login(A));
+  await completeEverything(c);
+  await c.post('/v1/customers/kyc/submit');
+  const w = await c.post('/v1/customers/kyc/withdraw');
+  assert.equal(w.statusCode, 200);
+  assert.equal(w.json().data.kyc.status, 'IN_PROGRESS');
+  assert.equal(w.json().data.kyc.editable, true);
+  assert.equal((await c.put('/v1/customers/kyc/address', { ...ADDRESS, number: '2000' })).statusCode, 200); // corrige
+  assert.equal((await c.post('/v1/customers/kyc/withdraw')).json().error.code, 'KYC_NOT_WITHDRAWABLE'); // nada em análise
+  assert.equal((await c.post('/v1/customers/kyc/submit')).json().data.kyc.status, 'SUBMITTED'); // reenvia
+  assert.ok(audit.events.some((e) => e.event === 'CUSTOMER_KYC_WITHDRAW' && e.outcome === 'SUCCESS'));
+});

@@ -36,6 +36,7 @@ const MESSAGES = {
   KYC_NATIONALITY_INVALID: 'Informe a nacionalidade.',
   KYC_LOCKED: 'Seus dados já foram enviados para análise e não podem ser alterados agora.',
   KYC_INCOMPLETE: 'Complete todas as etapas antes de enviar para análise.',
+  KYC_NOT_WITHDRAWABLE: 'Nossa equipe já concluiu a análise; não é mais possível retirar o envio.',
   KYC_CEP_INVALID: 'CEP inválido.',
   KYC_STATE_INVALID: 'Estado (UF) inválido.',
   KYC_STREET_INVALID: 'Informe a rua.',
@@ -149,6 +150,7 @@ export const saveKycAddress = (address, client = apiClient) => client('/v1/custo
 export const saveKycDeclarations = (input, client = apiClient) => client('/v1/customers/kyc/declarations', { method: 'PUT', body: JSON.stringify(input) });
 export const saveKycDocumentType = (documentType, client = apiClient) => client('/v1/customers/kyc/document-type', { method: 'PUT', body: JSON.stringify({ documentType }) });
 export const submitKyc = (client = apiClient) => client('/v1/customers/kyc/submit', { method: 'POST', body: JSON.stringify({}) });
+export const withdrawKyc = (client = apiClient) => client('/v1/customers/kyc/withdraw', { method: 'POST', body: JSON.stringify({}) });
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
